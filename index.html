@@ -15,7 +15,7 @@
 :root{
   --bg:#f1f6f2;--head:#f1f6f2;--surface:#fbfdfb;--fg:#12241a;--muted:#55695c;--line:#d3e0d6;
   --accent:#1f8a4c;--accent-fg:#ffffff;--accent-soft:#dcefe2;--danger:#b3261e;
-  --note-bg:#fff3cf;--note-fg:#5a4300;--ta:#1f8a4c;--tb:#2b6cb0;
+  --note-bg:#fff3cf;--note-fg:#5a4300;--ta:#d9480f;--tb:#2b6cb0;--on-t:#ffffff;--grass-1:#3a9a5a;--grass-2:#348f52;
   --bronze-1:#ebcfae;--bronze-2:#c99a68;--bronze-f:#3a2410;
   --silver-1:#f0f3f5;--silver-2:#b8c2ca;--silver-f:#1e2a32;
   --gold-1:#f8e394;--gold-2:#d9aa2e;--gold-f:#3b2b00;
@@ -28,7 +28,7 @@
   :root:not([data-theme="light"]){
     --bg:#0e1712;--head:#0e1712;--surface:#15211a;--fg:#e6f0e9;--muted:#93a89b;--line:#263a2d;
     --accent:#5fd08a;--accent-fg:#06210f;--accent-soft:#1b3a28;--danger:#ff8a80;
-    --note-bg:#3b3112;--note-fg:#ffe9a0;--ta:#5fd08a;--tb:#7db8f2;
+    --note-bg:#3b3112;--note-fg:#ffe9a0;--ta:#ff9a5a;--tb:#7db8f2;--on-t:#0b1520;--grass-1:#1e5a35;--grass-2:#1b5230;
     --bronze-1:#74512f;--bronze-2:#4a3019;--bronze-f:#f6e2c8;
     --silver-1:#5b6770;--silver-2:#39444c;--silver-f:#eef2f5;
     --gold-1:#8f6e16;--gold-2:#5e4608;--gold-f:#fff0b8;
@@ -39,7 +39,7 @@
 :root[data-theme="dark"]{
   --bg:#0e1712;--head:#0e1712;--surface:#15211a;--fg:#e6f0e9;--muted:#93a89b;--line:#263a2d;
   --accent:#5fd08a;--accent-fg:#06210f;--accent-soft:#1b3a28;--danger:#ff8a80;
-  --note-bg:#3b3112;--note-fg:#ffe9a0;--ta:#5fd08a;--tb:#7db8f2;
+  --note-bg:#3b3112;--note-fg:#ffe9a0;--ta:#ff9a5a;--tb:#7db8f2;--on-t:#0b1520;--grass-1:#1e5a35;--grass-2:#1b5230;
   --bronze-1:#74512f;--bronze-2:#4a3019;--bronze-f:#f6e2c8;
   --silver-1:#5b6770;--silver-2:#39444c;--silver-f:#eef2f5;
   --gold-1:#8f6e16;--gold-2:#5e4608;--gold-f:#fff0b8;
@@ -168,6 +168,28 @@ dialog#ed::backdrop{background:rgb(0 0 0 / .45)}
 .bar .l i{background:var(--ta)}.bar .r i{background:var(--tb)}
 .diff{display:grid;gap:4px}
 .diff strong{font-family:var(--f-display);font-size:1.5rem}
+/* Cancha */
+.pitch{position:relative;width:100%;max-width:460px;margin:0 auto;aspect-ratio:3/5;border-radius:16px;overflow:hidden;
+  background:repeating-linear-gradient(180deg,var(--grass-1) 0 10%,var(--grass-2) 10% 20%);box-shadow:inset 0 0 0 1px rgb(0 0 0 / .15)}
+.pitch .pl{position:absolute;display:block;border:2px solid rgb(255 255 255 / .55);pointer-events:none}
+.pitch .pl-out{inset:3%}
+.pitch .pl-mid{left:3%;right:3%;top:50%;height:0;border-width:2px 0 0}
+.pitch .pl-circ{left:50%;top:50%;width:28%;aspect-ratio:1;border-radius:50%;transform:translate(-50%,-50%)}
+.pitch .pl-box{left:22%;right:22%;height:14%}
+.pitch .pl-sbox{left:37%;right:37%;height:5.5%}
+.pitch .pl-box.t,.pitch .pl-sbox.t{top:3%;border-top:0}
+.pitch .pl-box.b,.pitch .pl-sbox.b{bottom:3%;border-bottom:0}
+.pitch .pl-spot{left:50%;top:50%;width:6px;height:6px;border:0;border-radius:50%;background:rgb(255 255 255 / .7);transform:translate(-50%,-50%)}
+.tok{position:absolute;transform:translate(-50%,-50%);display:grid;justify-items:center;gap:3px;width:78px;z-index:1}
+.tok.a,.pl-lbl.a{--tc:var(--ta)}.tok.b,.pl-lbl.b{--tc:var(--tb)}
+.tok-ph{position:relative;display:block}
+.tok-av{width:42px;height:42px;border-radius:50%;object-fit:cover;display:grid;place-items:center;background:var(--surface);color:var(--fg);
+  font-family:var(--f-display);font-weight:700;font-size:1.2rem;border:3px solid var(--tc);box-shadow:0 2px 6px rgb(0 0 0 / .35)}
+.tok-ovr{position:absolute;right:-14px;top:-6px;min-width:26px;padding:1px 4px;border-radius:999px;background:var(--tc);color:var(--on-t);
+  font-family:var(--f-display);font-weight:700;font-size:.9rem;line-height:1.2;text-align:center;box-shadow:0 1px 3px rgb(0 0 0 / .3)}
+.tok-n{max-width:78px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.72rem;font-weight:600;color:#fff;background:rgb(0 0 0 / .5);padding:1px 6px;border-radius:999px}
+.pl-lbl{position:absolute;left:5%;z-index:2;padding:2px 8px;border-radius:999px;background:var(--tc);color:var(--on-t);font-weight:700;font-size:.75rem}
+.pl-lbl.a{bottom:calc(3% + 4px)}.pl-lbl.b{top:calc(3% + 4px)}
 .sr{position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0}
 #toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:20;background:var(--fg);color:var(--bg);
   padding:10px 16px;border-radius:999px;font-weight:600;max-width:calc(100vw - 32px);text-align:center}
@@ -673,6 +695,38 @@ function cmpRow(label,a,b){
   l.append(i1);rr.append(i2);bar.append(l,rr);m.append(bar);
   r.append(m,el("span","cv b",b.toFixed(1)));return r;
 }
+/* Cancha: equipo B arriba, equipo A abajo. f = distancia al medio (0) → arco propio (1). */
+function pitchLines(team){
+  const g={ARQ:[],DEF:[],MED:[],DEL:[]};
+  team.slice().sort((a,b)=>b.ovr-a.ovr).forEach(p=>g[p.pos].push(p));
+  const lines=[];
+  if(g.ARQ.length)lines.push({f:.88,ps:g.ARQ.slice(0,1)});
+  const outl=[];
+  [["DEF",g.ARQ.slice(1).concat(g.DEF)],["MED",g.MED],["DEL",g.DEL]].forEach(([,ps])=>{
+    if(!ps.length)return;
+    const n=Math.ceil(ps.length/4),per=Math.ceil(ps.length/n);
+    for(let i=0;i<n;i++)outl.push(ps.slice(i*per,(i+1)*per));
+  });
+  const k=outl.length;
+  outl.forEach((ps,i)=>lines.push({f:k===1?.45:.70-.50*i/(k-1),ps}));
+  return lines;
+}
+function token(p,side,x,y){
+  const t=el("div","tok "+side);t.style.left=x+"%";t.style.top=y+"%";
+  t.title=p.name+" · "+p.pos+" · "+p.ovr;
+  const ph=el("span","tok-ph");ph.append(avatar(p,"tok-av"),el("span","tok-ovr",String(p.ovr)));
+  t.append(ph,el("span","tok-n",p.name));
+  return t;
+}
+function pitch(o,sa,sb){
+  const pt=el("div","pitch");
+  ["pl-out","pl-mid","pl-circ","pl-box t","pl-box b","pl-sbox t","pl-sbox b","pl-spot"].forEach(c=>pt.append(el("i","pl "+c)));
+  [["B",o.B,"b",sb,-1],["A",o.A,"a",sa,1]].forEach(([name,team,side,st,dir])=>{
+    pitchLines(team).forEach(l=>l.ps.forEach((p,i)=>pt.append(token(p,side,(i+1)/(l.ps.length+1)*100,50+dir*50*l.f))));
+    pt.append(el("span","pl-lbl "+side,"Equipo "+name+" · "+st.avg.toFixed(1)));
+  });
+  return pt;
+}
 function renderResult(){
   const eq=ui.eq;
   $("eq-result").hidden=!eq;$("eq-controls").hidden=!eq;
@@ -697,7 +751,7 @@ function renderResult(){
   dv.append(el("h3",null,"Diferencia"));
   dv.append(el("strong",null,(dO<=1?"Muy parejo":dO<=3?"Parejo":"Dispar")+" · "+dO.toFixed(1)+" de OVR promedio"));
   dv.append(el("p","muted","Total OVR: "+sa.tot+" vs "+sb.tot+" (diferencia "+Math.abs(sa.tot-sb.tot)+"). Mayor brecha en "+maxK[2]+": "+maxD.toFixed(1)+"."));
-  box.append(teams,cmp,dv);
+  box.append(pitch(o,sa,sb),teams,cmp,dv);
 }
 function renderEquipos(){
   const list=S.slice().sort(byName);
