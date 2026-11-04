@@ -1,5 +1,15 @@
+<!doctype html>
+<html lang="es">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Ranking Fútbol</title>
-<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="theme-color" content="#f1f6f2" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e1712" media="(prefers-color-scheme: dark)">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Ranking Fútbol">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -39,10 +49,11 @@
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 body{margin:0;background:var(--bg);color:var(--fg);font:400 16px/1.4 var(--f-body);
-  padding-left:max(16px, env(safe-area-inset-left,0px));padding-right:max(16px, env(safe-area-inset-right,0px));padding-block:0 48px;
+  padding-left:max(16px, env(safe-area-inset-left,0px));padding-right:max(16px, env(safe-area-inset-right,0px));padding-block:0 calc(96px + env(safe-area-inset-bottom,0px));
   font-variant-numeric:tabular-nums;-webkit-text-size-adjust:100%}
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--head)}
 button,input,select,textarea{font:inherit;color:inherit}
+button,a,label,select,input{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 :focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 h1,h2,h3{font-family:var(--f-display);font-weight:700;margin:0;letter-spacing:.01em;line-height:1.1}
 h2{font-size:1.7rem}h3{font-size:1.3rem}
@@ -52,11 +63,19 @@ p{margin:0}
   padding-left:max(16px, env(safe-area-inset-left,0px));padding-right:max(16px, env(safe-area-inset-right,0px));
   border-bottom:1px solid var(--line)}
 .top-in,main{max-width:720px;margin:0 auto}
-.brand{padding-top:10px;font-family:var(--f-display);font-weight:700;font-size:1.5rem;letter-spacing:.02em;display:flex;align-items:center;gap:8px}
+.brand{padding-block:10px;font-family:var(--f-display);font-weight:700;font-size:1.5rem;letter-spacing:.02em;display:flex;align-items:center;gap:8px}
 .brand i{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--accent)}
-.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
-.tabs a{display:flex;align-items:center;justify-content:center;min-height:44px;text-decoration:none;color:var(--muted);font-weight:600;border-bottom:3px solid transparent}
-.tabs a[aria-current="page"]{color:var(--fg);border-bottom-color:var(--accent)}
+.bnav{position:fixed;left:0;right:0;bottom:0;z-index:12;background:var(--head);border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(3,minmax(0,160px));justify-content:center;gap:4px;
+  padding:6px max(8px, env(safe-area-inset-right,0px)) calc(6px + env(safe-area-inset-bottom,0px)) max(8px, env(safe-area-inset-left,0px))}
+.bnav a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:52px;text-decoration:none;color:var(--muted);font-size:.8rem;font-weight:600;border-radius:12px}
+.bnav a[aria-current="page"]{color:var(--accent);background:var(--accent-soft)}
+.bnav svg{width:24px;height:24px}
+.av{width:28px;height:28px;border-radius:50%;object-fit:cover;flex:none;display:inline-grid;place-items:center;background:var(--accent-soft);color:var(--fg);font-family:var(--f-display);font-weight:700;font-size:.95rem}
+.av.lg{width:56px;height:56px;border-radius:14px;font-size:1.6rem}
+.vt-head{display:flex;align-items:center;gap:12px}
+.tn{display:flex;align-items:center;gap:8px;min-width:0;overflow-wrap:anywhere}
+#vt-save,#eq-go{position:sticky;bottom:calc(76px + env(safe-area-inset-bottom,0px));z-index:5;box-shadow:0 4px 14px rgb(0 0 0 / .18)}
+#eq-controls{scroll-margin-top:72px}
 main{padding-block:16px 0;display:grid;gap:16px}
 section.view{display:grid;gap:16px}
 .note{background:var(--note-bg);color:var(--note-fg);border-radius:10px;padding:10px 12px;font-size:.92rem}
@@ -84,7 +103,18 @@ input[type=text],select{min-height:44px;border:1px solid var(--line);border-radi
 .card.gold{--c1:var(--gold-1);--c2:var(--gold-2);--cf:var(--gold-f)}
 .card-body{all:unset;box-sizing:border-box;display:grid;gap:6px;padding:12px 12px 6px;cursor:pointer}
 .card-body:focus-visible{outline:3px solid var(--cf);outline-offset:-3px}
-.c-top{display:flex;align-items:baseline;gap:8px}
+.c-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.c-ov{display:flex;flex-direction:column;gap:2px}
+.c-img{width:64px;height:64px;border-radius:12px;object-fit:cover;flex:none;border:2px solid color-mix(in srgb,var(--cf) 35%,transparent)}
+.c-ph{display:grid;place-items:center;font-family:var(--f-display);font-weight:700;font-size:1.9rem;background:color-mix(in srgb,var(--cf) 10%,transparent);opacity:.8}
+label.btn{display:inline-flex;align-items:center}
+dialog#ed{border:1px solid var(--line);border-radius:16px;background:var(--surface);color:var(--fg);padding:0;width:min(420px,calc(100vw - 32px))}
+dialog#ed::backdrop{background:rgb(0 0 0 / .45)}
+.ed-in{display:grid;gap:12px;padding:16px}
+.ed-photo{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.ed-prev{width:96px;height:96px;border-radius:14px;background:var(--accent-soft);display:grid;place-items:center;overflow:hidden;font-family:var(--f-display);font-size:2.4rem;font-weight:700;flex:none}
+.ed-prev img{width:100%;height:100%;object-fit:cover}
+.ed-pbtns{display:flex;flex-wrap:wrap;gap:8px}
 .c-ovr{font-family:var(--f-display);font-weight:700;font-size:2.6rem;line-height:1}
 .c-pos{font-family:var(--f-display);font-weight:600;font-size:1.1rem;letter-spacing:.06em;opacity:.85}
 .c-name{font-family:var(--f-display);font-weight:700;font-size:1.3rem;text-transform:uppercase;letter-spacing:.03em;overflow-wrap:anywhere;
@@ -96,7 +126,12 @@ input[type=text],select{min-height:44px;border:1px solid var(--line);border-radi
 .c-foot .btn{background:transparent;color:var(--cf);border-color:color-mix(in srgb,var(--cf) 45%,transparent);min-height:30px;padding:0 8px;font-size:.78rem}
 .c-ask{font-weight:600}
 .slr{display:grid;grid-template-columns:1fr auto 3ch;gap:2px 10px;align-items:baseline}
-.slr input{grid-column:1/-1;width:100%;height:32px;accent-color:var(--accent)}
+.slr input{grid-column:1/-1;width:100%;height:40px;margin:0;background:transparent;-webkit-appearance:none;appearance:none;--p:50%}
+.slr input::-webkit-slider-runnable-track{height:10px;border-radius:5px;background:linear-gradient(to right,var(--accent) var(--p),var(--line) var(--p))}
+.slr input::-webkit-slider-thumb{-webkit-appearance:none;width:30px;height:30px;margin-top:-10px;border-radius:50%;background:var(--surface);border:3px solid var(--accent);box-shadow:0 1px 4px rgb(0 0 0 / .3)}
+.slr input::-moz-range-track{height:10px;border-radius:5px;background:var(--line)}
+.slr input::-moz-range-progress{height:10px;border-radius:5px;background:var(--accent)}
+.slr input::-moz-range-thumb{width:26px;height:26px;border-radius:50%;background:var(--surface);border:3px solid var(--accent)}
 .sl-n{font-family:var(--f-display);font-weight:700;font-size:1.6rem;text-align:right;grid-column:3;grid-row:1}
 .sl-l{grid-column:1;grid-row:1;font-weight:500}
 .sl-l b{font-family:var(--f-display);font-size:1.1rem;letter-spacing:.04em}
@@ -134,7 +169,7 @@ input[type=text],select{min-height:44px;border:1px solid var(--line);border-radi
 .diff{display:grid;gap:4px}
 .diff strong{font-family:var(--f-display);font-size:1.5rem}
 .sr{position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0}
-#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:max(16px, env(safe-area-inset-bottom,0px));z-index:20;background:var(--fg);color:var(--bg);
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:20;background:var(--fg);color:var(--bg);
   padding:10px 16px;border-radius:999px;font-weight:600;max-width:calc(100vw - 32px);text-align:center}
 @media (prefers-reduced-motion: no-preference){
   #toast{animation:fade .2s ease-out}
@@ -147,13 +182,13 @@ input[type=text],select{min-height:44px;border:1px solid var(--line);border-radi
 <header class="top">
   <div class="top-in">
     <div class="brand"><i aria-hidden="true"></i>Ranking Fútbol</div>
-    <nav class="tabs" aria-label="Secciones">
-      <a href="#plantel" id="t-plantel">Plantel</a>
-      <a href="#votar" id="t-votar">Votar</a>
-      <a href="#equipos" id="t-equipos">Equipos</a>
-    </nav>
   </div>
 </header>
+<nav class="bnav" aria-label="Secciones">
+  <a href="#plantel" id="t-plantel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 19v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1"/><circle cx="9" cy="7" r="4"/><path d="M22 19v-1a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg><span>Plantel</span></a>
+  <a href="#votar" id="t-votar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg><span>Votar</span></a>
+  <a href="#equipos" id="t-equipos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"/></svg><span>Equipos</span></a>
+</nav>
 
 <main>
   <div id="banner" class="note" hidden>Modo local: los datos quedan solo en este dispositivo.</div>
@@ -195,7 +230,7 @@ input[type=text],select{min-height:44px;border:1px solid var(--line);border-radi
       <label class="f" for="vt-player">Jugador
         <select id="vt-player"></select>
       </label>
-      <p id="vt-summary" class="muted"></p>
+      <div class="vt-head"><span id="vt-av"></span><p id="vt-summary" class="muted"></p></div>
       <div id="vt-sliders" style="display:grid;gap:10px"></div>
       <button type="button" class="btn primary w" id="vt-save">Guardar voto</button>
     </div>
@@ -225,13 +260,42 @@ input[type=text],select{min-height:44px;border:1px solid var(--line);border-radi
       <strong id="eq-opt"></strong>
       <span class="sp"></span>
       <button type="button" class="btn small" id="eq-next">Otra opción</button>
-      <button type="button" class="btn small" id="eq-copy">Copiar equipos</button>
+      <button type="button" class="btn small" id="eq-copy">Copiar</button>
+      <a class="btn small" id="eq-wa" href="#" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;text-decoration:none">WhatsApp</a>
     </div>
     <div id="eq-result" style="display:grid;gap:12px" hidden></div>
   </section>
 </main>
 
 <div id="toast" role="status" aria-live="polite" hidden></div>
+<dialog id="ed" aria-labelledby="ed-t">
+  <form id="ed-form" class="ed-in" autocomplete="off">
+    <h3 id="ed-t">Editar jugador</h3>
+    <div class="ed-photo">
+      <div id="ed-prev" class="ed-prev" aria-hidden="true"></div>
+      <div class="ed-pbtns">
+        <label class="btn small" for="ed-file">Elegir foto</label>
+        <input type="file" id="ed-file" class="sr" accept="image/*">
+        <button type="button" class="btn small" id="ed-rm">Quitar foto</button>
+      </div>
+    </div>
+    <label class="f" for="ed-name">Nombre
+      <input type="text" id="ed-name" maxlength="30">
+    </label>
+    <label class="f" for="ed-pos">Posición
+      <select id="ed-pos">
+        <option value="ARQ">ARQ · Arquero</option>
+        <option value="DEF">DEF · Defensor</option>
+        <option value="MED">MED · Mediocampista</option>
+        <option value="DEL">DEL · Delantero</option>
+      </select>
+    </label>
+    <div class="row"><span class="sp"></span>
+      <button type="button" class="btn" id="ed-cancel">Cancelar</button>
+      <button type="submit" class="btn primary" id="ed-save">Guardar</button>
+    </div>
+  </form>
+</dialog>
 <textarea id="copy-ta" class="sr" aria-label="Texto de equipos para copiar" tabindex="-1" readonly></textarea>
 
 <script>
@@ -252,9 +316,21 @@ const ROSTER={
 };
 function withRoster(o){
   const r={};
-  for(const id in ROSTER)r[id]=Object.assign({createdBy:"roster",createdAt:0},ROSTER[id],{fixed:true});
+  for(const id in ROSTER)r[id]=Object.assign({createdBy:"roster",createdAt:0},ROSTER[id],o[id]||{},{fixed:true});
   for(const id in o)if(!ROSTER[id])r[id]=o[id];
   return r;
+}
+function photoOf(id,p){
+  if(typeof p.photo==="string"&&p.photo.startsWith("data:image/"))return p.photo;
+  if(api&&p.photoV)return "/api/photo?id="+encodeURIComponent(id)+"&v="+encodeURIComponent(p.photoV);
+  return null;
+}
+function patchPlayer(cur,patch){
+  const p=Object.assign({},cur);delete p.fixed;
+  if(patch.name!==undefined)p.name=patch.name;
+  if(patch.pos!==undefined)p.pos=patch.pos;
+  if(patch.photo===null)delete p.photo;else if(patch.photo)p.photo=patch.photo;
+  return p;
 }
 const $=id=>document.getElementById(id);
 function el(tag,cls,text){const e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e;}
@@ -262,7 +338,7 @@ const byName=(a,b)=>a.name.localeCompare(b.name,"es");
 
 /* ---------- Backend ---------- */
 /* Tres modos: claude.ai (db del artifact) · Vercel (/api + Upstash Redis) · local (localStorage) */
-let db=null,user=null,myId=null,api=null,apiErr=null;
+let db=null,user=null,myId=null,api=null,apiErr=null,mut=0;
 try{
   if(window.claude){db=await claude.use("db");user=await claude.use("user");myId=await user.id();}
 }catch(e){db=null;myId=null;}
@@ -287,6 +363,7 @@ function apiVoterId(){
   }
   return id;
 }
+async function mutate(method,url,body){mut++;applyApi(await call(method,url,body));}
 function applyApi(d){state.players=withRoster(d.players||{});state.votes=d.votes||{};}
 const shared=!!db;
 if(api)myId=apiVoterId();
@@ -304,6 +381,7 @@ function lsSave(){try{localStorage.setItem(LS,JSON.stringify({players:state.play
 const store=shared?{
   async addPlayer(name,pos){await db.collection("players").add({name,pos,createdBy:myId,createdAt:Date.now()});},
   async deletePlayer(pid){await db.doc("players/"+pid).delete();},
+  async updatePlayer(pid,patch){await db.doc("players/"+pid).set(patchPlayer(state.players[pid],patch));},
   async saveVote(pid,r){
     const cur=state.votes[myId];
     const doc=cur?JSON.parse(JSON.stringify(cur)):{ratings:{}};
@@ -312,13 +390,17 @@ const store=shared?{
     state.votes[myId]=doc;
   }
 }:api?{
-  async addPlayer(name,pos){applyApi(await call("POST","/api/players",{name,pos}));},
-  async deletePlayer(pid){applyApi(await call("DELETE","/api/players?id="+encodeURIComponent(pid)));},
-  async saveVote(pid,r){applyApi(await call("PUT","/api/vote",{voter:myId,pid,ratings:r}));}
+  async addPlayer(name,pos){await mutate("POST","/api/players",{name,pos});},
+  async deletePlayer(pid){await mutate("DELETE","/api/players?id="+encodeURIComponent(pid));},
+  async updatePlayer(pid,patch){await mutate("PATCH","/api/players",Object.assign({id:pid},patch));},
+  async saveVote(pid,r){await mutate("PUT","/api/vote",{voter:myId,pid,ratings:r});}
 }:{
   async addPlayer(name,pos){
     const id="p"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
     state.players[id]={name,pos,createdBy:"local",createdAt:Date.now()};lsSave();
+  },
+  async updatePlayer(pid,patch){
+    state.players[pid]=Object.assign(patchPlayer(state.players[pid],patch),state.players[pid].fixed?{fixed:true}:{});lsSave();
   },
   async deletePlayer(pid){
     delete state.players[pid];
@@ -367,7 +449,7 @@ function computeStats(){
     }
     const attrs={};let tot=0;
     ATTRS.forEach(a=>{attrs[a[0]]=n?Math.round(sum[a[0]]/n):50;tot+=attrs[a[0]];});
-    out.push({id:pid,name:String(p.name||"?"),pos:POS.includes(p.pos)?p.pos:"MED",attrs,ovr:n?Math.round(tot/6):50,nVotes:n,fixed:!!p.fixed});
+    out.push({id:pid,name:String(p.name||"?"),pos:POS.includes(p.pos)?p.pos:"MED",attrs,ovr:n?Math.round(tot/6):50,nVotes:n,fixed:!!p.fixed,photo:photoOf(pid,p)});
   }
   return out;
 }
@@ -450,18 +532,29 @@ function balance(players){
 }
 
 /* ---------- Render: Plantel ---------- */
-function card(p){
+function avatar(p,cls){
+  if(p.photo){const i=el("img",cls);i.src=p.photo;i.alt="";i.loading="lazy";return i;}
+  return el("span",cls,(p.name.trim().charAt(0)||"?").toUpperCase());
+}
+function card(p,rank){
   const has=p.nVotes>0;
   const tier=!has?"none":p.ovr>=75?"gold":p.ovr>=65?"silver":"bronze";
   const art=el("article","card "+tier);
   const body=el("button","card-body");body.type="button";body.setAttribute("aria-label","Votar a "+p.name);
-  const top=el("div","c-top");top.append(el("span","c-ovr",has?String(p.ovr):"—"),el("span","c-pos",p.pos));
+  const top=el("div","c-top");const ov=el("div","c-ov");
+  ov.append(el("span","c-ovr",has?String(p.ovr):"—"),el("span","c-pos",p.pos));top.append(ov);
+  if(p.photo){const im=el("img","c-img");im.src=p.photo;im.alt="";im.loading="lazy";top.append(im);}
+  else top.append(el("span","c-img c-ph",p.name.trim().charAt(0).toUpperCase()||"?"));
   const st=el("div","c-stats");
   ATTRS.forEach(a=>{const s=el("span","c-stat");s.append(el("b",null,has?String(p.attrs[a[0]]):"—")," "+a[1]);st.append(s);});
   body.append(top,el("div","c-name",p.name),st);
   body.onclick=()=>{ui.votarSel=p.id;ui.loadedFor=null;location.hash="#votar";};
   const f=el("div","c-foot");
-  f.append(el("span","c-votes",has?p.nVotes+(p.nVotes===1?" voto":" votos"):"sin votos"));
+  f.append(el("span","c-votes",has?(rank?"#"+rank+" · ":"")+p.nVotes+(p.nVotes===1?" voto":" votos"):"sin votos"));
+  if(ui.confirmDel!==p.id){
+    const eb=el("button","btn w","Editar");eb.type="button";eb.setAttribute("aria-label","Editar a "+p.name);
+    eb.onclick=()=>openEdit(p.id);f.append(eb);
+  }
   if(p.fixed){/* plantel fijo: sin botón de borrar */}
   else if(ui.confirmDel===p.id){
     const yes=el("button","btn w","Sí");yes.type="button";
@@ -483,14 +576,14 @@ function renderPlantel(){
   $("pl-empty").hidden=loading||list.length>0;
   if(same("pl",JSON.stringify([list,ui.confirmDel,loading])))return;
   const g=$("pl-grid");g.replaceChildren();
-  if(!loading)list.forEach(p=>g.append(card(p)));
+  if(!loading)list.forEach((p,i)=>g.append(card(p,p.nVotes?i+1:0)));
 }
 
 /* ---------- Render: Votar ---------- */
 function loadSliders(){
   const pid=ui.votarSel;if(!pid)return;
   const mine=myRatings()[pid];
-  ATTRS.forEach(a=>{const v=mine&&typeof mine[a[0]]==="number"?mine[a[0]]:60;$("vt-"+a[0]).value=v;$("vt-"+a[0]+"-n").textContent=v;});
+  ATTRS.forEach(a=>{const v=mine&&typeof mine[a[0]]==="number"?mine[a[0]]:60;$("vt-"+a[0]).value=v;setP($("vt-"+a[0]));$("vt-"+a[0]+"-n").textContent=v;});
   ui.loadedFor=pid;
 }
 function renderVotar(){
@@ -507,6 +600,7 @@ function renderVotar(){
   if(ui.loadedFor!==ui.votarSel)loadSliders();
   const p=S.find(x=>x.id===ui.votarSel);
   ATTRS.forEach(a=>{$("vt-"+a[0]+"-avg").textContent=p.nVotes?"Prom. "+p.attrs[a[0]]:"";});
+  $("vt-av").replaceChildren(avatar(p,"av lg"));
   $("vt-summary").textContent=p.nVotes?"Promedio actual: "+p.ovr+" OVR con "+p.nVotes+(p.nVotes===1?" voto":" votos"):"Todavía sin votos. Tu voto va a ser el primero.";
   const mine=myRatings();
   const done=list.filter(x=>mine[x.id]).length;
@@ -521,6 +615,12 @@ function renderVotar(){
     ch.append(b);
   });
 }
+function setP(rg){rg.style.setProperty("--p",((rg.value-1)/98*100)+"%");}
+function nextPending(){
+  const list=S.slice().sort(byName),mine=myRatings(),i=list.findIndex(x=>x.id===ui.votarSel);
+  for(let k=1;k<=list.length;k++){const x=list[(i+k+list.length)%list.length];if(x.id!==ui.votarSel&&!mine[x.id])return x;}
+  return null;
+}
 function buildSliders(){
   const box=$("vt-sliders");
   ATTRS.forEach(a=>{
@@ -530,14 +630,14 @@ function buildSliders(){
     const avg=el("span","sl-a");avg.id=id+"-avg";
     const out=el("output","sl-n","60");out.id=id+"-n";
     const rg=el("input","w");rg.type="range";rg.min=1;rg.max=99;rg.step=1;rg.value=60;rg.id=id;
-    rg.oninput=()=>{out.textContent=rg.value;};
+    rg.oninput=()=>{out.textContent=rg.value;setP(rg);};
     row.append(lab,avg,out,rg);box.append(row);
   });
 }
 function syncSave(){
   const b=$("vt-save");
   b.disabled=ui.saving||ui.noPerm;
-  b.textContent=ui.saving?"Guardando…":"Guardar voto";
+  b.textContent=ui.saving?"Guardando…":(nextPending()?"Guardar y seguir":"Guardar voto");
 }
 
 /* ---------- Render: Equipos ---------- */
@@ -558,7 +658,7 @@ function teamCard(name,cls,team,st){
   h.append(s);c.append(h);
   const ul=el("ul","team-l");
   team.slice().sort((a,b)=>POS.indexOf(a.pos)-POS.indexOf(b.pos)||b.ovr-a.ovr).forEach(p=>{
-    const li=el("li");const nm=el("span",null,p.name);
+    const li=el("li");const nm=el("span","tn");nm.append(avatar(p,"av"),el("span",null,p.name));
     if(!p.nVotes)nm.append(el("small","nv","sin votos"));
     li.append(el("span","pos",p.pos),nm,el("span","po",String(p.ovr)));ul.append(li);
   });
@@ -580,6 +680,7 @@ function renderResult(){
   const o=eq.opts[eq.i];const sa=teamStats(o.A),sb=teamStats(o.B);
   $("eq-opt").textContent="Opción "+(eq.i+1)+" de "+eq.opts.length;
   $("eq-next").disabled=eq.opts.length<2;
+  $("eq-wa").href="https://wa.me/?text="+encodeURIComponent(eqText());
   const box=$("eq-result");box.replaceChildren();
   const teams=el("div","teams");
   teams.append(teamCard("Equipo A","a",o.A,sa),teamCard("Equipo B","b",o.B,sb));
@@ -656,9 +757,16 @@ $("vt-save").onclick=async()=>{
   if(ui.saving||ui.noPerm||!ui.votarSel)return;
   const r={};ATTRS.forEach(a=>{r[a[0]]=+$("vt-"+a[0]).value;});
   ui.saving=true;syncSave();
-  try{await store.saveVote(ui.votarSel,r);toast("Voto guardado");}
+  let ok=false;
+  try{await store.saveVote(ui.votarSel,r);ok=true;}
   catch(err){handleErr(err);}
-  ui.saving=false;sigs.vch=null;renderAll();
+  ui.saving=false;sigs.vch=null;
+  if(ok){
+    S=computeStats();const nx=nextPending();
+    if(nx){ui.votarSel=nx.id;ui.loadedFor=null;toast("Voto guardado. Ahora: "+nx.name);window.scrollTo({top:0,behavior:"smooth"});}
+    else toast("Voto guardado. ¡Ya votaste a todos!");
+  }
+  renderAll();
 };
 $("eq-all").onclick=()=>{ui.sel=new Set(Object.keys(state.players));ui.eq=null;renderAll();};
 $("eq-none").onclick=()=>{ui.sel=new Set();ui.eq=null;renderAll();};
@@ -670,6 +778,7 @@ $("eq-go").onclick=()=>{
     try{ui.eq={opts:balance(pl),i:0};}
     catch(e){toast("No se pudieron armar los equipos");ui.eq=null;}
     ui.calc=false;b.textContent="Armar equipos";updateEqCount();renderResult();
+    if(ui.eq)$("eq-controls").scrollIntoView({behavior:"smooth",block:"start"});
   },30);
 };
 $("eq-next").onclick=()=>{if(!ui.eq)return;ui.eq.i=(ui.eq.i+1)%ui.eq.opts.length;renderResult();};
@@ -682,6 +791,59 @@ $("eq-copy").onclick=()=>{
     toast(ok?"Equipos copiados":"Texto seleccionado: copialo a mano");
   };
   try{navigator.clipboard.writeText(t).then(()=>toast("Equipos copiados"),fb);}catch(e){fb();}
+};
+
+/* ---------- Editar jugador ---------- */
+const ed={id:null,photo:undefined}; /* photo: undefined = sin cambios, null = quitar, string = nueva */
+function setPrev(src,name){
+  const b=$("ed-prev");b.replaceChildren();
+  if(src){const i=el("img");i.src=src;i.alt="";b.append(i);}else b.append((name||"?").trim().charAt(0).toUpperCase()||"?");
+  $("ed-rm").hidden=!src;
+}
+function openEdit(pid){
+  if(ui.noPerm)return;
+  const p=S.find(x=>x.id===pid);if(!p)return;
+  ed.id=pid;ed.photo=undefined;
+  $("ed-name").value=p.name;$("ed-pos").value=p.pos;$("ed-file").value="";
+  $("ed-t").textContent="Editar a "+p.name;
+  setPrev(p.photo,p.name);
+  const d=$("ed");if(d.showModal)d.showModal();else d.setAttribute("open","");
+}
+function closeEdit(){const d=$("ed");if(d.close)d.close();else d.removeAttribute("open");ed.id=null;}
+function resizePhoto(file){
+  return new Promise((res,rej)=>{
+    const u=URL.createObjectURL(file),im=new Image();
+    im.onload=()=>{
+      const s=256,c=document.createElement("canvas");c.width=c.height=s;
+      const w=im.naturalWidth,h=im.naturalHeight,k=Math.min(w,h);
+      const x=c.getContext("2d");x.fillStyle="#ffffff";x.fillRect(0,0,s,s);
+      /* recorte cuadrado; en fotos verticales prioriza la parte de arriba (la cara) */
+      x.drawImage(im,(w-k)/2,Math.max(0,(h-k)*0.3),k,k,0,0,s,s);
+      URL.revokeObjectURL(u);res(c.toDataURL("image/jpeg",0.82));
+    };
+    im.onerror=()=>{URL.revokeObjectURL(u);rej(new Error("No se pudo leer la imagen. Probá con otra foto."));};
+    im.src=u;
+  });
+}
+$("ed-file").onchange=async e=>{
+  const f=e.target.files&&e.target.files[0];if(!f)return;
+  try{ed.photo=await resizePhoto(f);setPrev(ed.photo,$("ed-name").value);}catch(err){toast(err.message);}
+};
+$("ed-rm").onclick=()=>{ed.photo=null;$("ed-file").value="";setPrev(null,$("ed-name").value);};
+$("ed-cancel").onclick=closeEdit;
+$("ed-form").onsubmit=async e=>{
+  e.preventDefault();if(!ed.id)return;
+  const name=$("ed-name").value.trim();
+  if(!name){toast("Escribí un nombre");$("ed-name").focus();return;}
+  const p=S.find(x=>x.id===ed.id),patch={};
+  if(!p||name!==p.name)patch.name=name;
+  if(!p||$("ed-pos").value!==p.pos)patch.pos=$("ed-pos").value;
+  if(ed.photo!==undefined)patch.photo=ed.photo;
+  if(!Object.keys(patch).length){closeEdit();return;}
+  const b=$("ed-save");b.disabled=true;b.textContent="Guardando…";
+  try{await store.updatePlayer(ed.id,patch);toast("Jugador actualizado");closeEdit();}
+  catch(err){handleErr(err);}
+  b.disabled=false;b.textContent="Guardar";sigs.pl=sigs.vsel=sigs.vch=sigs.eq=null;renderAll();
 };
 
 buildSliders();
@@ -708,7 +870,8 @@ if(api){
   let busy=false;
   const refresh=async()=>{
     if(busy||document.hidden||ui.saving)return;busy=true;
-    try{applyApi(await call("GET","/api/data"));setMsg("conn",null);renderAll();}
+    const g=mut;
+    try{const d=await call("GET","/api/data");if(g===mut){applyApi(d);renderAll();}setMsg("conn",null);}
     catch(e){setMsg("conn","Sin conexión con el servidor. Reintentando…");}
     busy=false;
   };

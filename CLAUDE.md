@@ -38,7 +38,10 @@ App web para calificar a los jugadores de un equipo amateur al estilo FIFA y arm
 ## Convenciones
 - UI en español rioplatense ("vos").
 - Mantener todo en un solo archivo.
-- Contrato de página Artifact: sin etiquetas `html/head/body`, empieza con `<title>`; solo fuentes de Google Fonts y CDNs permitidos; sin `alert/confirm/prompt` (usar confirmaciones inline).
+- Mobile-first: `index.html` empieza con `<!doctype html>`, `charset` y `viewport` (sin eso el celu lo muestra como escritorio). Navegación inferior fija; respetar `env(safe-area-inset-*)`. Instalable (`manifest.webmanifest` + `icon.svg`).
+- Sin `alert/confirm/prompt` (confirmaciones inline); nombres siempre con `textContent`.
+- Fotos: el front recorta a 256×256 JPEG; en Vercel van al hash Redis `photos` y se sirven por `api/photo.js` con caché inmutable (`?v=photoV`). Editar jugador = `PATCH /api/players` (también para el plantel fijo, como override).
+- Probar la API con un mock de Upstash (ver historial: script `apitest.mjs`) antes de subir.
 - Colores como tokens en `:root`, con variantes dark (media query + `data-theme`).
 - Deploy: push a `main` (Vercel conectado al repo) o `vercel --prod`. Commits sin línea de coautoría de Claude.
 
