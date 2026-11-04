@@ -3,15 +3,22 @@
 App web para calificar a los jugadores de un equipo amateur al estilo FIFA y armar equipos parejos. Cualquiera con el link vota; el puntaje de cada jugador es el promedio de todos los votos.
 
 ## Arquitectura
-- Un solo archivo: `index.html`. Sin build, sin backend, sin librerías.
-- Corre como Artifact de claude.ai con capacidades `db` + `user` (votación compartida), o abriendo el archivo localmente (fallback a `localStorage`, clave `futrank-v1`, voterId `"local"`, con banner "Modo local").
+- Front en un solo archivo: `index.html`, sin build ni librerías. Back: funciones de Vercel en `api/` (ver abajo).
+- Modos, en orden de detección: claude.ai (`db` + `user`, legado), Vercel (`/api/data` responde) y local (`localStorage`, clave `futrank-v1`, voterId `"local"`, con banner "Modo local").
 - Capa de datos abstraída en el objeto `store` (`addPlayer`, `deletePlayer`, `saveVote`); la UI no sabe qué backend usa.
 - Vistas por hash: `#plantel` (default), `#votar`, `#equipos`.
 
 ## Plantel fijo
 - `ROSTER` en `index.html` tiene los jugadores del equipo hardcodeados con ids estables (`javier`, `david`, …). `withRoster()` los mezcla con los de la db / localStorage; no se pueden borrar desde la app. Para cambiar nombre o posición, editar `ROSTER` y republicar (los votos se mantienen porque van por id).
 
-## Modelo de datos
+## Vercel (modo principal)
+- `api/data.js` (GET), `api/players.js` (POST/DELETE), `api/vote.js` (PUT); helpers en `api/_redis.js` (REST de Upstash vía `fetch`, sin dependencias). `package.json` solo marca `"type":"module"`.
+- Redis: hash `players` (pid → JSON), hash `votes` (`voter|pid` → JSON de 6 atributos). Toda mutación devuelve `{players,votes}` completo.
+- Votante anónimo: id `v…` en localStorage (`futrank-voter`). Sin login; el front refresca cada 15 s.
+- Env vars: `KV_REST_API_URL`/`KV_REST_API_TOKEN` (o `UPSTASH_REDIS_REST_*`).
+- El artifact de claude.ai fue borrado; el modo `db` de claude.ai queda en el código pero no se usa.
+
+## Modelo de datos (modo claude.ai)
 - `players/{pid}`: `{name, pos, createdBy, createdAt}`, con `pos` en `ARQ|DEF|MED|DEL`.
 - `votes/{voterId}`: un doc por votante, `{ratings:{[pid]:{rit,tir,pas,reg,def,fis}}, updatedAt}`. Cada persona escribe solo su doc con `.set(docCompleto)`, de a una escritura por vez.
 - Solo se guardan ids, nunca nombres de votantes. Los nombres de jugadores se muestran con `textContent`.
@@ -33,7 +40,7 @@ App web para calificar a los jugadores de un equipo amateur al estilo FIFA y arm
 - Mantener todo en un solo archivo.
 - Contrato de página Artifact: sin etiquetas `html/head/body`, empieza con `<title>`; solo fuentes de Google Fonts y CDNs permitidos; sin `alert/confirm/prompt` (usar confirmaciones inline).
 - Colores como tokens en `:root`, con variantes dark (media query + `data-theme`).
-- Tras editar, republicar en la misma URL del artifact.
+- Deploy: push a `main` (Vercel conectado al repo) o `vercel --prod`. Commits sin línea de coautoría de Claude.
 
 ## Preferencias de trabajo
 - Ahorrar tokens: no explorar de más, no releer archivos.

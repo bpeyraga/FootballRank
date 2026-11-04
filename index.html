@@ -261,12 +261,36 @@ function el(tag,cls,text){const e=document.createElement(tag);if(cls)e.className
 const byName=(a,b)=>a.name.localeCompare(b.name,"es");
 
 /* ---------- Backend ---------- */
-let db=null,user=null,myId=null;
+/* Tres modos: claude.ai (db del artifact) · Vercel (/api + Upstash Redis) · local (localStorage) */
+let db=null,user=null,myId=null,api=null,apiErr=null;
 try{
   if(window.claude){db=await claude.use("db");user=await claude.use("user");myId=await user.id();}
 }catch(e){db=null;myId=null;}
+if(!db&&location.protocol.startsWith("http")){
+  try{
+    const r=await fetch("/api/data",{cache:"no-store"});
+    const j=await r.json().catch(()=>null);
+    if(r.ok&&j&&j.players)api=j;else if(j&&j.error)apiErr=j.error;
+  }catch(e){}
+}
+async function call(method,url,body){
+  const r=await fetch(url,{method,cache:"no-store",headers:body?{"Content-Type":"application/json"}:{},body:body?JSON.stringify(body):undefined});
+  const j=await r.json().catch(()=>null);
+  if(!r.ok)throw{code:"api",message:(j&&j.error)||"Error del servidor ("+r.status+")"};
+  return j;
+}
+function apiVoterId(){
+  let id=null;try{id=localStorage.getItem("futrank-voter");}catch(e){}
+  if(!id||!/^v[a-z0-9]{8,40}$/.test(id)){
+    id="v"+(crypto.randomUUID?crypto.randomUUID().replace(/-/g,""):Math.random().toString(36).slice(2)+Date.now().toString(36));
+    try{localStorage.setItem("futrank-voter",id);}catch(e){}
+  }
+  return id;
+}
+function applyApi(d){state.players=withRoster(d.players||{});state.votes=d.votes||{};}
 const shared=!!db;
-const voter=shared?(myId||"-"):"local";
+if(api)myId=apiVoterId();
+const voter=shared?(myId||"-"):api?myId:"local";
 const state={players:{},votes:{},loaded:shared?{p:false,v:false}:{p:true,v:true}};
 const ui={view:"plantel",sel:new Set(),votarSel:null,loadedFor:null,confirmDel:null,noPerm:false,saving:false,calc:false,eq:null};
 const sigs={};
@@ -287,6 +311,10 @@ const store=shared?{
     await db.doc("votes/"+myId).set(doc);
     state.votes[myId]=doc;
   }
+}:api?{
+  async addPlayer(name,pos){applyApi(await call("POST","/api/players",{name,pos}));},
+  async deletePlayer(pid){applyApi(await call("DELETE","/api/players?id="+encodeURIComponent(pid)));},
+  async saveVote(pid,r){applyApi(await call("PUT","/api/vote",{voter:myId,pid,ratings:r}));}
 }:{
   async addPlayer(name,pos){
     const id="p"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
@@ -303,7 +331,8 @@ const store=shared?{
     state.votes.local.ratings[pid]=r;state.votes.local.updatedAt=Date.now();lsSave();
   }
 };
-if(!shared){const d=lsLoad();state.players=withRoster(d.players);state.votes=d.votes;$("banner").hidden=false;}
+if(api)applyApi(api);
+else if(!shared){const d=lsLoad();state.players=withRoster(d.players);state.votes=d.votes;$("banner").hidden=false;}
 
 /* ---------- Mensajes ---------- */
 const msgs={};
@@ -321,6 +350,7 @@ function handleErr(e){
   else if(c==="quota_exceeded"){setMsg("quota","Se superó la cuota de almacenamiento. Probá de nuevo más tarde.");}
   else toast((e&&e.message)||"Ocurrió un error");
 }
+if(apiErr)setMsg("api","No se pudo conectar con la base de datos: "+apiErr+" Mientras tanto, los datos quedan solo en este dispositivo.");
 if(shared&&!myId){ui.noPerm=true;setMsg("perm","Podés ver el ranking. Para votar, entrá con tu cuenta de Claude y pedí acceso de Colaborador.");}
 
 /* ---------- Estadísticas ---------- */
@@ -672,6 +702,18 @@ if(shared){
     const o={};snap.docs.forEach(d=>{o[d.id]=d.data();});
     state.votes=o;if(live(snap)||snap.docs.length)state.loaded.v=true;renderAll();
   },bad);
+}
+if(api){
+  /* Refresca los votos de los demás cada 15 s y al volver a la pestaña */
+  let busy=false;
+  const refresh=async()=>{
+    if(busy||document.hidden||ui.saving)return;busy=true;
+    try{applyApi(await call("GET","/api/data"));setMsg("conn",null);renderAll();}
+    catch(e){setMsg("conn","Sin conexión con el servidor. Reintentando…");}
+    busy=false;
+  };
+  setInterval(refresh,15000);
+  document.addEventListener("visibilitychange",()=>{if(!document.hidden)refresh();});
 }
 route();
 })();
