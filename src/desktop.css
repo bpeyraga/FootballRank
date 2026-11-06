@@ -201,3 +201,30 @@
   .hero{padding:72px 80px 76px}
   .comm-head>.cphoto-wrap{width:400px}
 }
+
+/* Encuestas del chat en compu: tarjeta más ancha y hoja centrada */
+@media (min-width:900px){
+  .bubble.has-poll{flex-basis:400px}
+  .sheet-bg{align-items:center;padding:24px}
+  .sheet{border-radius:18px;padding:12px 24px 24px;max-height:min(88dvh,720px)}
+  .sheet::before{display:none}
+}
+
+/* ---------- Ranking (selector de 6 solapas) y perfil: logros / presentismo ---------- */
+@media (min-width:900px){
+  .st-seg.rk-seg{overflow:visible;margin-inline:0;padding:0}
+  .st-seg.rk-seg button{flex:1 1 0;min-width:0}
+  .fut-actions{margin-top:14px}
+  .ach{padding:12px}
+  .ach-desc{font-size:.8rem}
+  .pres-pct{font-size:2.2rem}
+}
+
+/* ---------- Partido fijo, cuota y deudas (batch2.css) ---------- */
+@media (min-width:900px){
+  .tab-partidos>.sch-add{grid-column:1/-1;justify-self:start;margin:-8px 0 16px}
+  .tab-partidos>.sch-line{margin-bottom:16px}
+  .debt-card{padding-block:6px}
+  .fee-row{min-height:46px}
+  .wx-chip{font-size:.95rem}
+}

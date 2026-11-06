@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useMemo, useState } from 'preact/hooks';
 import { Tip } from '../lib/Tip';
 import { sb } from '../lib/supabase';
 import { go } from '../lib/router';
@@ -6,6 +6,10 @@ import { mapUrl, type Venue } from '../lib/maps';
 import { NEW_VENUE, draftValid, emptyDraft, loadVenues, pickVenue } from '../lib/venues';
 import { VenueField } from '../lib/VenueField';
 import type { Ranked } from '../lib/ranking';
+import type { Profile } from '../lib/model';
+import { debtsOf, type PaySignup } from '../lib/fees';
+import { SchedulesSection } from '../lib/ScheduleCard';
+import { DebtsCard } from '../lib/DebtsCard';
 import { Loading, page } from '../lib/lazy';
 const QuickMatch = page(() => import('./QuickMatch'), m => m.QuickMatch);
 
@@ -14,6 +18,8 @@ export interface Match {
   slots: number; status: 'open' | 'closed' | 'played' | 'cancelled';
   score_a: number | null; score_b: number | null; created_by: string;
   venue_id: string | null; venue?: Venue | null; // `venue` solo viene cuando se pide con select('*, venue:venues(...)')
+  fee_total?: number | string | null; // costo de la cancha (null = sin cuota); numeric: la API puede devolverlo como string
+  schedule_id?: string | null; // el partido fijo que la creó
 }
 
 export const fmtDate = (iso: string) => new Date(iso).toLocaleString('es-AR',
@@ -31,25 +37,43 @@ const byName = (a: Venue, b: Venue) => a.name.localeCompare(b.name, 'es');
 /** Lista de próximos e historial; los admins crean convocatorias y administran las canchas. */
 export function Matches({ communityId, slug, meId, isAdmin, rows }:
   { communityId: string; slug: string; meId: string; isAdmin: boolean; rows?: Ranked[] }) {
-  const [list, setList] = useState<(Match & { taken: number; mine: string | null })[] | null>(null);
+  const [list, setList] = useState<(Match & { taken: number; mine: string | null; match_signups: PaySignup[] })[] | null>(null);
+  const [names, setNames] = useState<Map<string, Pick<Profile, 'id' | 'name' | 'nickname' | 'photo_url'>>>(new Map()); // quién es quién en las deudas (si no vienen `rows`)
   const [venues, setVenues] = useState<Venue[]>([]);
   const [form, setForm] = useState(false);
   const [quick, setQuick] = useState(false); // "Cargar partido jugado"
   const [err, setErr] = useState('');
   const [venueErr, setVenueErr] = useState('');
 
+  // absent y paid_at vienen en la misma consulta: de ahí salen las deudas sin pedir nada más.
+  const loadList = async () => {
+    const m = await sb.from('matches').select('*, match_signups(profile_id,status,absent,paid_at)')
+      .eq('community_id', communityId).order('starts_at', { ascending: false }).limit(100);
+    if (m.error) return setErr(m.error.message);
+    setErr('');
+    setList((m.data ?? []).map((x: any) => ({
+      ...x,
+      taken: x.match_signups.filter((s: any) => s.status === 'in').length,
+      mine: x.match_signups.find((s: any) => s.profile_id === meId && s.status !== 'out')?.status ?? null,
+    })));
+  };
+  useEffect(() => { loadList(); }, [communityId]);
+
+  // Deudas de la cancha: partidos jugados con cuota donde alguien anotado (y presente) no marcó "pagué".
+  const debts = useMemo(() => debtsOf((list ?? []).map(m => ({
+    id: m.id, title: m.title, starts_at: m.starts_at, status: m.status, fee_total: m.fee_total ?? null, signups: m.match_signups,
+  }))), [list]);
+  const debtKey = isAdmin ? debts.map(d => d.profile_id).join() : '';
   useEffect(() => {
-    (async () => {
-      const m = await sb.from('matches').select('*, match_signups(profile_id,status)')
-        .eq('community_id', communityId).order('starts_at', { ascending: false }).limit(100);
-      if (m.error) return setErr(m.error.message);
-      setList((m.data ?? []).map((x: any) => ({
-        ...x,
-        taken: x.match_signups.filter((s: any) => s.status === 'in').length,
-        mine: x.match_signups.find((s: any) => s.profile_id === meId && s.status !== 'out')?.status ?? null,
-      })));
-    })();
-  }, [communityId]);
+    // Los admins necesitan los nombres de los deudores: de `rows` si vienen; si no, una consulta chica.
+    if (!isAdmin || !debtKey || rows) return;
+    const ids = debtKey.split(',').filter(id => !names.has(id));
+    if (!ids.length) return;
+    sb.from('profiles').select('id,name,nickname,photo_url').in('id', ids).then(r => {
+      if (r.data?.length) setNames(x => new Map([...x, ...r.data.map((p: any) => [p.id, p] as const)]));
+    });
+  }, [debtKey, isAdmin, !!rows]);
+  const whoIs = (pid: string) => rows?.find(r => r.profile.id === pid)?.profile ?? names.get(pid);
 
   // Las canchas solo las usan los admins (para elegirlas y borrarlas); los demás las ven en la pantalla del partido.
   useEffect(() => {
@@ -104,6 +128,9 @@ export function Matches({ communityId, slug, meId, isAdmin, rows }:
           </div>)}
       {err && <p class="err">{err}</p>}
       <Tip />
+      {list && <DebtsCard debts={debts} meId={meId} isAdmin={isAdmin} slug={slug} whoIs={whoIs} />}
+      <SchedulesSection communityId={communityId} meId={meId} isAdmin={isAdmin} venues={venues} defaultVenue={lastVenue}
+        addVenue={addVenue} onChanged={loadList} />
       {list === null && !err && <p class="muted">Cargando…</p>}
       <h3 style="margin:4px 0 8px">Próximos</h3>
       {list && !upcoming.length && <p class="muted" style="margin-bottom:12px">No hay partidos convocados.</p>}

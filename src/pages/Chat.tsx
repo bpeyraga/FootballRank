@@ -4,6 +4,12 @@ import { displayName, hue, sb } from '../lib/supabase';
 import { Avatar } from '../lib/Avatar';
 import type { Ranked } from '../lib/ranking';
 import { EMOJIS, REACTIONS, STICKERS, isJumbo } from '../lib/emoji';
+import { PollCard } from '../lib/PollCard';
+import { PollSheet } from '../lib/PollSheet';
+import {
+  addVote, pollError, pollSnippet, removeVote, replaceVotes, setMine, toggleChoice,
+  type Poll, type PollVote, type Votes,
+} from '../lib/polls';
 
 /** id < 0 + tmp = mensaje local todavía no confirmado por el servidor. */
 interface Msg {
@@ -78,6 +84,7 @@ const Check = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" s
 const Clock = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="8" /><path d="M12 8v4l2.5 2" /></svg>;
 const Smile = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="9" /><path d="M8.5 14.5c.9 1.3 2.1 2 3.5 2s2.6-.7 3.5-2M9 9.5h.01M15 9.5h.01" stroke-width="2.4" /></svg>;
 const Camera = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z" /><circle cx="12" cy="13" r="3.5" /></svg>;
+const PollIco = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 20v-7M12 20V5M18 20v-10" /></svg>;
 const ReplyIco = () => <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 7l-5 5 5 5M5 12h9a5 5 0 0 1 5 5v1" /></svg>;
 
 export function Chat({ communityId, rows, meId, isAdmin, onUnknown }: {
@@ -101,6 +108,9 @@ export function Chat({ communityId, rows, meId, isAdmin, onUnknown }: {
   const [composerH, setComposerH] = useState(64);
   const [err, setErr] = useState('');
   const [online, setOnline] = useState(0);
+  const [polls, setPolls] = useState<Record<number, Poll>>({});   // encuesta por id de mensaje
+  const [votes, setVotes] = useState<Votes>({});
+  const [pollOpen, setPollOpen] = useState(false);
   const [typing, setTyping] = useState<Record<string, number>>({}); // autor → último "escribiendo"
   const chRef = useRef<ReturnType<typeof sb.channel> | null>(null);
   const lastTyping = useRef(0);
@@ -113,6 +123,16 @@ export function Chat({ communityId, rows, meId, isAdmin, onUnknown }: {
   const stick = useRef(false);                     // bajar al final en el próximo render
   const keepFrom = useRef<number | null>(null);    // alto previo al cargar anteriores (mantener posición)
   const asked = useRef(new Set<string>());         // autores desconocidos ya pedidos
+  const pollsRef = useRef(polls);
+  pollsRef.current = polls;
+  const votesRef = useRef<Votes>({});              // siempre al día (los toques seguidos parten de lo último)
+  const atBottomRef = useRef(true);
+  atBottomRef.current = atBottom;
+  const pending = useRef(new Map<string, number>());       // votos míos en vuelo, por encuesta
+  const voteChain = useRef(new Map<string, Promise<void>>()); // los votos de una encuesta salen de a uno, en orden
+  const mineAt = useRef(new Map<string, number>());        // último voto mío por encuesta
+  const live = useRef<{ add: boolean; row: PollVote }[]>([]); // votos que llegan en vivo, juntados de a poco
+  const liveTimer = useRef(0);
 
   const loadReacts = async (ids: number[]) => {
     if (!ids.length) return;
@@ -129,11 +149,98 @@ export function Chat({ communityId, rows, meId, isAdmin, onUnknown }: {
   const onReact = (n: RxRow) =>
     setReacts(prev => ({ ...prev, [n.message_id]: { ...prev[n.message_id], [n.profile_id]: n.emoji } }));
 
+  // ---- Encuestas ----
+  const commitVotes = (fn: (v: Votes) => Votes) => {
+    const next = fn(votesRef.current);
+    if (next === votesRef.current) return;
+    votesRef.current = next;
+    setVotes(next);
+  };
+  /** Con un voto mío en vuelo (o recién hecho) lo que está en pantalla manda: no se pisa con datos viejos del servidor. */
+  const holdPoll = (id: string, recent = true) =>
+    (pending.current.get(id) ?? 0) > 0 || (recent && Date.now() - (mineAt.current.get(id) ?? 0) < 4000);
+  const dropPoll = (messageId: number) =>
+    setPolls(prev => { if (!(messageId in prev)) return prev; const { [messageId]: _, ...rest } = prev; return rest; });
+
+  /** Los votos de esas encuestas, tal cual están en el servidor. false si no se pudo traer. */
+  const loadVotes = async (pollIds: string[], force = false) => {
+    if (!pollIds.length) return true;
+    const { data, error } = await sb.from('poll_votes').select('poll_id,profile_id,option').in('poll_id', pollIds);
+    if (error) return false;
+    const skip = new Set(pollIds.filter(id => holdPoll(id, !force)));
+    commitVotes(v => replaceVotes(v, pollIds, (data ?? []) as PollVote[], skip));
+    return true;
+  };
+  /** Encuestas (y sus votos) de esos mensajes. Los mensajes comunes no tienen fila en `polls`. */
+  const loadPolls = async (messageIds: number[]) => {
+    if (!messageIds.length) return;
+    const { data, error } = await sb.from('polls').select('*').in('message_id', messageIds);
+    if (error || !data?.length) return;
+    const ps = data as Poll[];
+    setPolls(prev => { const next = { ...prev }; for (const p of ps) next[p.message_id] = p; return next; });
+    await loadVotes(ps.map(p => p.id));
+  };
+
+  /** Votos en vivo: se juntan unos 150 ms y se aplican de una vez (el servidor reemplaza votos borrando y volviendo a insertar). */
+  const queueVote = (add: boolean, row: PollVote | undefined) => {
+    if (!row?.poll_id || !row.profile_id || row.option == null) return;
+    live.current.push({ add, row });
+    if (liveTimer.current) return;
+    liveTimer.current = window.setTimeout(() => {
+      liveTimer.current = 0;
+      const evs = live.current;
+      live.current = [];
+      // Mis propios votos ya están en pantalla (optimista): sus ecos no hacen falta ni deben parpadear.
+      commitVotes(v => evs.reduce((acc, e) =>
+        e.row.profile_id === meId && holdPoll(e.row.poll_id) ? acc : e.add ? addVote(acc, e.row) : removeVote(acc, e.row), v));
+    }, 150);
+  };
+
+  /** Tocar una opción: se ve al instante y se manda; si falla, vuelve a lo que dice el servidor. */
+  const vote = (poll: Poll, option: number) => {
+    const before = votesRef.current[poll.id]?.[meId] ?? [];
+    const next = toggleChoice(before, option, poll.multi);
+    setErr('');
+    mineAt.current.set(poll.id, Date.now());
+    pending.current.set(poll.id, (pending.current.get(poll.id) ?? 0) + 1);
+    commitVotes(v => setMine(v, poll.id, meId, next));
+    const run = async () => {
+      let failed = '';
+      try {
+        const { error } = await sb.rpc('vote_poll', { p_poll: poll.id, p_options: next });
+        if (error) failed = error.message;
+      } catch (e: any) { failed = e?.message ?? 'Sin conexión. Probá de nuevo.'; }
+      mineAt.current.set(poll.id, Date.now());
+      const left = Math.max(0, (pending.current.get(poll.id) ?? 1) - 1);
+      pending.current.set(poll.id, left);
+      if (!failed) {
+        chRef.current?.send({ type: 'broadcast', event: 'poll', payload: { id: poll.id } }).catch(() => {});
+        return;
+      }
+      setErr(friendly(pollError(failed)));
+      if (left === 0 && !(await loadVotes([poll.id], true)) && !holdPoll(poll.id, false)) commitVotes(v => setMine(v, poll.id, meId, before));
+    };
+    voteChain.current.set(poll.id, (voteChain.current.get(poll.id) ?? Promise.resolve()).then(run));
+  };
+
+  /** Crea la encuesta (RPC) y la trae enseguida; el INSERT en vivo del mensaje se une por id sin duplicar. */
+  const createPoll = async (question: string, options: string[], multi: boolean) => {
+    const { data, error } = await sb.rpc('create_poll', { p_community: communityId, p_question: question, p_options: options, p_multi: multi });
+    if (error) throw new Error(friendly(pollError(error.message)));
+    const id = Number(data);
+    try {
+      stick.current = true;
+      const [row] = await Promise.all([sb.from('messages').select('*').eq('id', id).maybeSingle(), loadPolls([id])]);
+      if (row.data) setMsgs(prev => merge(prev ?? [], [row.data as Msg]));
+    } catch { /* ya se creó: llega por el canal en vivo */ }
+  };
+
   /** Libera la foto local (blob:) de un mensaje pendiente. */
   const revoke = (m?: Msg) => { if (m?.image_url?.startsWith('blob:')) URL.revokeObjectURL(m.image_url); };
   useEffect(() => () => { msgsRef.current?.forEach(revoke); }, []);
 
-  const fetchPage = async (before?: string) => {
+  /** `withPolls`: esperar las encuestas antes de devolver (al cargar anteriores, para que no se corra el scroll). */
+  const fetchPage = async (before?: string, withPolls = false) => {
     let q = sb.from('messages').select('*').eq('community_id', communityId)
       .order('created_at', { ascending: false }).order('id', { ascending: false }).limit(PAGE);
     if (before) q = q.lt('created_at', before);
@@ -141,6 +248,8 @@ export function Chat({ communityId, rows, meId, isAdmin, onUnknown }: {
     if (error) { setErr(friendly(error.message)); return null; }
     const got = ((data ?? []) as Msg[]).reverse();
     loadReacts(got.map(m => m.id));
+    const ids = got.map(m => m.id);
+    if (withPolls) await loadPolls(ids); else loadPolls(ids);
     return got;
   };
 
@@ -155,6 +264,12 @@ export function Chat({ communityId, rows, meId, isAdmin, onUnknown }: {
       const fresh = got.filter(g => !msgsRef.current?.some(x => x.id === g.id)).length;
       if (first || nearBottom()) stick.current = true; else if (fresh) setUnseen(n => n + fresh);
       setMsgs(prev => merge(prev ?? [], got));
+      if (!first) {
+        // Al reconectar, también se refrescan los votos de encuestas más viejas que ya están cargadas.
+        const inPage = new Set(got.map(g => g.id));
+        const rest = Object.values(pollsRef.current).filter(p => !inPage.has(p.message_id)).map(p => p.id);
+        if (rest.length) loadVotes(rest);
+      }
     };
     sync(true);
     let connected = false;
@@ -179,7 +294,27 @@ export function Chat({ communityId, rows, meId, isAdmin, onUnknown }: {
         })
       .on('postgres_changes',
         { event: 'DELETE', schema: 'public', table: 'messages' },
-        p => { const id = (p.old as { id?: number }).id; if (id) setMsgs(prev => prev && prev.filter(x => x.id !== id)); })
+        p => {
+          const id = (p.old as { id?: number }).id;
+          if (!id) return;
+          setMsgs(prev => prev && prev.filter(x => x.id !== id));
+          dropPoll(id); // la encuesta se borra en cascada en la base
+        })
+      // Encuestas: la fila nueva (el mensaje ya llegó por su lado) y los votos, juntados en queueVote.
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'polls', filter: `community_id=eq.${communityId}` },
+        p => {
+          const row = p.new as Poll;
+          // Si las opciones no vinieron como lista, se pide la fila por la API.
+          if (!Array.isArray(row.options)) { loadPolls([row.message_id]); return; }
+          setPolls(prev => ({ ...prev, [row.message_id]: row }));
+        })
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'poll_votes', filter: `community_id=eq.${communityId}` },
+        p => queueVote(true, p.new as PollVote))
+      // Los DELETE de votos no se pueden filtrar por comunidad (llegarían los de toda la app): en su lugar,
+      // quien vota avisa por broadcast en este canal y los demás releen los votos de esa encuesta.
+      .on('broadcast', { event: 'poll' }, ({ payload }) => { if (payload?.id) loadVotes([payload.id], true); })
       .on('postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'message_reactions', filter: `community_id=eq.${communityId}` },
         p => onReact(p.new as RxRow))
@@ -205,7 +340,7 @@ export function Chat({ communityId, rows, meId, isAdmin, onUnknown }: {
         connected = true;
       });
     chRef.current = ch;
-    return () => { alive = false; chRef.current = null; sb.removeChannel(ch); };
+    return () => { alive = false; chRef.current = null; clearTimeout(liveTimer.current); liveTimer.current = 0; sb.removeChannel(ch); };
   }, [communityId]);
 
   // "Escribiendo…" se apaga solo si el otro deja de tipear
@@ -237,15 +372,19 @@ export function Chat({ communityId, rows, meId, isAdmin, onUnknown }: {
     if (keepFrom.current != null) { scrollBy(0, docH() - keepFrom.current); keepFrom.current = null; }
     else if (stick.current) { stick.current = false; toBottom(); setUnseen(0); }
   }, [msgs]);
+  // La encuesta llega un instante después de su mensaje y lo agranda: si estabas abajo de todo, seguís viendo lo último.
+  useLayoutEffect(() => { if (atBottomRef.current && Object.keys(polls).length) toBottom(); }, [polls]);
 
   // Autores que no están en la lista de miembros (alguien que se acaba de sumar)
   const byId = new Map(rows.map(r => [r.profile.id, r.profile]));
   useEffect(() => {
     if (!onUnknown || !msgs) return;
-    // Todos los autores desconocidos de una vez: una sola recarga (los ex miembros no van a aparecer igual)
-    const missing = [...new Set(msgs.map(m => m.author_id))].filter(a => !byId.has(a) && !asked.current.has(a));
+    // Todos los autores (y votantes de encuestas) desconocidos de una vez: una sola recarga (los ex miembros no van a aparecer igual)
+    const ids = new Set(msgs.map(m => m.author_id));
+    for (const byP of Object.values(votes)) for (const pid of Object.keys(byP)) ids.add(pid);
+    const missing = [...ids].filter(a => !byId.has(a) && !asked.current.has(a));
     if (missing.length) { missing.forEach(a => asked.current.add(a)); onUnknown(); }
-  }, [msgs, rows]);
+  }, [msgs, rows, votes]);
 
   useEffect(() => {
     const on = () => { const b = nearBottom(); setAtBottom(b); if (b) setUnseen(0); };
@@ -280,18 +419,18 @@ export function Chat({ communityId, rows, meId, isAdmin, onUnknown }: {
   // Escape cierra lo que esté abierto
   useEffect(() => {
     const on = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
+      if (e.key !== 'Escape' || pollOpen) return; // la hoja de encuesta se cierra sola
       if (zoom) setZoom(null); else if (panel) setPanel(''); else if (sel) setSel(null); else if (replyTo) setReplyTo(null);
     };
     addEventListener('keydown', on);
     return () => removeEventListener('keydown', on);
-  }, [zoom, panel, sel, replyTo]);
+  }, [zoom, panel, sel, replyTo, pollOpen]);
 
   const loadOlder = async () => {
     const first = msgs?.find(m => m.id > 0);
     if (!first || loadingMore) return;
     setLoadingMore(true);
-    const got = await fetchPage(first.created_at);
+    const got = await fetchPage(first.created_at, true);
     setLoadingMore(false);
     if (!got) return;
     setMore(got.length === PAGE);
@@ -372,6 +511,7 @@ export function Chat({ communityId, rows, meId, isAdmin, onUnknown }: {
     if (error) return setErr(friendly(error.message));
     if (!data?.length) return setErr('No tenés permiso para borrar ese mensaje.');
     setMsgs(prev => prev && prev.filter(m => m.id !== id));
+    dropPoll(id);
     // La foto también se borra del almacenamiento (si no, quedaba accesible por su link)
     const path = img?.split('/object/public/chat/')[1]?.split('?')[0];
     if (path) sb.storage.from('chat').remove([decodeURIComponent(path)]).catch(() => {});
@@ -429,6 +569,10 @@ export function Chat({ communityId, rows, meId, isAdmin, onUnknown }: {
   };
 
   const nameOf = (id: string) => displayName(byId.get(id) ?? GONE);
+  const who = (id: string) => byId.get(id) ?? GONE;
+  /** Citar/responder una encuesta muestra "📊 pregunta". */
+  const snip = (m: Msg) => (polls[m.id] ? pollSnippet(polls[m.id].question) : snippet(m));
+  const openPoll = () => { setPanel(''); setSel(null); ta.current?.blur(); setPollOpen(true); };
   const byMsg = new Map((msgs ?? []).map(m => [m.id, m]));
 
   // Agrupado por día: cada día es una sección con su etiqueta "pegajosa" (sticky) arriba.
@@ -443,36 +587,44 @@ export function Chat({ communityId, rows, meId, isAdmin, onUnknown }: {
     const mine = m.author_id === meId;
     const p = byId.get(m.author_id) ?? GONE;
     const real = m.id > 0;
-    const jumbo = !m.image_url && !m.reply_to && isJumbo(m.body);
+    const poll = polls[m.id];
+    const jumbo = !poll && !m.image_url && !m.reply_to && isJumbo(m.body);
     const quoted = m.reply_to ? byMsg.get(m.reply_to) : undefined;
     const rx = Object.values(reacts[m.id] ?? {});
     const counts = [...new Set(rx)].map(e => [e, rx.filter(x => x === e).length] as const);
     const myRx = reacts[m.id]?.[meId];
+    const meta = (
+      <span class={`msg-meta${m.image_url && !m.body ? ' on-img' : ''}`}>
+        {hhmm(new Date(m.created_at))}
+        {mine && (m.status === 'failed' ? <span class="fail">!</span> : m.status === 'sending' ? <Clock /> : <Check />)}
+      </span>
+    );
     return (
       <div class="msg-row" key={m.tmp ?? m.id} id={real ? `msg-${m.id}` : undefined}>
         <div class={`msg${mine ? ' mine' : ''}${first ? ' first' : ''}${jumbo ? ' jumbo' : ''}`}>
           {!mine && (first ? <Avatar p={p} size={28} /> : <span class="msg-gap" />)}
-          <div class={`bubble${sel === m.id ? ' sel' : ''}${flash === m.id ? ' flash' : ''}${m.image_url ? ' has-img' : ''}`}
+          <div class={`bubble${sel === m.id ? ' sel' : ''}${flash === m.id ? ' flash' : ''}${m.image_url ? ' has-img' : ''}${poll ? ' has-poll' : ''}`}
             onClick={() => real && setSel(sel === m.id ? null : m.id)}>
             {!mine && first && !jumbo && <b class="ellipsis" style={`color:hsl(${hue(m.author_id)} 60% var(--name-l))`}>{displayName(p)}</b>}
             {m.reply_to && (
               <button type="button" class="quote" style={quoted ? `--qh:${hue(quoted.author_id)}` : ''}
                 onClick={e => { e.stopPropagation(); if (m.reply_to) goTo(m.reply_to); }}>
                 <b>{quoted ? (quoted.author_id === meId ? 'Vos' : nameOf(quoted.author_id)) : 'Mensaje'}</b>
-                <span class="ellipsis">{quoted ? snippet(quoted) : 'Mensaje anterior'}</span>
+                <span class="ellipsis">{quoted ? snip(quoted) : 'Mensaje anterior'}</span>
               </button>
             )}
             {m.image_url && (
               <img class="msg-img" src={m.image_url} alt="Foto" loading="lazy"
                 onClick={e => { e.stopPropagation(); setZoom(m.image_url!); }} />
             )}
-            {jumbo
-              ? <span class="msg-jumbo">{m.body}</span>
-              : m.body && <span class="msg-body">{linkify(m.body)}<span class="msg-spacer" /></span>}
-            <span class={`msg-meta${m.image_url && !m.body ? ' on-img' : ''}`}>
-              {hhmm(new Date(m.created_at))}
-              {mine && (m.status === 'failed' ? <span class="fail">!</span> : m.status === 'sending' ? <Clock /> : <Check />)}
-            </span>
+            {poll
+              ? <PollCard poll={poll} byProfile={votes[poll.id]} meId={meId} who={who} onVote={vote} meta={meta} />
+              : <>
+                {jumbo
+                  ? <span class="msg-jumbo">{m.body}</span>
+                  : m.body && <span class="msg-body">{linkify(m.body)}<span class="msg-spacer" /></span>}
+                {meta}
+              </>}
           </div>
         </div>
         {counts.length > 0 && (
@@ -547,6 +699,8 @@ export function Chat({ communityId, rows, meId, isAdmin, onUnknown }: {
         document.body,
       )}
 
+      {pollOpen && <PollSheet onClose={() => setPollOpen(false)} onCreate={createPoll} />}
+
       <form class="composer" ref={composer} onSubmit={e => { e.preventDefault(); send(); }}>
         {typingIds.length > 0 && (
           <div class="typing" aria-live="polite">
@@ -559,7 +713,7 @@ export function Chat({ communityId, rows, meId, isAdmin, onUnknown }: {
             <ReplyIco />
             <div class="reply-txt" style={`--qh:${hue(replyTo.author_id)}`}>
               <b>{replyTo.author_id === meId ? 'Vos' : nameOf(replyTo.author_id)}</b>
-              <span class="ellipsis">{snippet(replyTo)}</span>
+              <span class="ellipsis">{snip(replyTo)}</span>
             </div>
             <button type="button" class="icon-btn" aria-label="Cancelar respuesta" onClick={() => setReplyTo(null)}>✕</button>
           </div>
@@ -587,6 +741,8 @@ export function Chat({ communityId, rows, meId, isAdmin, onUnknown }: {
             <textarea ref={ta} rows={1} value={text} maxLength={MAX} placeholder="Mensaje" aria-label="Mensaje"
               onInput={e => onType((e.target as HTMLTextAreaElement).value)} onKeyDown={onKey}
               onFocus={() => matchMedia('(pointer: coarse)').matches && setPanel('')} />
+            <button type="button" class="icon-btn" aria-label="Crear una encuesta" title="Encuesta" disabled={msgs === null}
+              onClick={openPoll}><PollIco /></button>
             <button type="button" class="icon-btn" aria-label="Mandar una foto" disabled={msgs === null}
               onClick={() => fileIn.current?.click()}><Camera /></button>
             <input ref={fileIn} type="file" accept="image/*" hidden onChange={onFile} />

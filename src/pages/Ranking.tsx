@@ -1,19 +1,51 @@
-import { useEffect, useMemo, useState } from 'preact/hooks';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { Tip } from '../lib/Tip';
 import { ATTRS, displayName, infoLine } from '../lib/supabase';
-import { lineup } from '../lib/formation';
-import { Pitch, type PitchPlayer } from '../lib/Pitch';
 import { ovr, tier, type Ranked } from '../lib/ranking';
 import { Avatar } from '../lib/Avatar';
 import { Crest } from '../lib/Crest';
 import { emptyStats, fmtAvg, leaderboard, loadCommunityStats, perMatch, type PlayerStats } from '../lib/stats';
+import { loadAttendanceData, loadMvps } from '../lib/playData';
+import { mvpBoard, presenceBoard } from '../lib/boards';
 import '../stats.css';
 
-type View = 'ovr' | 'goals' | 'assists' | 'cards';
-const VIEWS: [View, string][] = [['ovr', 'OVR'], ['goals', 'Goleadores'], ['assists', 'Asistencias'], ['cards', 'Tarjetas']];
-const EMPTY: Record<Exclude<View, 'ovr'>, string> = {
+type View = 'ovr' | 'goals' | 'assists' | 'cards' | 'mvp' | 'presence';
+const VIEWS: [View, string][] = [
+  ['ovr', 'OVR'], ['goals', 'Goleadores'], ['assists', 'Asistencias'], ['cards', 'Tarjetas'], ['mvp', 'Figura'], ['presence', 'Presentismo'],
+];
+type StatView = 'goals' | 'assists' | 'cards';
+const isStatView = (v: View): v is StatView => v === 'goals' || v === 'assists' || v === 'cards';
+const EMPTY: Record<StatView, string> = {
   goals: 'Todavía no hay goles cargados.', assists: 'Todavía no hay asistencias cargadas.', cards: 'Nadie vio tarjetas todavía. 😇',
 };
+
+/** Carga algo la primera vez que `on` es true (y reintenta a pedido). */
+function useLazy<T>(on: boolean, load: () => Promise<T>, key: string) {
+  const [data, setData] = useState<T | null>(null);
+  const [err, setErr] = useState('');
+  const [tries, setTries] = useState(0);
+  useEffect(() => { setData(null); setErr(''); }, [key]);
+  useEffect(() => {
+    if (!on || data) return;
+    let alive = true;
+    setErr('');
+    load().then(d => alive && setData(d)).catch(e => alive && setErr(e?.message ?? 'Error desconocido'));
+    return () => { alive = false; };
+  }, [on, key, tries, !!data]);
+  return { data, err, retry: () => setTries(t => t + 1) };
+}
+
+/** Estados comunes de las tablas: error con reintento, cargando y vacía. */
+function BoardState({ err, retry, loading, empty }: { err: string; retry: () => void; loading: boolean; empty: string | null }) {
+  if (err) return (
+    <div class="st-empty">
+      <p class="err" style="margin:0 0 12px">No pudimos cargar los datos. {err}</p>
+      <button class="btn" onClick={retry}>Reintentar</button>
+    </div>
+  );
+  if (loading) return <p class="muted st-empty">Cargando…</p>;
+  return empty ? <p class="muted st-empty">{empty}</p> : null;
+}
 
 /** Tabla de la comunidad: por OVR (promedio de votos), goleadores o asistencias. */
 export function Ranking({ rows, slug, meId, communityId }: { rows: Ranked[]; slug: string; meId: string; communityId: string }) {
@@ -25,7 +57,7 @@ export function Ranking({ rows, slug, meId, communityId }: { rows: Ranked[]; slu
 
   // Las estadísticas se piden la primera vez que se abre Goleadores o Asistencias.
   useEffect(() => {
-    if (view === 'ovr' || stats) return;
+    if (!isStatView(view) || stats) return;
     let alive = true;
     setStatsErr('');
     loadCommunityStats(communityId)
@@ -36,18 +68,25 @@ export function Ranking({ rows, slug, meId, communityId }: { rows: Ranked[]; slu
 
   const byId = useMemo(() => new Map(rows.map(r => [r.profile.id, r])), [rows]);
   const s = (id: string) => stats?.get(id) ?? emptyStats();
+  const players = useMemo(() => rows.map(r => ({ id: r.profile.id, name: displayName(r.profile) })), [rows]);
   const board = useMemo(
-    () => stats && view !== 'ovr' ? leaderboard(rows.map(r => ({ id: r.profile.id, name: displayName(r.profile) })), stats, view) : [],
-    [rows, stats, view]);
-
-  // Formación ideal: OVR de la comunidad, o la autoevaluación si todavía no lo votaron
-  const ideal = useMemo(() => lineup<PitchPlayer>(rows.map(r => ({
-    id: r.profile.id, pos: r.profile.pos, profile: r.profile, ovr: r.ovr ?? (r.base ? ovr(r.base) : null),
-  }))), [rows]);
+    () => stats && isStatView(view) ? leaderboard(players, stats, view) : [],
+    [players, stats, view]);
+  const mvp = useLazy(view === 'mvp', () => loadMvps(communityId), communityId);
+  const att = useLazy(view === 'presence', () => loadAttendanceData(communityId), communityId);
+  const mvpRows = useMemo(() => mvp.data ? mvpBoard(players, mvp.data) : [], [players, mvp.data]);
+  const presRows = useMemo(
+    () => att.data ? presenceBoard(players, att.data.matches, att.data.signups, att.data.joined) : [],
+    [players, att.data]);
+  // En el celular las 6 solapas no entran: el selector se desliza y la elegida queda a la vista
+  const segRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    segRef.current?.querySelector<HTMLElement>('button.on')?.scrollIntoView?.({ inline: 'center', block: 'nearest' });
+  }, [view]);
 
   return (
     <>
-      <div class="st-seg c4 sm" role="group" aria-label="Ordenar ranking por">
+      <div class="st-seg rk-seg sm" role="group" aria-label="Ordenar ranking por" ref={segRef}>
         {VIEWS.map(([k, label]) => (
           <button type="button" class={view === k ? 'on' : ''} aria-pressed={view === k} onClick={() => setView(k)}>{label}</button>
         ))}
@@ -61,13 +100,6 @@ export function Ranking({ rows, slug, meId, communityId }: { rows: Ranked[]; slu
           </a>
         )}
         <Tip kind="joke" />
-        <div class="card">
-          <div class="row" style="justify-content:space-between;margin-bottom:10px">
-            <h3>Formación ideal · Fútbol 5</h3><span class="muted">1-2-1</span>
-          </div>
-          <Pitch placed={ideal.placed} href={id => `#/c/${slug}/p/${id}`} showAlts />
-          <p class="muted st-note">El mejor OVR de cada puesto según la posición de su ficha. Debajo, otros que juegan de eso.</p>
-        </div>
         <div class="card rk-list" style="padding:4px 12px">
           {rows.map((r, i) => (
             <a class="row rank-row" href={`#/c/${slug}/p/${r.profile.id}`}>
@@ -88,7 +120,7 @@ export function Ranking({ rows, slug, meId, communityId }: { rows: Ranked[]; slu
         </div>
       </>}
 
-      {view !== 'ovr' && (
+      {isStatView(view) && (
         <div class="card rk-board" style="padding:4px 12px">
           {statsErr && (
             <div class="st-empty">
@@ -125,6 +157,54 @@ export function Ranking({ rows, slug, meId, communityId }: { rows: Ranked[]; slu
               </a>
             );
           })}
+        </div>
+      )}
+
+      {view === 'mvp' && (
+        <div class="card rk-board" style="padding:4px 12px">
+          <BoardState err={mvp.err} retry={mvp.retry} loading={!mvp.data}
+            empty={mvp.data && !mvpRows.length ? 'Todavía nadie fue figura del partido. Se vota después de cada partido jugado.' : null} />
+          {mvpRows.map(b => {
+            const r = byId.get(b.id)!;
+            return (
+              <a class="row rank-row" href={`#/c/${slug}/p/${b.id}`}>
+                <span class="muted" style="width:1.4em;text-align:right">{b.pos}</span>
+                <Avatar p={r.profile} />
+                <div style="flex:1;min-width:0">
+                  <div class="ellipsis">{b.name}{b.id === meId && <span class="muted"> (vos)</span>}</div>
+                  <div class="muted" style="font-size:.85rem">Figura {b.value === 1 ? '1 vez' : `${b.value} veces`}</div>
+                </div>
+                <span class="st-val rk-trophy" title="Veces figura del partido"><span aria-hidden="true">🏆</span> {b.value}</span>
+              </a>
+            );
+          })}
+          {mvpRows.length > 0 && <p class="muted st-note rk-note">La figura se vota al final de cada partido. Si hay empate de votos, lo son todos los que empatan.</p>}
+        </div>
+      )}
+
+      {view === 'presence' && (
+        <div class="card rk-board" style="padding:4px 12px">
+          <BoardState err={att.err} retry={att.retry} loading={!att.data}
+            empty={att.data && !presRows.length ? 'Todavía no hay partidos jugados para medir la asistencia.' : null} />
+          {presRows.map(b => {
+            const r = byId.get(b.id)!;
+            return (
+              <a class="row rank-row" href={`#/c/${slug}/p/${b.id}`}>
+                <span class="muted" style="width:1.4em;text-align:right">{b.pos}</span>
+                <Avatar p={r.profile} />
+                <div style="flex:1;min-width:0">
+                  <div class="ellipsis">{b.name}{b.id === meId && <span class="muted"> (vos)</span>}</div>
+                  <div class="muted" style="font-size:.85rem">
+                    {b.played} de {b.total} {b.total === 1 ? 'partido' : 'partidos'}
+                    {b.streak > 1 && <> · racha de {b.streak}</>}
+                    {b.absences > 0 && <> · {b.absences} {b.absences === 1 ? 'falta' : 'faltas'}</>}
+                  </div>
+                </div>
+                <span class="st-val">{b.pct}%</span>
+              </a>
+            );
+          })}
+          {presRows.length > 0 && <p class="muted st-note rk-note">Partidos jugados sobre los de la comunidad desde que cada uno se sumó. Anotarse y no ir cuenta como falta.</p>}
         </div>
       )}
     </>

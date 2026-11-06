@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { Tip } from '../lib/Tip';
+import { go } from '../lib/router';
 import { displayName, ovr, posLine, sb, type Profile, type Stats } from '../lib/supabase';
 import { balance, type BPlayer } from '../lib/balance';
 import { Avatar } from '../lib/Avatar';
@@ -15,10 +16,13 @@ import { downloadIcs, gcalUrl, matchUrl, shareText, whatsappUrl } from '../lib/s
 import { directionsUrl, embedUrl, type Venue } from '../lib/maps';
 import { NEW_VENUE, VENUE_COLS, draftValid, emptyDraft, loadVenues, pickVenue } from '../lib/venues';
 import { VenueField } from '../lib/VenueField';
+import { FeeCard } from '../lib/FeeCard';
+import { WeatherChip } from '../lib/WeatherChip';
+import { feeError, feeNum } from '../lib/fees';
 import '../stats.css';
 import '../admin.css';
 
-interface Signup { profile_id: string; status: 'in' | 'waitlist' | 'out'; team: 'A' | 'B' | null; created_at: string; absent: boolean; captain: boolean }
+interface Signup { profile_id: string; status: 'in' | 'waitlist' | 'out'; team: 'A' | 'B' | null; created_at: string; absent: boolean; captain: boolean; paid_at: string | null }
 interface Susp { id: string; profile_id: string }
 type BP = BPlayer & { r: Ranked };
 const NEUTRAL: Stats = { rit: 50, tir: 50, pas: 50, reg: 50, def: 50, fis: 50 };
@@ -31,6 +35,8 @@ export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: str
   const [myRatings, setMyRatings] = useState<Record<string, number>>({});
   const [mvp, setMvp] = useState<{ mine: string | null; tally: Map<string, number> }>({ mine: null, tally: new Map() });
   const [busy, setBusy] = useState(false);
+  const [paying, setPaying] = useState<string[]>([]); // quiénes tienen un "pagué" en camino
+  const [feeErr, setFeeErr] = useState('');
   const [err, setErr] = useState('');
   const [msg, setMsg] = useState('');
   const [splits, setSplits] = useState<ReturnType<typeof balance<BP>> | null>(null);
@@ -126,6 +132,28 @@ export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: str
     if (ok) setMsg(ok);
     await load();
     return true;
+  };
+
+  // Cuota de la cancha. "Pagué" se ve al instante en la fila de ese jugador; si falla, vuelve a como estaba.
+  const setPaid = async (pid: string, paid: boolean) => {
+    if (paying.includes(pid)) return;
+    const before = su.find(s => s.profile_id === pid)?.paid_at ?? null;
+    const patch = (at: string | null) => setSu(cur => cur.map(s => s.profile_id === pid ? { ...s, paid_at: at } : s));
+    setPaying(x => [...x, pid]); setFeeErr('');
+    patch(paid ? new Date().toISOString() : null);
+    const { error } = await sb.rpc('set_paid', { p_match: id, p_profile: pid, p_paid: paid });
+    setPaying(x => x.filter(y => y !== pid));
+    if (error) { patch(before); setFeeErr(feeError(error.message)); return; }
+    // Releer: si otra acción recargó la lista justo antes de que se guardara, no puede quedar como "Debe".
+    const { data } = await sb.from('match_signups').select('paid_at').eq('match_id', id).eq('profile_id', pid).maybeSingle();
+    if (data) patch(data.paid_at);
+  };
+  const setFee = async (total: number | null): Promise<string> => {
+    const { error } = await sb.rpc('set_fee', { p_match: id, p_total: total });
+    if (error) return feeError(error.message);
+    setFeeErr('');
+    setM(cur => cur ? { ...cur, fee_total: total } : cur);
+    return '';
   };
 
   const enqueueEv = (job: () => Promise<boolean>) => {
@@ -302,6 +330,7 @@ export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: str
       <div class="card">
         <h2>{m.title}</h2>
         <p>{fmtDate(m.starts_at)}{!m.venue && m.location && <> · {m.location}</>}</p>
+        {editable && <WeatherChip lat={m.venue?.lat} lng={m.venue?.lng} startsAt={m.starts_at} />}
         <div class="row" style="justify-content:space-between;margin-top:8px">
           <span class="muted">{statusLabel(m)}</span>
           {editable && <span class={`slots ${inList.length >= m.slots ? 'full' : ''}`}>{inList.length}/{m.slots}</span>}
@@ -376,6 +405,13 @@ export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: str
           <h3 style="margin-bottom:4px">Lista de espera ({wait.length})</h3>
           {wait.map((s, i) => PlayerRow({ pid: s.profile_id, right: <>{kick(s.profile_id)}<span class="muted">#{i + 1}</span></> }))}
         </div>
+      )}
+
+      {/* Cuota de la cancha: el total, lo que le toca a cada uno y quién ya pagó */}
+      {m.status !== 'cancelled' && (
+        <FeeCard total={feeNum(m.fee_total)} meId={meId} isAdmin={isAdmin} busy={paying} error={feeErr}
+          players={inList.filter(s => !s.absent).map(s => ({ profile: prof(s.profile_id), paid: !!s.paid_at }))}
+          onPaid={setPaid} onSetFee={setFee} />
       )}
 
       {/* Goles y tarjetas: partido jugado; los cargan solo los admins con − / +, el resto lo ve de solo lectura */}
@@ -467,6 +503,26 @@ export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: str
           vote={pid => run(async () => { const r = await sb.rpc('vote_mvp', { p_match: id, p_target: pid }); if (!r.error) await loadMvp(); return r; }, '¡Voto de MVP guardado!')} />
       )}
       {started && <Tip />}
+
+      {/* Eliminar: solo owner/admins (la base también lo exige). Borra anotados, goles, calificaciones y votos. */}
+      {isAdmin && (
+        <div class="card danger-zone">
+          <h3 style="margin-bottom:6px">Eliminar partido</h3>
+          <p class="muted" style="margin:0 0 10px;font-size:.88rem">
+            {m.schedule_id && !started
+              ? 'Es del partido fijo: si lo eliminás se vuelve a crear solo. Para no jugar esa fecha usá "Cancelar partido", o pausá el partido fijo.'
+              : 'Se borran los anotados, goles, tarjetas, calificaciones y votos de este partido. No se puede deshacer.'}
+          </p>
+          <button class="btn danger" disabled={busy} onClick={async () => {
+            if (!confirm(`¿Eliminar "${m.title}" para siempre? Se pierden sus anotados, goles y votos.`)) return;
+            setBusy(true); setErr('');
+            const r = await sb.from('matches').delete().eq('id', id).select('id');
+            setBusy(false);
+            if (r.error || !r.data?.length) return setErr(r.error ? friendly(r.error.message) : 'No tenés permiso para eliminar este partido.');
+            go(`c/${slug}`);
+          }}>Eliminar partido</button>
+        </div>
+      )}
     </>
   );
 }
@@ -617,7 +673,8 @@ function MvpVote({ canVote, meId, mine, tally, players, busy, vote }: {
 
 function friendly(m: string) {
   if (m.includes('self_vote')) return 'No te podés votar a vos mismo como MVP 😅';
-  if (m.includes('not_in_match')) return 'Ese jugador no jugó este partido.';
+  if (m.includes('not_in_match') || m.includes('bad_target')) return 'Ese jugador no jugó este partido.';
+  if (m.includes('mvp_closed')) return 'La votación de la figura ya cerró.';
   if (m.includes('already_suspended')) return 'Ya está suspendido para el próximo partido.';
   if (m.includes('suspended')) return 'Está suspendido para este partido por ausencias.';
   if (m.includes('result_locked')) return 'El resultado ya está cargado: solo lo corrige quien lo cargó o un admin.';

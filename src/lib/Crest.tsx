@@ -2,7 +2,7 @@ import { useId } from 'preact/hooks';
 import { CREST, KITS, type Shape } from './teams';
 
 /** Contornos en un lienzo de 24×28 (el diseño de la camiseta se recorta adentro). */
-const SHAPES: Record<Shape, string> = {
+export const SHAPES: Record<Shape, string> = {
   shield: 'M2 2H22V13C22 20 17.5 24.5 12 27C6.5 24.5 2 20 2 13Z',
   pointed: 'M2 4Q7 4 12 1Q17 4 22 4V14C22 20.5 17.5 24.5 12 27C6.5 24.5 2 20.5 2 14Z',
   french: 'M2 2H22V17Q22 25.5 12 27Q2 25.5 2 17Z',

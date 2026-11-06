@@ -1,0 +1,62 @@
+/* Partido fijo semanal, cuota de la cancha, deudas y clima del partido.
+   Solo usa las variables de styles.css (claro y oscuro). Se importa en main.tsx justo antes de desktop.css. */
+
+/* ---------- Clima (chip en la tarjeta del partido) ---------- */
+.wx-chip{display:flex;align-items:center;gap:6px;width:fit-content;max-width:100%;margin-top:8px;padding:4px 12px 4px 8px;border-radius:99px;
+  background:var(--accent-soft);font-size:.88rem;font-weight:600;line-height:1.25}
+.wx-ico{flex:none;font-size:1.2rem;line-height:1}
+
+/* ---------- Cuota de la cancha ---------- */
+.fee-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.fee-sum{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin-top:6px}
+.fee-total{font:700 2.1rem/1 var(--f-display);letter-spacing:.01em}
+.fee-each{padding:3px 12px;border-radius:99px;background:var(--accent-soft);font:700 1.2rem var(--f-display)}
+.fee-bar{height:8px;margin-top:14px;border-radius:99px;background:var(--line);overflow:hidden}
+.fee-bar i{display:block;height:100%;border-radius:inherit;background:var(--accent);transition:width .25s}
+.fee-count{margin-top:6px;font-size:.88rem}
+.fee-list{margin-top:6px}
+.fee-row{display:flex;align-items:center;gap:8px;min-height:50px;padding:6px 0;border-top:1px solid var(--line)}
+.fee-row:first-child{border-top:0}
+.fee-name{flex:1;min-width:0}
+.fee-st{flex:none;font-size:.82rem;font-weight:600;white-space:nowrap}
+.fee-st.ok{color:var(--accent)}
+.fee-st.due{color:var(--muted)}
+.fee-row .btn{flex:none}
+.fee-empty{margin:6px 0 10px}
+.fee-form{margin-top:12px}
+.fee-hint{margin:-6px 0 12px;font-size:.85rem}
+
+/* ---------- Partido fijo ---------- */
+.sch-line{margin:0 2px 12px;font-size:.9rem;color:var(--muted)}
+.sch-top{display:flex;align-items:center;gap:8px}
+.sch-when{margin-top:6px;font-weight:600}
+.sch-sub{margin-top:2px;font-size:.85rem}
+.sch-card.off{opacity:.8}
+.sch-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.sch-add{display:block;margin:-4px 0 12px;font-size:.9rem}
+.sch-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.sch-days button{min-width:0;min-height:44px;padding:0;border:1px solid var(--line);border-radius:10px;background:var(--surface);
+  font-weight:600;font-size:.85rem;cursor:pointer}
+.sch-days button.on{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.sch-two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+
+/* ---------- Deudas ---------- */
+.debt-card{padding-block:4px}
+.debt-card>summary,.debt-person>summary{display:flex;align-items:center;gap:8px;min-height:48px;cursor:pointer;list-style:none}
+.debt-card>summary::-webkit-details-marker,.debt-person>summary::-webkit-details-marker{display:none}
+.debt-card>summary::after,.debt-person>summary::after{content:"▾";flex:none;margin-left:auto;color:var(--muted);transition:transform .15s}
+.debt-card:not([open])>summary::after,.debt-person:not([open])>summary::after{transform:rotate(-90deg)}
+.debt-card>summary>span{min-width:0}
+.debt-help{margin:0 0 6px;font-size:.85rem}
+.debt-person{border-top:1px solid var(--line)}
+.debt-person>summary{min-height:52px}
+.debt-who{flex:1;min-width:0}
+.debt-amt{flex:none;font:700 1.15rem var(--f-display)}
+.debt-person>summary::after{margin-left:4px}
+.debt-items{display:grid;margin:0 0 8px 38px}
+.debt-card>.debt-items{margin-left:0}
+.debt-item{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:44px;padding:4px 0;border-top:1px solid var(--line);
+  color:inherit;text-decoration:none;font-size:.92rem}
+.debt-item:first-child{border-top:0}
+.debt-item b{flex:none}
+.danger-zone{border-color:color-mix(in srgb,var(--danger) 35%,var(--line))}

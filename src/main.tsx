@@ -18,6 +18,7 @@ import './pitch.css';
 import './admin.css';
 import './history.css';
 import './quickmatch.css';
+import './batch2.css';
 import './desktop.css';
 
 function App() {

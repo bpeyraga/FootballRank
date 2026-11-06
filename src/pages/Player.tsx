@@ -1,10 +1,16 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useMemo, useState } from 'preact/hooks';
 import { ATTRS, displayName, posLine } from '../lib/supabase';
 import { Radar } from '../lib/Radar';
 import { Avatar } from '../lib/Avatar';
 import { Crest } from '../lib/Crest';
 import { tier, type Ranked } from '../lib/ranking';
-import { fmtAvg, loadPlayerStats, perMatch, type PlayerStats } from '../lib/stats';
+import { fmtAvg, perMatch } from '../lib/stats';
+import { loadPlayData, playerAttendance, playerStatsFrom, type PlayData } from '../lib/playData';
+import { computeAchievements } from '../lib/achievements';
+import { computeDuos } from '../lib/duos';
+import { summaryTiles } from '../lib/cardLayout';
+import { ShareCardButton } from '../lib/ShareCard';
+import { AchievementsCard, DuosCard, PresenceCard } from './PlayerAchievements';
 import { CustomStats, MatchHistory, SuspensionNotice } from './PlayerExtras';
 import { aggregateCustom, loadCustom, radarHouse, type CustomRow } from '../lib/customStats';
 import { fmtDay, loadOvrHistory, type OvrHistory } from '../lib/history';
@@ -15,19 +21,37 @@ import '../history.css';
 const ROLE: Record<string, string> = { owner: 'Owner', admin: 'Admin', member: 'Miembro' };
 
 /** Perfil de un jugador dentro de la comunidad. */
-export function Player({ r, rows, slug, meId, communityId, isAdmin }:
-  { r: Ranked; rows: Ranked[]; slug: string; meId: string; communityId: string; isAdmin: boolean }) {
+export function Player({ r, rows, slug, meId, communityId, isAdmin, communityName }:
+  { r: Ranked; rows: Ranked[]; slug: string; meId: string; communityId: string; isAdmin: boolean; communityName?: string }) {
   const main = r.votes ?? r.base;
-  const [st, setSt] = useState<PlayerStats | null>(null);
+  // Una sola carga trae los partidos y anotados de la comunidad: de ahí salen estadísticas, presentismo, logros y duplas.
+  const [pd, setPd] = useState<PlayData | null>(null);
   const [stErr, setStErr] = useState('');
   useEffect(() => {
     let alive = true;
-    setSt(null); setStErr('');
-    loadPlayerStats(communityId, r.profile.id)
-      .then(s => alive && setSt(s))
+    setPd(null); setStErr('');
+    loadPlayData(communityId, r.profile.id)
+      .then(d => alive && setPd(d))
       .catch(e => alive && setStErr(e?.message ?? 'Error desconocido'));
     return () => { alive = false; };
   }, [communityId, r.profile.id]);
+  const pid = r.profile.id;
+  const calc = useMemo(() => {
+    if (!pd) return null;
+    const mine = pd.signups.filter(s => s.profile_id === pid);
+    return {
+      st: playerStatsFrom(pid, pd.matches, mine, pd.events),
+      att: playerAttendance(pd.matches, mine, pd.joinedAt),
+      ach: computeAchievements({ matches: pd.matches, mine, events: pd.events, mvpTimes: pd.mvpTimes, joinedAt: pd.joinedAt }),
+      duos: computeDuos(pid, pd.matches, pd.signups),
+    };
+  }, [pd, pid]);
+  const st = calc?.st ?? null;
+  const cardData = useMemo(() => ({
+    name: displayName(r.profile), pos: r.profile.pos, ovr: r.ovr, stats: main, photoUrl: r.profile.photo_url,
+    favTeam: r.profile.fav_team, shirt: r.profile.shirt_number,
+    summary: calc ? summaryTiles({ pj: calc.st.pj, goals: calc.st.goals, assists: calc.st.assists, presence: calc.att.pct, mvps: pd?.mvpTimes }) : [],
+  }), [r, main, calc, pd]);
   const [custom, setCustom] = useState<CustomRow[]>([]);
   const reloadCustom = () => loadCustom(communityId, r.profile.id).then(setCustom).catch(() => setCustom([]));
   useEffect(() => { setCustom([]); reloadCustom(); }, [communityId, r.profile.id]);
@@ -62,6 +86,9 @@ export function Player({ r, rows, slug, meId, communityId, isAdmin }:
             <div class="big">{r.ovr ?? '—'}</div>
             <div style="font-size:.8rem">OVR</div>
           </div>
+        </div>
+        <div class="fut-actions">
+          <ShareCardButton card={cardData} communityId={communityId} communityName={communityName} />
         </div>
       </div>
       <div class="pl-grid"><div class="pl-main">
@@ -124,10 +151,13 @@ export function Player({ r, rows, slug, meId, communityId, isAdmin }:
           {st.pj === 0 && <p class="muted st-note">Todavía no jugó partidos en esta comunidad.</p>}
         </>}
       </div>
+      <PresenceCard att={calc?.att ?? null} susp={pd?.suspensions ?? null} />
+      <AchievementsCard list={calc?.ach ?? null} />
       </div><div class="pl-side">
       <SuspensionNotice pid={r.profile.id} communityId={communityId} isAdmin={isAdmin} />
       <CustomStats pid={r.profile.id} rows={rows} meId={meId} communityId={communityId} isAdmin={isAdmin} onChange={reloadCustom} />
       <MatchHistory pid={r.profile.id} slug={slug} communityId={communityId} />
+      <DuosCard duos={calc?.duos ?? null} rows={rows} slug={slug} mine={r.profile.id === meId} />
       <div class="card">
         <h3 style="margin-bottom:12px">Evolución</h3>
         {histErr && <p class="err" style="margin:0">No pudimos cargar la evolución. {histErr}</p>}

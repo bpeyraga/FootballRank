@@ -159,7 +159,7 @@ export function Community({ slug, sub, me }: { slug: string; sub: string[]; me: 
   } else if (tab === 'p') {
     kind = 'p';
     const r = rows.find(x => x.profile.id === sub[1]);
-    body = r ? <Player r={r} rows={rows} slug={slug} meId={me.id} communityId={c.id} isAdmin={isAdmin} /> : <p class="muted">Jugador no encontrado.</p>;
+    body = r ? <Player r={r} rows={rows} slug={slug} meId={me.id} communityId={c.id} communityName={c.name} isAdmin={isAdmin} /> : <p class="muted">Jugador no encontrado.</p>;
   } else if (tab === 'votar') {
     kind = 'votar';
     body = <Vote key={sub[1] ?? ''} rows={rows} communityId={c.id} slug={slug} meId={me.id}
@@ -170,8 +170,8 @@ export function Community({ slug, sub, me }: { slug: string; sub: string[]; me: 
     const fans = teamTally(rows.map(r => r.profile));
     const top = fans.teams[0]?.n ?? 1;
     body = <>
-      <InviteCard link={link} expiresAt={c.invite_expires_at ?? null} isAdmin={isAdmin} msg={msg}
-        onShare={share} onCopy={copy} onRegen={regen} />
+      {isAdmin && <InviteCard link={link} expiresAt={c.invite_expires_at ?? null} isAdmin={isAdmin} msg={msg}
+        onShare={share} onCopy={copy} onRegen={regen} />}
       <div class="card mem-list" style="padding:4px 12px">
         {members.map(m => (
           <div class="row rank-row">
@@ -209,7 +209,7 @@ export function Community({ slug, sub, me }: { slug: string; sub: string[]; me: 
       {actErr && <p class="err">{actErr}</p>}
     </>;
   } else {
-    body = <Matches communityId={c.id} slug={slug} meId={me.id} isAdmin={isAdmin} />;
+    body = <Matches communityId={c.id} slug={slug} meId={me.id} isAdmin={isAdmin} rows={rows} />;
   }
 
   return (
