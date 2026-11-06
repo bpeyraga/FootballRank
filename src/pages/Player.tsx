@@ -6,6 +6,7 @@ import { Crest } from '../lib/Crest';
 import { tier, type Ranked } from '../lib/ranking';
 import { fmtAvg, loadPlayerStats, perMatch, type PlayerStats } from '../lib/stats';
 import { CustomStats, MatchHistory, SuspensionNotice } from './PlayerExtras';
+import { aggregateCustom, loadCustom, type CustomRow } from '../lib/customStats';
 import '../stats.css';
 
 const ROLE: Record<string, string> = { owner: 'Owner', admin: 'Admin', member: 'Miembro' };
@@ -24,6 +25,11 @@ export function Player({ r, rows, slug, meId, communityId, isAdmin }:
       .catch(e => alive && setStErr(e?.message ?? 'Error desconocido'));
     return () => { alive = false; };
   }, [communityId, r.profile.id]);
+  const [custom, setCustom] = useState<CustomRow[]>([]);
+  const reloadCustom = () => loadCustom(communityId, r.profile.id).then(setCustom).catch(() => setCustom([]));
+  useEffect(() => { setCustom([]); reloadCustom(); }, [communityId, r.profile.id]);
+  const house = aggregateCustom(custom, r.profile.id, meId);
+  const showMine = !!r.mine || house.some(h => h.mine != null);
   const decided = st ? st.won + st.drawn + st.lost : 0;
   return (
     <>
@@ -51,10 +57,18 @@ export function Player({ r, rows, slug, meId, communityId, isAdmin }:
               : 'Autoevaluación (todavía nadie lo votó)'}
           </p>
           <table class="stats">
-            <thead><tr><th></th><th>Comunidad</th><th>Propia</th>{r.mine && <th>Tu voto</th>}</tr></thead>
+            <thead><tr><th></th><th>Comunidad</th><th>Propia</th>{showMine && <th>Tu voto</th>}</tr></thead>
             <tbody>{ATTRS.map(([k, , full]) => (
-              <tr><td>{full}</td><td>{r.votes?.[k] ?? '—'}</td><td>{r.base?.[k] ?? '—'}</td>{r.mine && <td>{r.mine[k]}</td>}</tr>
+              <tr><td>{full}</td><td>{r.votes?.[k] ?? '—'}</td><td>{r.base?.[k] ?? '—'}</td>{showMine && <td>{r.mine?.[k] ?? '—'}</td>}</tr>
             ))}</tbody>
+            {house.length > 0 && <tbody class="house">
+              <tr><th colSpan={showMine ? 4 : 3}>De la casa</th></tr>
+              {house.map(h => (
+                <tr><td>{h.label}</td>
+                  <td title={h.n ? `${h.n} ${h.n === 1 ? 'voto' : 'votos'}` : undefined}>{h.avg ?? '—'}</td>
+                  <td>{h.own ?? '—'}</td>{showMine && <td>{h.mine ?? '—'}</td>}</tr>
+              ))}
+            </tbody>}
           </table>
         </> : <p class="muted">Sin stats todavía.</p>}
       </div>
@@ -85,7 +99,7 @@ export function Player({ r, rows, slug, meId, communityId, isAdmin }:
         </>}
       </div>
       <SuspensionNotice pid={r.profile.id} communityId={communityId} isAdmin={isAdmin} />
-      <CustomStats pid={r.profile.id} rows={rows} meId={meId} communityId={communityId} isAdmin={isAdmin} />
+      <CustomStats pid={r.profile.id} rows={rows} meId={meId} communityId={communityId} isAdmin={isAdmin} onChange={reloadCustom} />
       <MatchHistory pid={r.profile.id} slug={slug} communityId={communityId} />
       {r.profile.id !== meId && (
         <a class="btn primary block" href={`#/c/${slug}/votar/${r.profile.id}`}>{r.mine ? 'Cambiar mi voto' : 'Votarlo'}</a>

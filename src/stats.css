@@ -61,3 +61,8 @@
 .avg-score{color:var(--fg);font-family:var(--f-display);font-size:1.1rem}
 .pill.bad{background:var(--danger);color:var(--bg)}
 .res.absent{background:var(--note-bg);color:var(--note-fg)}
+.stats tbody.house th{text-align:left;padding:14px 0 2px;color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:.05em}
+.stats tbody.house td:first-child{font-style:italic}
+.house-title{margin:14px 0 6px;font-size:.75rem;text-transform:uppercase;letter-spacing:.05em}
+.slider .house-label{font-family:var(--f-body);font-size:.85rem;font-style:italic}
+.slider.wide{grid-template-columns:6.5em 1fr 2.4em}

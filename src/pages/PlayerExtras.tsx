@@ -10,8 +10,8 @@ interface Custom { id: string; label: string; value: number; created_by: string;
  * Stats inventadas ("Morfón 90"). Las ve toda la comunidad.
  * El autor edita o borra; el jugador y los admins pueden ocultar las que le pusieron otros.
  */
-export function CustomStats({ pid, rows, meId, communityId, isAdmin }:
-  { pid: string; rows: Ranked[]; meId: string; communityId: string; isAdmin: boolean }) {
+export function CustomStats({ pid, rows, meId, communityId, isAdmin, onChange }:
+  { pid: string; rows: Ranked[]; meId: string; communityId: string; isAdmin: boolean; onChange?: () => void }) {
   const [list, setList] = useState<Custom[] | null>(null);
   const [form, setForm] = useState<{ label: string; value: number } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -35,6 +35,7 @@ export function CustomStats({ pid, rows, meId, communityId, isAdmin }:
     setBusy(false);
     if (error) { setErr(error.message); return false; }
     await load();
+    onChange?.();
     return true;
   };
   const save = async () => {

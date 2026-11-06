@@ -1,9 +1,10 @@
-import { useState } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 import { ATTRS, displayName, ovr, posLine, sb, type Stats } from '../lib/supabase';
 import { Radar } from '../lib/Radar';
 import { Avatar } from '../lib/Avatar';
 import type { Ranked } from '../lib/ranking';
 import { go } from '../lib/router';
+import { aggregateCustom, loadCustom, type HouseStat } from '../lib/customStats';
 
 /** Votar a los compañeros de a uno. Arranca por el primero sin votar (o por `startId`). */
 export function Vote({ rows, communityId, slug, meId, startId, saved }:
@@ -19,16 +20,38 @@ export function Vote({ rows, communityId, slug, meId, startId, saved }:
   const [stats, setStats] = useState<Stats>(() => init(cur));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  // Stats de la casa del jugador actual; solo se guardan las que tocaste.
+  const [house, setHouse] = useState<HouseStat[]>([]);
+  const [hv, setHv] = useState<Record<string, number>>({});
+  const [touched, setTouched] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (!cur) return;
+    let alive = true;
+    setHouse([]); setHv({}); setTouched(new Set());
+    loadCustom(communityId, cur.profile.id).then(list => {
+      if (!alive) return;
+      const h = aggregateCustom(list, cur.profile.id, meId);
+      setHouse(h);
+      setHv(Object.fromEntries(h.map(x => [x.key, x.mine ?? x.avg ?? x.own ?? 50])));
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, [cur?.profile.id]);
 
   if (!cur) return <div class="card"><p class="muted">Todavía no hay compañeros para votar. ¡Compartí el link!</p></div>;
 
   const move = (i: number) => { setIdx(i); setStats(init(others[i])); setErr(''); };
   const save = async (next: boolean) => {
     setBusy(true); setErr('');
-    const { error } = await sb.from('stat_votes').upsert({
+    let { error } = await sb.from('stat_votes').upsert({
       community_id: communityId, voter_id: meId, target_id: cur.profile.id, ...stats,
       updated_at: new Date().toISOString(),
     });
+    const changed = house.filter(h => touched.has(h.key));
+    if (!error && changed.length) {
+      ({ error } = await sb.from('custom_stats').upsert(
+        changed.map(h => ({ community_id: communityId, target_id: cur.profile.id, created_by: meId, label: h.label, value: hv[h.key], hidden: false })),
+        { onConflict: 'community_id,target_id,created_by,label' }));
+    }
     if (!error) await saved();
     setBusy(false);
     if (error) return setErr(error.message);
@@ -55,6 +78,18 @@ export function Vote({ rows, communityId, slug, meId, startId, saved }:
           <output>{stats[k]}</output>
         </label>
       ))}
+      {house.length > 0 && <>
+        <p class="muted house-title">De la casa</p>
+        {house.map(h => (
+          <label class="slider wide" title={h.avg != null ? `Promedio ${h.avg} (${h.n} ${h.n === 1 ? 'voto' : 'votos'})` : undefined}>
+            <b class="ellipsis house-label">{h.label}</b>
+            <input type="range" min={1} max={99} value={hv[h.key] ?? 50}
+              onInput={e => { setHv({ ...hv, [h.key]: +(e.target as HTMLInputElement).value }); setTouched(new Set(touched).add(h.key)); }} />
+            <output class={touched.has(h.key) || h.mine != null ? '' : 'muted'}>{hv[h.key] ?? 50}</output>
+          </label>
+        ))}
+        <p class="muted" style="font-size:.8rem">Solo se guardan las que muevas.</p>
+      </>}
       <div class="row" style="margin-top:12px">
         <button class="btn" disabled={idx === 0} onClick={() => move(idx - 1)} aria-label="Anterior">‹</button>
         <span class="muted" style="flex:1;text-align:center">{idx + 1} / {others.length}</span>
