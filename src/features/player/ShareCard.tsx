@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { sb } from '../../shared/supabase';
+import { communityName as loadCommunityName } from './api';
 import { cardFileName } from './cardLayout';
 import { downloadBlob, renderCardPng, shareBlob, type CardData } from './cardCanvas';
 
@@ -24,8 +24,7 @@ export function ShareCardButton({ card, communityId, communityName }:
     const promise = (async () => {
       let community: string = nameRef.current ?? communityName ?? '';
       if (nameRef.current == null && communityName == null) {
-        const { data } = await sb.from('communities').select('name').eq('id', communityId).maybeSingle();
-        community = nameRef.current = (data?.name as string | undefined) ?? '';
+        community = nameRef.current = await loadCommunityName(communityId);
       }
       return renderCardPng({ ...card, community });
     })();

@@ -1,4 +1,4 @@
-import { sb } from '../../shared/supabase';
+// Stats de la casa: tipos y cuentas puras. La lectura y escritura en la base está en stats/api.ts.
 
 export interface CustomRow { id: string; label: string; value: number; created_by: string; hidden: boolean; code: string | null }
 
@@ -7,13 +7,6 @@ export interface HouseStat {
   key: string; label: string; code: string | null; avg: number | null; n: number; own: number | null; mine: number | null;
   /** id de mi fila para esta stat, si ya la puntué (para actualizarla en vez de crear otra). */
   mineId: string | null;
-}
-
-export async function loadCustom(communityId: string, pid: string): Promise<CustomRow[]> {
-  const { data, error } = await sb.from('custom_stats').select('id,label,value,created_by,hidden,code')
-    .eq('community_id', communityId).eq('target_id', pid).order('created_at');
-  if (error) throw error;
-  return data ?? [];
 }
 
 export const labelKey = (s: string) => s.trim().toLocaleLowerCase('es');

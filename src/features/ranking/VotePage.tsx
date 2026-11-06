@@ -5,7 +5,8 @@ import { Radar } from '../../shared/ui/Radar';
 import { Avatar } from '../../shared/ui/Avatar';
 import type { Ranked } from './ranking';
 import { go } from '../../app/router';
-import { aggregateCustom, loadCustom, radarHouse, type HouseStat } from '../stats/customStats';
+import { aggregateCustom, radarHouse, type HouseStat } from '../stats/customStats';
+import { addCustom, loadCustom, updateCustom } from '../stats/api';
 
 /** Votar a los compañeros de a uno. Arranca por el primero sin votar (o por `startId`). */
 export function Vote({ rows, communityId, slug, meId, startId, saved }:
@@ -50,10 +51,10 @@ export function Vote({ rows, communityId, slug, meId, startId, saved }:
     const changed = house.filter(h => touched.has(h.key));
     // Si ya tengo fila para esa stat, la actualizo (aunque mi etiqueta tenga otras mayúsculas); si no, creo la mía.
     for (const h of error ? [] : changed) {
-      ({ error } = h.mineId
-        ? await sb.from('custom_stats').update({ value: hv[h.key] }).eq('id', h.mineId)
-        : await sb.from('custom_stats').insert({ community_id: communityId, target_id: cur.profile.id, created_by: meId, label: h.label, value: hv[h.key], hidden: false }));
-      if (error) break;
+      try {
+        if (h.mineId) await updateCustom(h.mineId, { value: hv[h.key] });
+        else await addCustom({ communityId, targetId: cur.profile.id, meId, label: h.label, value: hv[h.key] });
+      } catch (e: any) { error = { message: e?.message ?? 'Error de red' } as any; break; }
     }
     if (!error) await saved();
     setBusy(false);
