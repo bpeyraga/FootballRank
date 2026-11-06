@@ -1,6 +1,6 @@
 import { useState } from 'preact/hooks';
 import type { ComponentChildren } from 'preact';
-import { sb, uploadCommunityPhoto } from '../../shared/supabase';
+import { setCommunityPhoto, uploadCommunityPhoto } from './api';
 
 /**
  * Portada de la comunidad: la foto del grupo a todo el ancho, con el escudo y el nombre encima (children).
@@ -15,11 +15,7 @@ export function CommunityPhoto({ id, name, url, isAdmin, changed, compact = fals
   const [err, setErr] = useState('');
 
   const save = async (next: string | null) => {
-    const { error } = await sb.rpc('set_community_photo', { p_community: id, p_url: next });
-    if (error) throw error;
-    // la foto anterior ya no se usa: se borra (si falla, no importa)
-    const old = url?.split('/communities/')[1]?.split('?')[0];
-    if (old) await sb.storage.from('communities').remove([old]);
+    await setCommunityPhoto(id, next, url); // la foto anterior ya no se usa: se borra
     changed();
   };
   const onFile = async (e: Event) => {

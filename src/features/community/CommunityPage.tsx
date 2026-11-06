@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
 import { Suspense } from 'preact/compat';
-import { displayName, hue, infoLine, sb, teamTally, type Profile } from '../../shared/supabase';
+import { displayName, hue, infoLine, teamTally, type Profile } from '../../shared/supabase';
 import { go, inviteUrl } from '../../app/router';
 import { loadRanking, type Ranked } from '../ranking/ranking';
 import { Avatar } from '../../shared/ui/Avatar';
@@ -14,8 +14,9 @@ import { VenuesCard } from '../venues/VenuesManager';
 import { nPlayers, stepFromRoute } from './players';
 import './admin.css';
 import { initials } from '../../shared/text';
+import * as api from './api';
+import { ORDER, ROLE, adminError, regenNotice, type Community, type Role } from './model';
 
-// Clave del "último visto" del chat (misma que usa Chat.tsx), acá para no traer todo el chat al cargar la comunidad.
 const Ranking = page(() => import('../ranking/RankingPage'), m => m.Ranking);
 const Vote = page(() => import('../ranking/VotePage'), m => m.Vote);
 const Player = page(() => import('../player/PlayerPage'), m => m.Player);
@@ -26,9 +27,6 @@ const Setup = page(() => import('./SetupPage'), m => m.Setup);
 const AddPlayersSheet = page(() => import('./AddPlayers'), m => m.AddPlayersSheet);
 const EditPlayerSheet = page(() => import('./EditPlayerSheet'), m => m.EditPlayerSheet);
 
-interface Community { id: string; name: string; slug: string; invite_code: string; owner_id: string; invite_expires_at?: string | null; photo_url?: string | null }
-const ROLE: Record<string, string> = { owner: 'Owner', admin: 'Admin', member: 'Miembro' };
-const ORDER: Record<string, number> = { owner: 0, admin: 1, member: 2 };
 /** Íconos de las pestañas (barra inferior en el celular, navegación arriba en escritorio). */
 const TAB_ICONS: Record<string, any> = {
   partidos: <path d="M5.5 5h13A2.5 2.5 0 0 1 21 7.5v11a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 18.5v-11A2.5 2.5 0 0 1 5.5 5zM3 10h18M8 3v4M16 3v4" />,
@@ -53,12 +51,12 @@ export function Community({ slug, sub, me }: { slug: string; sub: string[]; me: 
     try { setRows(await loadRanking(id, me.id)); } catch (e: any) { setActErr(e.message); }
   };
   const load = async () => {
-    const r = await sb.from('communities').select('*').eq('slug', slug).maybeSingle();
-    if (r.error) return setErr(r.error.message);
-    if (r.data) {
-      try { setRows(await loadRanking(r.data.id, me.id)); } catch (e: any) { return setErr(e.message); }
+    let found: Community | null;
+    try { found = await api.loadCommunity(slug); } catch (e: any) { return setErr(e?.message ?? 'Error de red'); }
+    if (found) {
+      try { setRows(await loadRanking(found.id, me.id)); } catch (e: any) { return setErr(e.message); }
     }
-    setC(r.data);
+    setC(found);
   };
   useEffect(() => { setC(undefined); setActErr(''); setSheet(null); setNote(''); load(); }, [slug]);
   // Mensajes nuevos de otros desde la última vez que abriste el chat (badge en la pestaña)
@@ -73,9 +71,7 @@ export function Community({ slug, sub, me }: { slug: string; sub: string[]; me: 
       if (!seen) localStorage.setItem(seenKey(c.id), new Date().toISOString());
     } catch { /* sin storage */ }
     if (!seen) return setUnread(0);
-    sb.from('messages').select('id', { count: 'exact', head: true }).eq('community_id', c.id).neq('author_id', me.id)
-      .gt('created_at', seen)
-      .then(({ count }) => setUnread(count ?? 0));
+    api.countUnread(c.id, me.id, seen).then(setUnread, () => setUnread(0));
   }, [c?.id, sub[0]]);
   // En pantallas angostas, que la pestaña activa quede a la vista
   useEffect(() => {
@@ -99,25 +95,20 @@ export function Community({ slug, sub, me }: { slug: string; sub: string[]; me: 
     if (navigator.share) navigator.share({ text }).catch(() => {});
     else open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
-  const regen = async (hours: number | null) => {
-    // Sin vencimiento se manda solo p_community (igual que antes de existir p_hours)
-    const { error } = await sb.rpc('regenerate_invite', hours ? { p_community: c.id, p_hours: hours } : { p_community: c.id });
-    if (error) setActErr(adminError(error.message));
-    else {
-      setActErr('');
-      setMsg(`Link nuevo generado${hours ? ` (vence en ${hours === 24 ? '24 horas' : `${hours / 24} días`})` : ''}; el anterior ya no sirve`);
-      load();
-    }
+  /** Corre una acción de admin: si falla muestra el error traducido; si sale bien, limpia el error. */
+  const act = async (f: () => Promise<unknown>) => {
+    try { await f(); setActErr(''); return true; } catch (e: any) { setActErr(adminError(e?.message ?? '')); return false; }
   };
-  const setRole = async (pid: string, role: string) => {
-    const { error } = await sb.rpc('set_role', { p_community: c.id, p_profile: pid, p_role: role });
-    if (error) setActErr(error.message); else { setActErr(''); loadRows(c.id); }
+  const regen = async (hours: number | null) => {
+    if (await act(() => api.regenerateInvite(c.id, hours))) { setMsg(regenNotice(hours)); load(); }
+  };
+  const setRole = async (pid: string, role: Role) => {
+    if (await act(() => api.setRole(c.id, pid, role))) loadRows(c.id);
   };
   const transfer = async (pid: string, name: string) => {
     if (!confirm(`¿Pasarle la comunidad "${c.name}" a ${name}? Va a ser el nuevo owner y vos quedás como admin. Solo ${name} podría devolvértela.`)) return false;
-    const { error } = await sb.rpc('transfer_ownership', { p_community: c.id, p_profile: pid });
-    if (error) { setActErr(adminError(error.message)); return false; }
-    setActErr(''); setMsg(`Ahora ${name} es el owner. Vos quedaste como admin.`);
+    if (!(await act(() => api.transferOwnership(c.id, pid)))) return false;
+    setMsg(`Ahora ${name} es el owner. Vos quedaste como admin.`);
     await load();
     scrollTo({ top: 0, behavior: 'smooth' });
     return true;
@@ -126,25 +117,19 @@ export function Community({ slug, sub, me }: { slug: string; sub: string[]; me: 
     if (!confirm(noAccount
       ? `¿Sacar a ${name} del grupo? Se libera su lugar en los partidos abiertos.`
       : `¿Sacar a ${name} de la comunidad? Se libera su lugar en los partidos abiertos. Si no querés que vuelva a entrar, después regenerá el link de invitación.`)) return;
-    // Sin cuenta: se borra también el perfil (si no está en otra comunidad), para no dejarlo huérfano.
-    const { error } = noAccount
-      ? await sb.rpc('remove_placeholder', { p_community: c.id, p_profile: pid })
-      : await sb.from('memberships').delete().eq('community_id', c.id).eq('profile_id', pid);
-    if (error) setActErr(error.message); else { setActErr(''); loadRows(c.id); }
+    if (await act(() => api.removeMember(c.id, pid, noAccount))) loadRows(c.id);
   };
 
   const leave = async () => {
     if (!confirm(`¿Salir de "${c.name}"? Vas a dejar de ver sus partidos y el ranking. Para volver necesitás un link de invitación.`)) return;
-    const { error } = await sb.from('memberships').delete().eq('community_id', c.id).eq('profile_id', me.id);
-    if (error) setActErr(error.message); else go('');
+    if (await act(() => api.removeMember(c.id, me.id))) go('');
   };
 
   const remove = async () => {
     const typed = prompt(`Esto borra "${c.name}" para todos: partidos, resultados, votos y miembros. No se puede deshacer.\n\nEscribí el nombre de la comunidad para confirmar:`);
     if (typed === null) return;
     if (typed.trim() !== c.name.trim()) return setActErr('El nombre no coincide; no se borró nada.');
-    const { error } = await sb.from('communities').delete().eq('id', c.id);
-    if (error) setActErr(error.message); else go('');
+    if (await act(() => api.deleteCommunity(c.id))) go('');
   };
 
   const inviteCard = (admin: boolean) => (
@@ -379,11 +364,3 @@ function TransferOwner({ candidates, onTransfer }: {
   );
 }
 
-function adminError(m: string) {
-  if (m.includes('forbidden')) return 'No tenés permiso para hacer eso.';
-  if (m.includes('not_member')) return 'Esa persona ya no es miembro de la comunidad.';
-  if (m.includes('bad_target')) return 'No se le puede transferir a esa persona: tiene que ser otro miembro con cuenta.';
-  if (m.includes('bad_hours')) return 'El vencimiento elegido no es válido.';
-  if (m.includes('Failed to fetch') || m.includes('NetworkError')) return 'Sin conexión. Probá de nuevo.';
-  return m;
-}

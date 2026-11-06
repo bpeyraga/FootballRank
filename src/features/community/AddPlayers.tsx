@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { sb } from '../../shared/supabase';
+import { addPlayer, addPlayers } from './api';
 import type { Pos } from '../../shared/model';
 import { Sheet } from '../../shared/ui/Sheet';
 import { PlayerFields, PosChips } from './PlayerForm';
 import {
-  addPlayerParams, dropLine, emptyPlayer, nextPos, nPlayers, norm, parseBulk, playerError, selectToSave, validatePlayer,
+  dropLine, emptyPlayer, nextPos, nPlayers, norm, parseBulk, playerError, selectToSave, validatePlayer,
   BULK_MAX, type BulkRow, type PlayerDraft,
 } from './players';
 
@@ -52,10 +52,10 @@ export function BulkAdd({ communityId, existing, onAdded, onPending, autoFocus }
   const save = async () => {
     if (!n || pick.over || busy) return;
     setBusy(true); setErr(''); setOk('');
-    const { data, error } = await sb.rpc('add_players', { p_community: communityId, p_players: pick.players });
+    let added: number;
+    try { added = await addPlayers(communityId, pick.players); }
+    catch (e: any) { setBusy(false); return setErr(playerError(e?.message ?? '')); }
     setBusy(false);
-    if (error) return setErr(playerError(error.message));
-    const added = typeof data === 'number' ? data : n;
     setText(''); setOverrides(new Map()); setForced(new Set());
     setOk(`Listo: sumaste ${nPlayers(added)}.`);
     onAdded(added);
@@ -133,9 +133,9 @@ export function AddPlayersSheet({ communityId, existing, start = 'uno', onClose,
     const v = check.value;
     if (existing.some(x => norm(x) === norm(v.name)) && !confirm(`Ya hay alguien que se llama "${v.name}" en el grupo. ¿Agregar otro igual?`)) return;
     setBusy(true); setErr(''); setOk('');
-    const { error } = await sb.rpc('add_player', addPlayerParams(communityId, v));
+    try { await addPlayer(communityId, v); }
+    catch (e: any) { setBusy(false); return setErr(playerError(e?.message ?? '')); }
     setBusy(false);
-    if (error) return setErr(playerError(error.message));
     setOk(`✓ ${v.name} agregado. Podés cargar otro.`);
     setDraft(emptyPlayer(draft.pos));   // misma posición: suele cargarse de a varios del mismo puesto
     onAdded(1);

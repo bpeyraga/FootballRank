@@ -5,6 +5,19 @@ import { pushOff } from '../push/push';
 
 // ---------- Sesión ----------
 
+/** Mi perfil (null sin sesión). */
+export async function loadMe(): Promise<Profile | null> {
+  // getSession lee la sesión guardada (sin ir a la red): un corte de conexión no te "desloguea".
+  const { data: { session } } = await sb.auth.getSession();
+  const user = session?.user;
+  if (!user) return null;
+  const { data, error } = await sb.from('profiles').select('*').eq('user_id', user.id).maybeSingle();
+  if (error) throw error;
+  // Con sesión pero sin perfil (usuario creado antes del trigger): no mostrar el login en loop.
+  if (!data) throw new Error('No encontramos tu perfil de jugador. Salí y volvé a entrar; si sigue pasando, avisale al admin.');
+  return data;
+}
+
 export async function signInWithPassword(email: string, password: string) {
   const { error } = await sb.auth.signInWithPassword({ email, password });
   if (error) throw new Error(error.message);
@@ -81,4 +94,24 @@ export type ProfileFields = Pick<Profile, 'name' | 'nickname' | 'shirt_number' |
 export async function saveMyProfile(profileId: string, stats: Stats, fields: ProfileFields) {
   must(await sb.from('base_stats').upsert({ profile_id: profileId, ...stats, updated_at: new Date().toISOString() }));
   must(await sb.from('profiles').update({ ...fields, onboarded: true }).eq('id', profileId));
+}
+
+// ---------- Mi foto ----------
+
+/** Recorta al centro y exporta 256×256 JPEG (igual que la app v1). */
+export async function cropPhoto(file: File): Promise<Blob> {
+  const img = await createImageBitmap(file);
+  const s = Math.min(img.width, img.height);
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  c.getContext('2d')!.drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, 256, 256);
+  return new Promise((ok, ko) => c.toBlob(b => (b ? ok(b) : ko(new Error('crop'))), 'image/jpeg', 0.85));
+}
+
+export async function uploadPhoto(profileId: string, file: File): Promise<string> {
+  const blob = await cropPhoto(file);
+  const path = `${profileId}/avatar.jpg`;
+  const { error } = await sb.storage.from('avatars').upload(path, blob, { upsert: true, contentType: 'image/jpeg' });
+  if (error) throw error;
+  return `${sb.storage.from('avatars').getPublicUrl(path).data.publicUrl}?v=${Date.now()}`;
 }

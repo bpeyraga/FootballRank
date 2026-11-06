@@ -1,12 +1,8 @@
 import { useEffect, useState } from 'preact/hooks';
-import { sb } from '../../shared/supabase';
+import { approveClaim, pendingClaims, rejectClaim } from './api';
+import type { Claim } from './model';
 import { Avatar } from '../../shared/ui/Avatar';
 import { playerError } from './players';
-
-interface Claim {
-  placeholder_id: string; placeholder_name: string;
-  claimant_id: string; claimant_name: string; claimant_photo: string | null; created_at: string;
-}
 
 /**
  * Solo el owner: pedidos de "¿Sos vos?" sobre jugadores cargados a mano. Aprobar le pasa a esa cuenta todo el historial
@@ -18,9 +14,8 @@ export function ClaimsCard({ communityId, onChanged }: { communityId: string; on
   const [err, setErr] = useState('');
 
   const load = async () => {
-    const { data, error } = await sb.rpc('pending_claims', { p_community: communityId });
-    if (!error) setList((data ?? []) as Claim[]);
     // Si la función todavía no existe en el servidor (migración sin aplicar) no mostramos nada.
+    try { setList(await pendingClaims(communityId)); } catch { /* nada */ }
   };
   useEffect(() => { setList([]); load(); }, [communityId]);
 
@@ -29,11 +24,12 @@ export function ClaimsCard({ communityId, onChanged }: { communityId: string; on
     if (kind === 'approve' && !confirm(
       `¿Aprobar que ${c.claimant_name} es ${c.placeholder_name}?\n\nTodo el historial de ${c.placeholder_name} (votos, partidos, goles, mensajes) pasa a la cuenta de ${c.claimant_name}, y el perfil que ${c.claimant_name} tiene ahora se junta con este. No se puede deshacer.`)) return;
     setBusy(c.placeholder_id + c.claimant_id); setErr('');
-    const { error } = await sb.rpc(kind === 'approve' ? 'approve_claim' : 'reject_claim', { p_placeholder: c.placeholder_id, p_claimant: c.claimant_id });
+    const e = await (kind === 'approve' ? approveClaim : rejectClaim)(c.placeholder_id, c.claimant_id)
+      .then(() => '', (x: any) => (x?.message as string) || 'Error de red');
     setBusy('');
-    if (error) setErr(playerError(error.message));
+    if (e) setErr(playerError(e));
     await load();
-    if (!error && kind === 'approve') await onChanged();
+    if (!e && kind === 'approve') await onChanged();
   };
 
   if (!list.length) return err ? <p class="err">{err}</p> : null;

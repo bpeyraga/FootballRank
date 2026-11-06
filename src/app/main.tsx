@@ -2,9 +2,9 @@ import { render } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import './styles/styles.css';
 import './install'; // registra el service worker y escucha "instalar app" desde el arranque
-import { loadMe, sb, type Profile } from '../shared/supabase';
+import { sb, type Profile } from '../shared/supabase';
 import { pushForget, pushSync } from '../features/push/push';
-import { onAuthChange, signOut } from '../features/auth/api';
+import { loadMe, onAuthChange, signOut } from '../features/auth/api';
 import { startTracking, trackNow } from './track';
 import { Loading, page, prefetch } from './lazy';
 const Login = page(() => import('../features/auth/LoginPage'), m => m.Login);

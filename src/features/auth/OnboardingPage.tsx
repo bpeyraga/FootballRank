@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
-import { ATTRS, POS, ovr, uploadPhoto, type Pos, type Profile, type Stats } from '../../shared/supabase';
-import { loadAccount, loadBaseStats, saveMyProfile, type Account } from './api';
+import { ATTRS, POS, ovr, type Pos, type Profile, type Stats } from '../../shared/supabase';
+import { loadAccount, loadBaseStats, saveMyProfile, uploadPhoto, type Account } from './api';
 import { Radar } from '../../shared/ui/Radar';
 import { TEAMS_ASCENSO, TEAMS_PRIMERA } from '../../shared/teams';
 import { Crest } from '../../shared/ui/Crest';

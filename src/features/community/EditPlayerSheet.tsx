@@ -1,9 +1,9 @@
 import { useState } from 'preact/hooks';
-import { sb } from '../../shared/supabase';
 import type { Profile, Stats } from '../../shared/model';
 import { Sheet } from '../../shared/ui/Sheet';
 import { PlayerFields, StatsSliders } from './PlayerForm';
-import { draftOf, playerError, statsParams, updatePlayerParams, validatePlayer, type PlayerDraft } from './players';
+import { draftOf, playerError, validatePlayer, type PlayerDraft } from './players';
+import { setPlayerStats, updatePlayer } from './api';
 
 const NEUTRAL: Stats = { rit: 50, tir: 50, pas: 50, reg: 50, def: 50, fis: 50 };
 
@@ -23,12 +23,18 @@ export function EditPlayerSheet({ communityId, profile, base, onClose, onSaved }
     e.preventDefault();
     if (!check.ok || busy) return;
     setBusy(true); setErr('');
-    const u = await sb.rpc('update_player', updatePlayerParams(profile.id, communityId, check.value));
-    const s = u.error || !withStats ? u : await sb.rpc('set_player_stats', statsParams(profile.id, communityId, stats));
+    let step: 'datos' | 'stats' = 'datos';
+    try {
+      await updatePlayer(profile.id, communityId, check.value);
+      step = 'stats';
+      if (withStats) await setPlayerStats(profile.id, communityId, stats);
+    } catch (e: any) {
+      setBusy(false);
+      // Si los datos se guardaron pero las stats no, igual refrescamos la lista (el nombre ya cambió)
+      if (step === 'stats') onSaved();
+      return setErr(playerError(e?.message ?? ''));
+    }
     setBusy(false);
-    // Si los datos se guardaron pero las stats no, igual refrescamos la lista (el nombre ya cambió)
-    if (!u.error && s.error) onSaved();
-    if (s.error) return setErr(playerError(s.error.message));
     onSaved();
     onClose();
   };

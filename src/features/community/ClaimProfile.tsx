@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
-import { sb } from '../../shared/supabase';
+import { hasMyClaim, rejectClaim, requestClaim } from './api';
 import { playerError } from './players';
 
 /**
@@ -14,23 +14,22 @@ export function ClaimProfile({ placeholderId, meId, name }: { placeholderId: str
   useEffect(() => {
     let alive = true;
     setState('loading'); setErr('');
-    sb.from('claims').select('claimant_id').eq('placeholder_id', placeholderId).eq('claimant_id', meId).maybeSingle()
-      .then(({ data }) => { if (alive) setState(data ? 'pending' : 'none'); });
+    hasMyClaim(placeholderId, meId).then(yes => { if (alive) setState(yes ? 'pending' : 'none'); });
     return () => { alive = false; };
   }, [placeholderId, meId]);
 
   const claim = async () => {
     setBusy(true); setErr('');
-    const { error } = await sb.rpc('request_claim', { p_placeholder: placeholderId });
+    const e = await requestClaim(placeholderId).then(() => '', (x: any) => (x?.message as string) || 'Error de red');
     setBusy(false);
-    if (error) setErr(error.message.includes('not_placeholder') ? 'Este perfil ya tiene dueño.' : playerError(error.message));
+    if (e) setErr(e.includes('not_placeholder') ? 'Este perfil ya tiene dueño.' : playerError(e));
     else setState('pending');
   };
   const cancel = async () => {
     setBusy(true); setErr('');
-    const { error } = await sb.rpc('reject_claim', { p_placeholder: placeholderId, p_claimant: meId });
+    const e = await rejectClaim(placeholderId, meId).then(() => '', (x: any) => (x?.message as string) || 'Error de red');
     setBusy(false);
-    if (error && !error.message.includes('no_claim')) setErr(playerError(error.message));
+    if (e && !e.includes('no_claim')) setErr(playerError(e));
     else setState('none');
   };
 
