@@ -59,6 +59,14 @@ body:has(.landing)::before{background:var(--hz0)}
 .ld-gbtn::after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(105deg,transparent 40%,rgba(244,189,44,.38) 50%,transparent 60%);
   transform:translateX(-120%);animation:ld-sweep 5.5s ease-in-out 2s infinite}
 .ld-ghost{min-height:46px;padding:0 18px;border-radius:12px;border:1.5px solid rgba(255,255,255,.32);background:transparent;color:#fff;font-weight:600;cursor:pointer;transition:background .15s}
+.ld-link{background:none;border:0;padding:6px 0;color:#fff;font:600 .98rem var(--f-body);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.ld-email{display:grid;gap:10px;width:100%;max-width:420px;padding:16px;border-radius:16px;background:rgba(0,0,0,.24);border:1px solid rgba(255,255,255,.18);scroll-margin-top:90px}
+.ld-email input{min-height:48px;padding:0 14px;border-radius:12px;border:1px solid rgba(255,255,255,.3);background:#fff;color:#1f1f1f;font-size:1rem}
+.ld-email-go{min-height:50px;border-radius:12px;border:0;background:var(--au2);color:#1f1f1f;font:700 1.02rem var(--f-body);cursor:pointer}
+.ld-email-go:disabled{opacity:.7;cursor:default}
+.ld-email-err{color:#ffd2cc;font-size:.92rem}
+.ld-email-ok{color:#c9f5d8;font-size:.92rem}
+.ld-email .ld-link{justify-self:start}
 .ld-checks{list-style:none;margin:2px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:6px 18px;font-size:.93rem;font-weight:500;color:rgba(255,255,255,.9)}
 .ld-checks li::before{content:"✓";margin-right:6px;font-weight:700;color:var(--au2)}
 .ld-proof{display:flex;align-items:center;gap:9px;padding:10px 14px;border-radius:14px;background:rgba(0,0,0,.24);border:1px solid rgba(255,255,255,.12);

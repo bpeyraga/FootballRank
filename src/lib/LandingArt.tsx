@@ -62,7 +62,7 @@ export function ArtTeams() {
 export function ArtNotifs() {
   const n = (t: string, d: string, w: string) => (
     <div class="a-notif">
-      <img src="/icon.svg" width={32} height={32} alt="" loading="lazy" />
+      <img src="/icon.png" width={32} height={32} alt="" loading="lazy" />
       <div><b>{t}<small>{w}</small></b><span>{d}</span></div>
     </div>
   );

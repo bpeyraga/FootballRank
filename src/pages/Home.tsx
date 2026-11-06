@@ -167,7 +167,7 @@ export function Home({ me }: { me: Profile }) {
   return (
     <div class="wrap home">
       <header class="home-top">
-        <div class="brand"><img src="/icon.svg" width={28} height={28} alt="" /><b>Ranking Fútbol</b></div>
+        <div class="brand"><img src="/icon.png" width={28} height={28} alt="" /><b>Ranking Fútbol</b></div>
         <details class="menu" ref={menu}>
           <summary aria-label="Menú de la cuenta"><Avatar p={me} size={36} /></summary>
           <div class="menu-pop">

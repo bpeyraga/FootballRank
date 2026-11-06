@@ -80,17 +80,17 @@ const TILES: { k: string; t: string; d: string; i: ComponentChildren; art: Compo
 ];
 
 const STEPS = [
-  ['Entrá con Google', 'Un toque, sin contraseñas ni formularios.'],
+  ['Entrá con Google o tu correo', 'Con Google es un toque; si no, registrás tu correo y una contraseña.'],
   ['Armá tu carta', 'Elegí tu posición, tu foto y tu club. Después tus compañeros te califican.'],
   ['Sumá a tu grupo', 'Creá la comunidad, compartí el link por WhatsApp y a jugar.'],
 ] as const;
 
 const FAQ = [
-  ['¿Es gratis?', 'Sí. Entrás con tu cuenta de Google y usás la app completa sin pagar nada.'],
+  ['¿Es gratis?', 'Sí. Entrás con Google o con tu correo y usás la app completa sin pagar nada.'],
   ['¿Tiene publicidad?', 'No. Sin banners, sin anuncios: la app es para organizar el partido, no para venderte cosas.'],
   ['¿Se instala como app?', 'Sí. No hace falta ir a la tienda: desde el menú del navegador elegís "Instalar app" o "Agregar a inicio" y queda con su ícono en el celular.'],
   ['¿Funciona en iPhone y Android?', 'Sí, en los dos y también desde la compu. En iPhone, para recibir los avisos primero tenés que instalarla en la pantalla de inicio desde Safari.'],
-  ['¿Cómo hago para que mis amigos entren?', 'Creás tu comunidad y compartís el link de invitación por WhatsApp. Cada uno entra con Google, arma su carta y ya puede votar y anotarse a los partidos.'],
+  ['¿Cómo hago para que mis amigos entren?', 'Creás tu comunidad y compartís el link de invitación por WhatsApp. Cada uno entra con Google o su correo, arma su carta y ya puede votar y anotarse a los partidos.'],
   ['¿Quién califica a quién?', 'Los integrantes del grupo se califican entre sí en los seis atributos. El promedio de los votos define el OVR de cada uno.'],
 ] as const;
 
@@ -100,9 +100,81 @@ const scrollTo = (id: string) => {
   document.getElementById(id)?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
 };
 
+/** Guarda la ruta actual (ej. "#/join/…") para volver a ella después de un redirect (ver main.tsx). */
+const saveNext = () => {
+  try { if (location.hash.startsWith('#/')) localStorage.setItem(NEXT_KEY, location.hash); } catch { /* sin storage */ }
+};
+
+const AUTH_ERRORS: Record<string, string> = {
+  'Invalid login credentials': 'Correo o contraseña incorrectos.',
+  'User already registered': 'Ya hay una cuenta con ese correo. Entrá con tu contraseña.',
+  'Email not confirmed': 'Todavía no confirmaste el correo. Revisá tu bandeja de entrada.',
+};
+
+/** Alta y entrada con correo y contraseña. Con la sesión iniciada, main.tsx se entera por onAuthStateChange. */
+function EmailAuth() {
+  const [mode, setMode] = useState<'in' | 'up'>('in');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [pass, setPass] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [msg, setMsg] = useState('');
+
+  const submit = async (e: Event) => {
+    e.preventDefault();
+    setErr(''); setMsg('');
+    if (mode === 'up' && pass.length < 6) { setErr('La contraseña tiene que tener al menos 6 caracteres.'); return; }
+    setBusy(true);
+    if (mode === 'in') {
+      const { error } = await sb.auth.signInWithPassword({ email: email.trim(), password: pass });
+      if (error) setErr(AUTH_ERRORS[error.message] ?? error.message);
+    } else {
+      saveNext(); // si hay que confirmar el correo, el link vuelve a la app y retomamos la invitación
+      const { data, error } = await sb.auth.signUp({
+        email: email.trim(), password: pass,
+        options: { data: { full_name: name.trim() }, emailRedirectTo: location.origin + location.pathname },
+      });
+      if (error) setErr(AUTH_ERRORS[error.message] ?? error.message);
+      // Supabase no avisa si el correo ya existía (devuelve un usuario sin identidades)
+      else if (data.user && !data.user.identities?.length) setErr(AUTH_ERRORS['User already registered']);
+      else if (!data.session) setMsg(`Te mandamos un correo a ${email.trim()}. Abrí el link para confirmar la cuenta.`);
+    }
+    setBusy(false);
+  };
+
+  const flip = () => { setMode(mode === 'in' ? 'up' : 'in'); setErr(''); setMsg(''); };
+
+  return (
+    <form class="ld-email" id="ld-email" onSubmit={submit}>
+      {mode === 'up' && (
+        <input type="text" placeholder="Tu nombre" autocomplete="name" maxLength={40} required
+          value={name} onInput={e => setName(e.currentTarget.value)} />
+      )}
+      <input type="email" placeholder="Correo" autocomplete="email" required
+        value={email} onInput={e => setEmail(e.currentTarget.value)} />
+      <input type="password" placeholder="Contraseña" autocomplete={mode === 'in' ? 'current-password' : 'new-password'} required
+        value={pass} onInput={e => setPass(e.currentTarget.value)} />
+      <button class="ld-email-go" disabled={busy}>
+        {busy ? 'Un momento…' : mode === 'in' ? 'Entrar' : 'Crear cuenta'}
+      </button>
+      {err && <p class="ld-email-err" role="alert">{err}</p>}
+      {msg && <p class="ld-email-ok">{msg}</p>}
+      <button type="button" class="ld-link" onClick={flip}>
+        {mode === 'in' ? '¿No tenés cuenta? Registrate' : '¿Ya tenés cuenta? Entrá'}
+      </button>
+    </form>
+  );
+}
+
 export function Login() {
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
+  const [withEmail, setWithEmail] = useState(false);
+  const openEmail = () => {
+    setWithEmail(true);
+    setTimeout(() => scrollTo('ld-email'));
+  };
   const invited = location.hash.startsWith('#/join/');
   // Si vuelve atrás desde Google, el navegador restaura la página con el botón en "Abriendo…".
   useEffect(() => {
@@ -114,7 +186,7 @@ export function Login() {
   const go = async () => {
     // El token vuelve en el hash (#access_token=…): si redirectTo ya tiene "#/join/…" queda
     // "#/join/…#access_token=…" y supabase-js no lo detecta. Guardamos la ruta y la restauramos en main.tsx.
-    try { if (location.hash.startsWith('#/')) localStorage.setItem(NEXT_KEY, location.hash); } catch { /* sin storage */ }
+    saveNext();
     setBusy(true); setErr('');
     const { error } = await sb.auth.signInWithOAuth({
       provider: 'google',
@@ -133,7 +205,7 @@ export function Login() {
     <div class="landing">
       <header class="ld-bar">
         <div class="ld-in ld-bar-in">
-          <span class="ld-brand"><img src="/icon.svg" width={34} height={34} alt="" /><b>Ranking Fútbol</b></span>
+          <span class="ld-brand"><img src="/icon.png" width={34} height={34} alt="" /><b>Ranking Fútbol</b></span>
           <button class="ld-enter" onClick={go} disabled={busy}>{busy ? 'Abriendo…' : 'Entrar'}</button>
         </div>
         {err && <div class="ld-alert" role="alert">{err}</div>}
@@ -155,12 +227,15 @@ export function Login() {
                 {cta()}
                 <button class="ld-ghost" onClick={() => scrollTo('ld-como')}>Ver cómo funciona</button>
               </div>
+              {withEmail
+                ? <EmailAuth />
+                : <button class="ld-link" onClick={openEmail}>O entrá con tu correo y contraseña</button>}
               <ul class="ld-checks">
                 <li>Gratis</li><li>Sin publicidad</li><li>Se instala como app</li>
               </ul>
               <p class="ld-proof">
                 <span aria-hidden="true">⚽</span>
-                {invited ? 'Entrá con Google y te sumás a la comunidad al toque.' : 'Pensada para el grupo que arma el picado todas las semanas.'}
+                {invited ? 'Entrá y te sumás a la comunidad al toque.' : 'Pensada para el grupo que arma el picado todas las semanas.'}
               </p>
             </div>
             <CardFan />
@@ -224,10 +299,11 @@ export function Login() {
           <div class="ld-grass" aria-hidden="true" />
           <PitchLines />
           <div class="ld-in ld-final-in">
-            <img class="ld-final-logo" src="/icon.svg" width={84} height={84} alt="" loading="lazy" />
+            <img class="ld-final-logo" src="/icon.png" width={84} height={84} alt="" loading="lazy" />
             <h2>Armá tu carta y convocá al grupo</h2>
             <p>En un minuto tenés tu ficha lista y el link para invitar a tus amigos.</p>
             {cta()}
+            <button class="ld-link" onClick={openEmail}>O entrá con tu correo y contraseña</button>
             <small>{invited ? 'Entrá y te sumás al toque.' : 'Gratis y sin publicidad.'}</small>
           </div>
         </section>
