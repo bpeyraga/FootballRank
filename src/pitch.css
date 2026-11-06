@@ -1,0 +1,25 @@
+/* Cancha de fútbol 5 con formación (Ranking y Partido). El césped es verde en claro y oscuro. */
+.pitch{position:relative;width:100%;max-width:420px;margin:0 auto;aspect-ratio:100/140;border-radius:12px;overflow:hidden;
+  background:repeating-linear-gradient(180deg,#2f8f4e 0 10%,#2a8447 10% 20%);box-shadow:inset 0 0 0 1px rgba(0,0,0,.15)}
+.pitch-lines{position:absolute;inset:0;width:100%;height:100%}
+.pitch-lines *{fill:none;stroke:rgba(255,255,255,.75);stroke-width:.6;vector-effect:non-scaling-stroke}
+.pitch-lines .dot{fill:rgba(255,255,255,.85)}
+
+.pc{position:absolute;transform:translate(-50%,-50%);width:27%;display:flex;flex-direction:column;align-items:center;gap:3px;text-align:center}
+.pc-link{display:contents;color:inherit;text-decoration:none}
+.pc-card{position:relative;width:62px;height:76px;border-radius:10px 10px 14px 14px;display:flex;flex-direction:column;align-items:center;
+  justify-content:flex-end;padding-bottom:7px;box-shadow:0 2px 6px rgba(0,0,0,.35)}
+.pc-card.empty{background:rgba(255,255,255,.18);border:1.5px dashed rgba(255,255,255,.8);box-shadow:none;color:#fff}
+.pc-top{position:absolute;top:4px;left:6px;display:flex;flex-direction:column;align-items:flex-start;line-height:1}
+.pc-top b{font:700 1.15rem/1 var(--f-display)}
+.pc-top i{font:700 .62rem/1.2 var(--f-display);font-style:normal;letter-spacing:.03em}
+.pc-card.empty .pc-top{left:50%;transform:translateX(-50%);align-items:center}
+.pc-q{font:700 1.6rem/1 var(--f-display);margin-bottom:8px}
+.pc-num{position:absolute;top:4px;right:5px;font:700 .7rem/1 var(--f-display)}
+.pc-name{max-width:100%;padding:1px 6px;border-radius:6px;background:rgba(0,0,0,.55);color:#fff;font-size:.74rem;font-weight:600}
+.pc-alts{max-width:120%;color:#fff;font-size:.66rem;text-shadow:0 1px 2px rgba(0,0,0,.7)}
+.pitch-bench{margin-top:10px;font-size:.85rem}
+.pc-card.gold{background:linear-gradient(135deg,var(--gold-1),var(--gold-2));color:var(--gold-f)}
+.pc-card.silver{background:linear-gradient(135deg,var(--silver-1),var(--silver-2));color:var(--silver-f)}
+.pc-card.bronze{background:linear-gradient(135deg,var(--bronze-1),var(--bronze-2));color:var(--bronze-f)}
+.pc-card.none{background:linear-gradient(135deg,var(--none-1),var(--none-2));color:var(--none-f)}

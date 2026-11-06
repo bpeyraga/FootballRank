@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'preact/hooks';
 import { displayName, ovr, posLine, sb, type Profile, type Stats } from '../lib/supabase';
 import { balance, type BPlayer } from '../lib/balance';
 import { Avatar } from '../lib/Avatar';
+import { lineup } from '../lib/formation';
+import { Pitch, type PitchPlayer } from '../lib/Pitch';
 import type { Ranked } from '../lib/ranking';
 import { fmtDate, STATUS, type Match as M } from './Matches';
 import {
@@ -134,12 +136,15 @@ export function Match({ id, rows, meId, isAdmin }: { id: string; rows: Ranked[];
 
   const Team = ({ t, label }: { t: 'A' | 'B'; label: string }) => {
     const ps = inList.filter(s => s.team === t);
+    const lu = lineup<PitchPlayer>(ps.map(s => { const b = toBP(s.profile_id); return { id: b.id, pos: b.pos, ovr: b.ovr, profile: prof(s.profile_id) }; }));
     return (
       <div class={`card team ${t}`}>
         <div class="row" style="justify-content:space-between">
           <h3>{label}</h3>
           <span class="muted">OVR {avgOvr(ps.map(s => toBP(s.profile_id)))}</span>
         </div>
+        {ps.length > 0 && <div style="margin:10px 0 6px"><Pitch placed={lu.placed} /></div>}
+        {lu.bench.length > 0 && <p class="muted pitch-bench">Suplentes: {lu.bench.map(b => displayName(b.profile)).join(', ')}</p>}
         {ps.map(s => <PlayerRow pid={s.profile_id} right={kick(s.profile_id)} />)}
       </div>
     );
