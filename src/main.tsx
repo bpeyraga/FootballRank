@@ -7,7 +7,7 @@ import { Onboarding } from './pages/Onboarding';
 import { Home } from './pages/Home';
 import { Join } from './pages/Join';
 import { Community } from './pages/Community';
-import { useRoute } from './lib/router';
+import { go, useRoute } from './lib/router';
 
 function App() {
   const route = useRoute();
@@ -46,6 +46,7 @@ function App() {
   if (state === 'loading') return <div class="center"><p class="muted">Cargando…</p></div>;
   if (state === 'out' || !me) return <Login />;
   if (!me.onboarded) return <Onboarding me={me} done={refresh} />;
+  if (route[0] === 'perfil') return <Onboarding me={me} done={async () => { await refresh(); go(''); }} cancel={() => go('')} />;
   if (route[0] === 'join' && route[1]) return <Join code={route[1]} />;
   if (route[0] === 'c' && route[1]) return <Community slug={route[1]} sub={route.slice(2)} me={me} />;
   return <Home me={me} />;

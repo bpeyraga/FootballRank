@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
 import { sb, type Profile } from '../lib/supabase';
-import { inviteUrl } from '../lib/router';
+import { go, inviteUrl } from '../lib/router';
 import { loadRanking, type Ranked } from '../lib/ranking';
 import { Avatar } from '../lib/Avatar';
 import { Ranking } from './Ranking';
@@ -57,7 +57,13 @@ export function Community({ slug, sub, me }: { slug: string; sub: string[]; me: 
     if (error) setErr(error.message); else loadRows(c.id);
   };
 
-  const Tab = ({ id, label }: { id: string; label: string }) =>
+  const leave = async () => {
+    if (!confirm(`¿Salir de "${c.name}"? Vas a dejar de ver sus partidos y el ranking. Para volver necesitás un link de invitación.`)) return;
+    const { error } = await sb.from('memberships').delete().eq('community_id', c.id).eq('profile_id', me.id);
+    if (error) setErr(error.message); else go('');
+  };
+
+  const Tab =({ id, label }: { id: string; label: string }) =>
     <a href={`#/c/${slug}${id === 'partidos' ? '' : '/' + id}`} class={tab === id || (id === 'partidos' && tab === 'm') ? 'on' : ''}>{label}</a>;
 
   let body;
@@ -97,6 +103,9 @@ export function Community({ slug, sub, me }: { slug: string; sub: string[]; me: 
           </div>
         ))}
       </div>
+      {isOwner
+        ? <p class="muted" style="font-size:.85rem">Sos el owner: no podés salir de la comunidad.</p>
+        : <button class="btn block danger" onClick={leave}>Salir de la comunidad</button>}
     </>;
   } else {
     body = <Matches communityId={c.id} slug={slug} meId={me.id} isAdmin={isAdmin} />;
