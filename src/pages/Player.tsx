@@ -6,7 +6,7 @@ import { Crest } from '../lib/Crest';
 import { tier, type Ranked } from '../lib/ranking';
 import { fmtAvg, loadPlayerStats, perMatch, type PlayerStats } from '../lib/stats';
 import { CustomStats, MatchHistory, SuspensionNotice } from './PlayerExtras';
-import { aggregateCustom, loadCustom, type CustomRow } from '../lib/customStats';
+import { aggregateCustom, loadCustom, radarHouse, type CustomRow } from '../lib/customStats';
 import { fmtDay, loadOvrHistory, type OvrHistory } from '../lib/history';
 import { OvrChart } from '../lib/OvrChart';
 import '../stats.css';
@@ -43,6 +43,9 @@ export function Player({ r, rows, slug, meId, communityId, isAdmin }:
       .catch(e => alive && setHistErr(e?.message ?? 'Error desconocido'));
     return () => { alive = false; };
   }, [communityId, r.profile.id]);
+  const [withHouse, setWithHouse] = useState(true);
+  const inRadar = radarHouse(house);
+  const extra = withHouse ? inRadar.map(h => ({ label: h.label, value: (h.avg ?? h.own)!, compare: h.own })) : [];
   const decided = st ? st.won + st.drawn + st.lost : 0;
   return (
     <>
@@ -63,7 +66,16 @@ export function Player({ r, rows, slug, meId, communityId, isAdmin }:
       </div>
       <div class="card">
         {main ? <>
-          <Radar stats={main} compare={r.votes ? r.base : null} />
+          {inRadar.length > 0 && (
+            <div class="seg" role="group" aria-label="Qué mostrar en el gráfico">
+              <button class={withHouse ? 'on' : ''} aria-pressed={withHouse} onClick={() => setWithHouse(true)}>Con la casa</button>
+              <button class={!withHouse ? 'on' : ''} aria-pressed={!withHouse} onClick={() => setWithHouse(false)}>Solo base</button>
+            </div>
+          )}
+          <Radar stats={main} compare={r.votes ? r.base : null} extra={extra} />
+          {withHouse && house.length > inRadar.length && (
+            <p class="muted legend" style="margin:0">+{house.length - inRadar.length} de la casa en la tabla</p>
+          )}
           <p class="muted legend">
             {r.votes
               ? <><i class="sw a" /> comunidad ({r.nVotes} {r.nVotes === 1 ? 'voto' : 'votos'}){r.base && <> <i class="sw b" /> autoevaluación</>}</>

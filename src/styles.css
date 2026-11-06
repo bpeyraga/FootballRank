@@ -60,7 +60,7 @@ p{margin:0}
 .slider b{font-family:var(--f-display);font-size:1.1rem}
 .slider output{text-align:right;font-weight:600}
 .slider input{accent-color:var(--accent);width:100%}
-.radar{display:block;margin:0 auto;max-width:280px;width:100%}
+.radar{display:block;margin:0 auto;max-width:330px;width:100%}
 .radar .grid{fill:none;stroke:var(--line)}
 .radar .shape{fill:var(--accent);fill-opacity:.25;stroke:var(--accent);stroke-width:2}
 .radar .shape.alt{fill:var(--tb);stroke:var(--tb)}

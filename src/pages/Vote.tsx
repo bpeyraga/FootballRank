@@ -4,7 +4,7 @@ import { Radar } from '../lib/Radar';
 import { Avatar } from '../lib/Avatar';
 import type { Ranked } from '../lib/ranking';
 import { go } from '../lib/router';
-import { aggregateCustom, loadCustom, type HouseStat } from '../lib/customStats';
+import { aggregateCustom, loadCustom, radarHouse, type HouseStat } from '../lib/customStats';
 
 /** Votar a los compañeros de a uno. Arranca por el primero sin votar (o por `startId`). */
 export function Vote({ rows, communityId, slug, meId, startId, saved }:
@@ -68,7 +68,7 @@ export function Vote({ rows, communityId, slug, meId, startId, saved }:
         </div>
         <h3>OVR {ovr(stats)}</h3>
       </div>
-      <Radar stats={stats} compare={cur.base} />
+      <Radar stats={stats} compare={cur.base} extra={radarHouse(house).map(h => ({ label: h.label, value: hv[h.key] ?? 50, compare: h.own }))} />
       {cur.base && <p class="muted legend"><i class="sw a" /> tu voto <i class="sw b" /> su autoevaluación</p>}
       {ATTRS.map(([k, l, full]) => (
         <label class="slider" title={full}>

@@ -37,3 +37,12 @@ export function aggregateCustom(list: CustomRow[], pid: string, meId: string): H
     };
   }).sort((a, b) => (b.avg ?? b.own ?? 0) - (a.avg ?? a.own ?? 0) || a.label.localeCompare(b.label));
 }
+
+export const RADAR_MAX_HOUSE = 4;
+
+/** Las stats de la casa que entran al radar: las más votadas (y después las más altas), hasta `max`. */
+export function radarHouse(house: HouseStat[], max = RADAR_MAX_HOUSE): HouseStat[] {
+  return house.filter(h => (h.avg ?? h.own) != null)
+    .sort((a, b) => b.n - a.n || (b.avg ?? b.own ?? 0) - (a.avg ?? a.own ?? 0))
+    .slice(0, max);
+}

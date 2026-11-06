@@ -66,3 +66,7 @@
 .house-title{margin:14px 0 6px;font-size:.75rem;text-transform:uppercase;letter-spacing:.05em}
 .slider .house-label{font-family:var(--f-body);font-size:.85rem;font-style:italic}
 .slider.wide{grid-template-columns:6.5em 1fr 2.4em}
+.radar text.house{font-style:italic;fill:var(--fg)}
+.seg{display:flex;width:max-content;margin:0 auto 8px;border:1px solid var(--line);border-radius:99px;padding:2px}
+.seg button{border:0;background:none;border-radius:99px;padding:6px 14px;font-size:.85rem;font-weight:600;color:var(--muted);cursor:pointer;min-height:32px}
+.seg button.on{background:var(--accent);color:var(--accent-fg)}
