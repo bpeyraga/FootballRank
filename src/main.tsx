@@ -1,5 +1,5 @@
 import { render } from 'preact';
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import './styles.css';
 import { loadMe, sb, type Profile } from './lib/supabase';
 import { Login, NEXT_KEY } from './pages/Login';
@@ -14,6 +14,7 @@ function App() {
   const [state, setState] = useState<'loading' | 'out' | 'in'>('loading');
   const [me, setMe] = useState<Profile | null>(null);
   const [err, setErr] = useState('');
+  const userId = useRef<string | null>(null);
 
   const refresh = async () => {
     try {
@@ -24,14 +25,17 @@ function App() {
           if (next) { localStorage.removeItem(NEXT_KEY); location.hash = next; }
         } catch { /* sin storage */ }
       }
+      userId.current = p?.user_id ?? null;
       setErr(''); setMe(p); setState(p ? 'in' : 'out');
     } catch (e: any) { setErr(e.message); }
   };
 
   useEffect(() => {
     refresh();
-    const { data } = sb.auth.onAuthStateChange(ev => {
-      if (ev === 'SIGNED_IN' || ev === 'SIGNED_OUT') refresh();
+    // supabase-js emite SIGNED_IN también al volver a la pestaña: solo recargamos si cambió el usuario.
+    const { data } = sb.auth.onAuthStateChange((ev, session) => {
+      if (ev === 'SIGNED_OUT') { setMe(null); setState('out'); }
+      else if (ev === 'SIGNED_IN' && session?.user.id !== userId.current) refresh();
     });
     return () => data.subscription.unsubscribe();
   }, []);

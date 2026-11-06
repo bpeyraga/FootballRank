@@ -4,6 +4,11 @@ import { balance, type BPlayer } from '../lib/balance';
 import { Avatar } from '../lib/Avatar';
 import type { Ranked } from '../lib/ranking';
 import { fmtDate, STATUS, type Match as M } from './Matches';
+import {
+  EVENT_KINDS, KIND_ICON, KIND_LABEL, groupMatchEvents, loadMatchEvents,
+  type EventKind, type MatchEvent, type Team,
+} from '../lib/stats';
+import '../stats.css';
 
 interface Signup { profile_id: string; status: 'in' | 'waitlist' | 'out'; team: 'A' | 'B' | null; created_at: string }
 type BP = BPlayer & { r: Ranked };
@@ -21,6 +26,15 @@ export function Match({ id, rows, meId, isAdmin }: { id: string; rows: Ranked[];
   const [opt, setOpt] = useState(0);
   const [adding, setAdding] = useState('');
   const [res, setRes] = useState({ a: '', b: '' });
+  const [events, setEvents] = useState<MatchEvent[] | null>(null);
+  const [evErr, setEvErr] = useState('');
+  const [evBusy, setEvBusy] = useState(false);
+
+  // Goles y tarjetas se cargan aparte: si la tabla no existe todavía, el resto de la pantalla sigue andando.
+  const loadEvents = async () => {
+    try { setEvents(await loadMatchEvents(id)); setEvErr(''); }
+    catch (e: any) { setEvErr('No pudimos cargar los goles y tarjetas. ' + (e?.message ?? '')); }
+  };
 
   const load = async () => {
     const [a, b, c, d] = await Promise.all([
@@ -35,6 +49,7 @@ export function Match({ id, rows, meId, isAdmin }: { id: string; rows: Ranked[];
     setScores(new Map((c.data ?? []).map((x: any) => [x.profile_id, { avg: +x.avg_score, n: x.n }])));
     setMyRatings(Object.fromEntries((d.data ?? []).map((x: any) => [x.target_id, x.score])));
     if (a.data?.score_a != null) setRes({ a: String(a.data.score_a), b: String(a.data.score_b) });
+    if (a.data?.status === 'played') loadEvents();
   };
   useEffect(() => { load(); }, [id]);
 
@@ -62,6 +77,25 @@ export function Match({ id, rows, meId, isAdmin }: { id: string; rows: Ranked[];
     await load();
     return true;
   };
+
+  const evRun = async (f: () => PromiseLike<{ error: any }>) => {
+    setEvBusy(true); setEvErr('');
+    try {
+      const { error } = await f();
+      if (error) { setEvErr(friendly(error.message)); return false; }
+      await loadEvents();
+      return true;
+    } catch (e: any) {
+      setEvErr(friendly(e?.message ?? 'Error de red'));
+      return false;
+    } finally { setEvBusy(false); }
+  };
+  const addEvent = (pid: string, kind: EventKind) => evRun(() =>
+    sb.from('match_events').insert({ match_id: id, community_id: m.community_id, profile_id: pid, kind, created_by: meId }));
+  const delEvent = (eid: number) => evRun(async () => {
+    const r = await sb.from('match_events').delete().eq('id', eid).select('id');
+    return { error: r.error ?? (r.data?.length ? null : { message: 'No se pudo borrar (puede que ya lo hayan sacado).' }) };
+  });
 
   const toBP = (pid: string): BP => {
     const r = byId.get(pid)!;
@@ -158,6 +192,15 @@ export function Match({ id, rows, meId, isAdmin }: { id: string; rows: Ranked[];
         </div>
       )}
 
+      {/* Goles y tarjetas: partido jugado; cargan admins y quienes jugaron */}
+      {m.status === 'played' && (
+        <MatchEvents events={events} err={evErr} busy={evBusy} meId={meId} isAdmin={isAdmin}
+          canAdd={isAdmin || mine?.status === 'in'} hasTeams={hasTeams}
+          players={inList.map(s => ({ id: s.profile_id, name: prof(s.profile_id).name, team: s.team }))}
+          nameOf={pid => prof(pid).name} teamOf={pid => (hasTeams ? inList.find(s => s.profile_id === pid)?.team ?? null : null)}
+          onAdd={addEvent} onDel={delEvent} />
+      )}
+
       {/* Admin */}
       {isAdmin && editable && (
         <div class="card">
@@ -178,7 +221,7 @@ export function Match({ id, rows, meId, isAdmin }: { id: string; rows: Ranked[];
             {m.status === 'open'
               ? <button class="btn" disabled={busy} onClick={() => run(() => sb.from('matches').update({ status: 'closed' }).eq('id', id), 'Lista cerrada')}>Cerrar lista</button>
               : <button class="btn" disabled={busy} onClick={() => run(() => sb.from('matches').update({ status: 'open' }).eq('id', id), 'Lista reabierta')}>Reabrir lista</button>}
-            <button class="btn danger" disabled={busy} onClick={() => run(() => sb.from('matches').update({ status: 'cancelled' }).eq('id', id), 'Partido cancelado')}>Cancelar partido</button>
+            <button class="btn danger" disabled={busy} onClick={() => confirm('¿Cancelar el partido? No se puede deshacer.') && run(() => sb.from('matches').update({ status: 'cancelled' }).eq('id', id), 'Partido cancelado')}>Cancelar partido</button>
           </div>
         </div>
       )}
@@ -233,6 +276,84 @@ export function Match({ id, rows, meId, isAdmin }: { id: string; rows: Ranked[];
   );
 }
 
+const SHORT: Record<EventKind, string> = { goal: 'Gol', assist: 'Asist.', yellow: 'Amarilla', red: 'Roja' };
+
+/** Goles, asistencias y tarjetas del partido, agrupados por equipo, con alta y baja para quienes pueden. */
+function MatchEvents({ events, err, busy, meId, isAdmin, canAdd, hasTeams, players, nameOf, teamOf, onAdd, onDel }: {
+  events: MatchEvent[] | null; err: string; busy: boolean; meId: string; isAdmin: boolean; canAdd: boolean; hasTeams: boolean;
+  players: { id: string; name: string; team: Team | null }[];
+  nameOf: (pid: string) => string; teamOf: (pid: string) => Team | null;
+  onAdd: (pid: string, kind: EventKind) => Promise<boolean>; onDel: (id: number) => void;
+}) {
+  const [pid, setPid] = useState('');
+  const [kind, setKind] = useState<EventKind>('goal');
+  const groups = groupMatchEvents(events ?? [], teamOf);
+  const canDel = (e: MatchEvent) => isAdmin || e.created_by === meId;
+  const opt = (ps: typeof players) => ps.map(p => <option value={p.id}>{p.name}</option>);
+  const sin = players.filter(p => !p.team);
+
+  return (
+    <div class="card">
+      <h3>Goles y tarjetas</h3>
+      {events == null && !err && <p class="muted" style="margin-top:8px">Cargando…</p>}
+      {err && <p class="err">{err}</p>}
+      {events != null && !events.length && <p class="muted" style="margin-top:8px">Todavía no hay goles ni tarjetas cargados.</p>}
+      {groups.map(t => (
+        <div class={`ev-team ${t.team === 'none' ? '' : `team ${t.team}`}`}>
+          {hasTeams && (
+            <div class="ev-head">
+              <b class={t.team === 'A' ? 'ta' : t.team === 'B' ? 'tb' : 'muted'}>{t.team === 'none' ? 'Sin equipo' : `Equipo ${t.team}`}</b>
+              {t.goals > 0 && <span class="muted">{KIND_ICON.goal} {t.goals}</span>}
+            </div>
+          )}
+          {t.groups.map(g => {
+            const del = [...g.events].reverse().find(canDel);
+            const n = g.events.length, who = nameOf(g.profile_id);
+            return (
+              <div class="ev-row">
+                <span class="ev-ico" title={KIND_LABEL[g.kind]}>{KIND_ICON[g.kind]}</span>
+                <span class="ev-name ellipsis">{who}</span>
+                {n > 1 && <b class="ev-n">×{n}</b>}
+                {del && (
+                  <button class="btn sm ev-del" disabled={busy} onClick={() => onDel(del.id)}
+                    aria-label={`Quitar ${n > 1 ? 'una ' : 'la '}${KIND_LABEL[g.kind].toLowerCase()} de ${who}`}>{n > 1 ? '−' : '✕'}</button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ))}
+
+      {canAdd && (
+        <div class="ev-add">
+          {!players.length ? <p class="muted">No hay jugadores anotados.</p> : <>
+            <select class="ev-select" aria-label="Jugador" value={pid} onChange={e => setPid((e.target as HTMLSelectElement).value)}>
+              <option value="">¿Quién?</option>
+              {hasTeams
+                ? <>
+                    <optgroup label="Equipo A">{opt(players.filter(p => p.team === 'A'))}</optgroup>
+                    <optgroup label="Equipo B">{opt(players.filter(p => p.team === 'B'))}</optgroup>
+                    {sin.length > 0 && <optgroup label="Sin equipo">{opt(sin)}</optgroup>}
+                  </>
+                : opt(players)}
+            </select>
+            <div class="st-seg c4" role="group" aria-label="Tipo de evento" style="margin-bottom:8px">
+              {EVENT_KINDS.map(k => (
+                <button type="button" class={kind === k ? 'on' : ''} aria-pressed={kind === k} onClick={() => setKind(k)}>
+                  <span aria-hidden="true">{KIND_ICON[k]}</span><small>{SHORT[k]}</small>
+                </button>
+              ))}
+            </div>
+            <button class="btn primary block" disabled={busy || !pid} onClick={() => onAdd(pid, kind)}>
+              {busy ? 'Guardando…' : `Agregar ${KIND_LABEL[kind].toLowerCase()}`}
+            </button>
+          </>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function RateTeammates({ mates, initial, busy, save }:
   { mates: Profile[]; initial: Record<string, number>; busy: boolean; save: (s: Record<string, number>) => void }) {
   const [sc, setSc] = useState<Record<string, number>>(initial);
@@ -261,10 +382,17 @@ function RateTeammates({ mates, initial, busy, save }:
 }
 
 function friendly(m: string) {
+  if (m.includes('result_locked')) return 'El resultado ya está cargado: solo lo corrige quien lo cargó o un admin.';
+  if (m.includes('bad_score')) return 'El resultado tiene que ser un número entre 0 y 99.';
+  if (m.includes('not_played')) return 'Primero hay que cargar el resultado del partido.';
+  if (m.includes('not_member')) return 'Esa persona ya no es miembro de la comunidad.';
+  if (m.includes('cancelled')) return 'El partido está cancelado.';
   if (m.includes('closed')) return 'La lista está cerrada.';
   if (m.includes('not_started')) return 'El partido todavía no empezó.';
   if (m.includes('not_teammate')) return 'Solo podés calificar a tu equipo.';
   if (m.includes('not_player')) return 'No jugaste este partido.';
-  if (m.includes('forbidden')) return 'No tenés permiso para hacer eso.';
+  if (m.includes('forbidden') || m.includes('row-level security')) return 'No tenés permiso para hacer eso.';
+  if (m.includes('violates check constraint') || m.includes('invalid input syntax')) return 'Revisá los datos: hay un valor inválido.';
+  if (m.includes('Failed to fetch') || m.includes('NetworkError')) return 'Sin conexión. Probá de nuevo.';
   return m;
 }

@@ -11,7 +11,9 @@ export * from './model';
 import type { Profile } from './model';
 
 export async function loadMe(): Promise<Profile | null> {
-  const { data: { user } } = await sb.auth.getUser();
+  // getSession lee la sesión guardada (sin ir a la red): un corte de conexión no te "desloguea".
+  const { data: { session } } = await sb.auth.getSession();
+  const user = session?.user;
   if (!user) return null;
   const { data, error } = await sb.from('profiles').select('*').eq('user_id', user.id).maybeSingle();
   if (error) throw error;

@@ -14,3 +14,6 @@ export interface Profile {
 }
 
 export const ovr = (s: Stats) => Math.round(ATTRS.reduce((t, [k]) => t + s[k], 0) / 6);
+
+/** Tono (0-359) estable a partir de un id, para colores de nombres y escudos. */
+export const hue = (id: string) => { let h = 0; for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) % 360; return h; };

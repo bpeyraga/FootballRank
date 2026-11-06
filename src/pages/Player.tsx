@@ -1,13 +1,27 @@
+import { useEffect, useState } from 'preact/hooks';
 import { ATTRS } from '../lib/supabase';
 import { Radar } from '../lib/Radar';
 import { Avatar } from '../lib/Avatar';
 import { tier, type Ranked } from '../lib/ranking';
+import { fmtAvg, loadPlayerStats, perMatch, type PlayerStats } from '../lib/stats';
+import '../stats.css';
 
 const ROLE: Record<string, string> = { owner: 'Owner', admin: 'Admin', member: 'Miembro' };
 
 /** Perfil de un jugador dentro de la comunidad. */
-export function Player({ r, slug, meId }: { r: Ranked; slug: string; meId: string }) {
+export function Player({ r, slug, meId, communityId }: { r: Ranked; slug: string; meId: string; communityId: string }) {
   const main = r.votes ?? r.base;
+  const [st, setSt] = useState<PlayerStats | null>(null);
+  const [stErr, setStErr] = useState('');
+  useEffect(() => {
+    let alive = true;
+    setSt(null); setStErr('');
+    loadPlayerStats(communityId, r.profile.id)
+      .then(s => alive && setSt(s))
+      .catch(e => alive && setStErr(e?.message ?? 'Error desconocido'));
+    return () => { alive = false; };
+  }, [communityId, r.profile.id]);
+  const decided = st ? st.won + st.drawn + st.lost : 0;
   return (
     <>
       <div class={`card fut ${tier(r.ovr)}`}>
@@ -38,6 +52,32 @@ export function Player({ r, slug, meId }: { r: Ranked; slug: string; meId: strin
             ))}</tbody>
           </table>
         </> : <p class="muted">Sin stats todavía.</p>}
+      </div>
+      <div class="card">
+        <h3 style="margin-bottom:12px">Estadísticas</h3>
+        {stErr && <p class="err" style="margin:0">No pudimos cargar las estadísticas. {stErr}</p>}
+        {!st && !stErr && <p class="muted">Cargando…</p>}
+        {st && <>
+          <div class="st-grid c5">
+            <div class="st-tile"><b>{st.pj}</b><span>PJ</span></div>
+            <div class="st-tile"><b>{st.goals}</b><span>Goles</span></div>
+            <div class="st-tile"><b>{st.assists}</b><span>Asist.</span></div>
+            <div class="st-tile"><b>{st.yellow}</b><span class="em" aria-label="Amarillas">🟨</span></div>
+            <div class="st-tile"><b>{st.red}</b><span class="em" aria-label="Rojas">🟥</span></div>
+          </div>
+          {st.pj > 0 && (
+            <div class="st-grid c4">
+              <div class="st-tile"><b>{decided ? st.won : '—'}</b><span>Ganados</span></div>
+              <div class="st-tile"><b>{decided ? st.drawn : '—'}</b><span>Empat.</span></div>
+              <div class="st-tile"><b>{decided ? st.lost : '—'}</b><span>Perdidos</span></div>
+              <div class="st-tile"><b>{fmtAvg(perMatch(st.goals, st.pj))}</b><span>Goles/PJ</span></div>
+            </div>
+          )}
+          {st.pj > 0 && decided < st.pj && (
+            <p class="muted st-note">Ganados, empatados y perdidos cuentan solo los partidos con equipos y resultado cargados.</p>
+          )}
+          {st.pj === 0 && <p class="muted st-note">Todavía no jugó partidos en esta comunidad.</p>}
+        </>}
       </div>
       {r.profile.id !== meId && (
         <a class="btn primary block" href={`#/c/${slug}/votar/${r.profile.id}`}>{r.mine ? 'Cambiar mi voto' : 'Votarlo'}</a>

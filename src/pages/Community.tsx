@@ -19,18 +19,25 @@ export function Community({ slug, sub, me }: { slug: string; sub: string[]; me: 
   const [c, setC] = useState<Community | null | undefined>(undefined);
   const [rows, setRows] = useState<Ranked[]>([]);
   const [msg, setMsg] = useState('');
-  const [err, setErr] = useState('');
+  const [err, setErr] = useState('');        // no se pudo cargar la comunidad (pantalla completa)
+  const [actErr, setActErr] = useState('');  // falló una acción (se muestra en línea)
 
   const loadRows = async (id: string) => {
-    try { setRows(await loadRanking(id, me.id)); } catch (e: any) { setErr(e.message); }
+    try { setRows(await loadRanking(id, me.id)); } catch (e: any) { setActErr(e.message); }
   };
   const load = async () => {
     const r = await sb.from('communities').select('*').eq('slug', slug).maybeSingle();
     if (r.error) return setErr(r.error.message);
-    if (r.data) await loadRows(r.data.id);
+    if (r.data) {
+      try { setRows(await loadRanking(r.data.id, me.id)); } catch (e: any) { return setErr(e.message); }
+    }
     setC(r.data);
   };
-  useEffect(() => { setC(undefined); load(); }, [slug]);
+  useEffect(() => { setC(undefined); setActErr(''); load(); }, [slug]);
+  // En pantallas angostas, que la pestaña activa quede a la vista
+  useEffect(() => {
+    document.querySelector('.tabs a.on')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [sub[0], c]);
 
   if (err) return <div class="wrap"><p class="err">{err}</p><a href="#/">Volver</a></div>;
   if (c === undefined) return <div class="center"><p class="muted">Cargando…</p></div>;
@@ -51,25 +58,30 @@ export function Community({ slug, sub, me }: { slug: string; sub: string[]; me: 
   };
   const regen = async () => {
     const { error } = await sb.rpc('regenerate_invite', { p_community: c.id });
-    if (error) setErr(error.message); else { setMsg('Link nuevo generado; el anterior ya no sirve'); load(); }
+    if (error) setActErr(error.message); else { setMsg('Link nuevo generado; el anterior ya no sirve'); load(); }
   };
   const setRole = async (pid: string, role: string) => {
     const { error } = await sb.rpc('set_role', { p_community: c.id, p_profile: pid, p_role: role });
-    if (error) setErr(error.message); else loadRows(c.id);
+    if (error) setActErr(error.message); else { setActErr(''); loadRows(c.id); }
+  };
+  const kick = async (pid: string, name: string) => {
+    if (!confirm(`¿Sacar a ${name} de la comunidad? Se libera su lugar en los partidos abiertos. Si no querés que vuelva a entrar, después regenerá el link de invitación.`)) return;
+    const { error } = await sb.from('memberships').delete().eq('community_id', c.id).eq('profile_id', pid);
+    if (error) setActErr(error.message); else { setActErr(''); loadRows(c.id); }
   };
 
   const leave = async () => {
     if (!confirm(`¿Salir de "${c.name}"? Vas a dejar de ver sus partidos y el ranking. Para volver necesitás un link de invitación.`)) return;
     const { error } = await sb.from('memberships').delete().eq('community_id', c.id).eq('profile_id', me.id);
-    if (error) setErr(error.message); else go('');
+    if (error) setActErr(error.message); else go('');
   };
 
   const remove = async () => {
     const typed = prompt(`Esto borra "${c.name}" para todos: partidos, resultados, votos y miembros. No se puede deshacer.\n\nEscribí el nombre de la comunidad para confirmar:`);
     if (typed === null) return;
-    if (typed.trim() !== c.name.trim()) return setMsg('El nombre no coincide; no se borró nada.');
+    if (typed.trim() !== c.name.trim()) return setActErr('El nombre no coincide; no se borró nada.');
     const { error } = await sb.from('communities').delete().eq('id', c.id);
-    if (error) setErr(error.message); else go('');
+    if (error) setActErr(error.message); else go('');
   };
 
   const Tab = ({ id, label }: { id: string; label: string }) =>
@@ -79,12 +91,12 @@ export function Community({ slug, sub, me }: { slug: string; sub: string[]; me: 
   if (tab === 'm' && sub[1]) {
     body = <Match key={sub[1]} id={sub[1]} rows={rows} meId={me.id} isAdmin={isAdmin} />;
   } else if (tab === 'chat') {
-    body = <Chat key={c.id} communityId={c.id} rows={rows} meId={me.id} isAdmin={isAdmin} />;
+    body = <Chat key={c.id} communityId={c.id} rows={rows} meId={me.id} isAdmin={isAdmin} onUnknown={() => loadRows(c.id)} />;
   } else if (tab === 'ranking') {
-    body = <Ranking rows={rows} slug={slug} meId={me.id} />;
+    body = <Ranking rows={rows} slug={slug} meId={me.id} communityId={c.id} />;
   } else if (tab === 'p') {
     const r = rows.find(x => x.profile.id === sub[1]);
-    body = r ? <Player r={r} slug={slug} meId={me.id} /> : <p class="muted">Jugador no encontrado.</p>;
+    body = r ? <Player r={r} slug={slug} meId={me.id} communityId={c.id} /> : <p class="muted">Jugador no encontrado.</p>;
   } else if (tab === 'votar') {
     body = <Vote key={sub[1] ?? ''} rows={rows} communityId={c.id} slug={slug} meId={me.id}
       startId={sub[1]} saved={() => loadRows(c.id)} />;
@@ -109,14 +121,16 @@ export function Community({ slug, sub, me }: { slug: string; sub: string[]; me: 
               <div class="ellipsis">{m.profile.name}</div>
               <div class="muted" style="font-size:.85rem">{m.profile.pos} · {ROLE[m.role]}</div>
             </a>
-            {isOwner && m.role === 'member' && <button class="btn" onClick={() => setRole(m.profile.id, 'admin')}>Hacer admin</button>}
-            {isOwner && m.role === 'admin' && <button class="btn" onClick={() => setRole(m.profile.id, 'member')}>Quitar admin</button>}
+            {isOwner && m.role === 'member' && <button class="btn sm" onClick={() => setRole(m.profile.id, 'admin')}>Hacer admin</button>}
+            {isAdmin && m.role === 'member' && m.profile.id !== me.id && <button class="btn sm danger" onClick={() => kick(m.profile.id, m.profile.name)}>Sacar</button>}
+            {isOwner && m.role === 'admin' && <button class="btn sm" onClick={() => setRole(m.profile.id, 'member')}>Quitar admin</button>}
           </div>
         ))}
       </div>
       {isOwner
         ? <button class="btn block danger" onClick={remove}>Eliminar comunidad</button>
         : <button class="btn block danger" onClick={leave}>Salir de la comunidad</button>}
+      {actErr && <p class="err">{actErr}</p>}
     </>;
   } else {
     body = <Matches communityId={c.id} slug={slug} meId={me.id} isAdmin={isAdmin} />;
