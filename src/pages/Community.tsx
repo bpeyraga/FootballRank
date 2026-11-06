@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
-import { displayName, posLine, sb, type Profile } from '../lib/supabase';
+import { displayName, infoLine, sb, teamTally, type Profile } from '../lib/supabase';
 import { go, inviteUrl } from '../lib/router';
 import { loadRanking, type Ranked } from '../lib/ranking';
 import { Avatar } from '../lib/Avatar';
@@ -102,6 +102,8 @@ export function Community({ slug, sub, me }: { slug: string; sub: string[]; me: 
       startId={sub[1]} saved={() => loadRows(c.id)} />;
   } else if (tab === 'miembros') {
     const members = [...rows].sort((a, b) => ORDER[a.role] - ORDER[b.role] || displayName(a.profile).localeCompare(displayName(b.profile)));
+    const fans = teamTally(rows.map(r => r.profile));
+    const top = fans.teams[0]?.n ?? 1;
     body = <>
       <div class="card">
         <h3 style="margin-bottom:8px">Invitar</h3>
@@ -119,13 +121,26 @@ export function Community({ slug, sub, me }: { slug: string; sub: string[]; me: 
             <Avatar p={m.profile} />
             <a href={`#/c/${slug}/p/${m.profile.id}`} style="flex:1;min-width:0;color:inherit;text-decoration:none">
               <div class="ellipsis">{displayName(m.profile)}</div>
-              <div class="muted" style="font-size:.85rem">{posLine(m.profile)} · {ROLE[m.role]}</div>
+              <div class="muted ellipsis" style="font-size:.85rem">{infoLine(m.profile)} · {ROLE[m.role]}</div>
             </a>
             {isOwner && m.role === 'member' && <button class="btn sm" onClick={() => setRole(m.profile.id, 'admin')}>Hacer admin</button>}
             {isAdmin && m.role === 'member' && m.profile.id !== me.id && <button class="btn sm danger" onClick={() => kick(m.profile.id, displayName(m.profile))}>Sacar</button>}
             {isOwner && m.role === 'admin' && <button class="btn sm" onClick={() => setRole(m.profile.id, 'member')}>Quitar admin</button>}
           </div>
         ))}
+      </div>
+      <div class="card">
+        <h3 style="margin-bottom:10px">Hinchadas</h3>
+        {fans.teams.length === 0
+          ? <p class="muted">Nadie eligió equipo todavía. Se elige en "Editar perfil".</p>
+          : fans.teams.map(t => (
+            <div class="fan-row">
+              <span class="ellipsis">{t.team}</span>
+              <span class="fan-bar"><i style={`width:${(t.n / top) * 100}%`} /></span>
+              <b>{t.n}</b>
+            </div>
+          ))}
+        {fans.teams.length > 0 && fans.none > 0 && <p class="muted st-note">{fans.none} sin equipo elegido</p>}
       </div>
       {isOwner
         ? <button class="btn block danger" onClick={remove}>Eliminar comunidad</button>

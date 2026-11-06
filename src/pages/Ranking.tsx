@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
-import { displayName, posLine } from '../lib/supabase';
+import { displayName, infoLine } from '../lib/supabase';
 import { tier, type Ranked } from '../lib/ranking';
 import { Avatar } from '../lib/Avatar';
 import { fmtAvg, leaderboard, loadCommunityStats, perMatch, type PlayerStats } from '../lib/stats';
@@ -54,8 +54,8 @@ export function Ranking({ rows, slug, meId, communityId }: { rows: Ranked[]; slu
               <Avatar p={r.profile} />
               <div style="flex:1;min-width:0">
                 <div class="ellipsis">{displayName(r.profile)}{r.profile.id === meId && <span class="muted"> (vos)</span>}</div>
-                <div class="muted" style="font-size:.85rem">
-                  {posLine(r.profile)} · {r.nVotes ? `${r.nVotes} ${r.nVotes === 1 ? 'voto' : 'votos'}` : 'sin votos'}
+                <div class="muted ellipsis" style="font-size:.85rem">
+                  {infoLine(r.profile)} · {r.nVotes ? `${r.nVotes} ${r.nVotes === 1 ? 'voto' : 'votos'}` : 'sin votos'}
                 </div>
               </div>
               <span class={`ovr ${tier(r.ovr)}`}>{r.ovr ?? '—'}</span>

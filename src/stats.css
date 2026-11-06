@@ -37,3 +37,9 @@
 .btn.sm.ev-del{flex:none;min-width:40px;min-height:40px;padding:0}
 .ev-add{margin-top:16px;padding-top:12px;border-top:1px solid var(--line)}
 .ev-select{display:block;width:100%;min-height:44px;margin-bottom:8px;padding:0 8px;border-radius:10px;border:1px solid var(--line);background:var(--bg)}
+
+/* Hinchadas (miembros de la comunidad) */
+.fan-row{display:grid;grid-template-columns:minmax(0,9em) 1fr auto;align-items:center;gap:10px;padding:4px 0}
+.fan-bar{height:8px;border-radius:4px;background:var(--line);overflow:hidden}
+.fan-bar i{display:block;height:100%;background:var(--accent);border-radius:4px}
+.fan-row b{min-width:1.5em;text-align:right}
