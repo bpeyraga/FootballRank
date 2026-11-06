@@ -1,14 +1,22 @@
-import { useState } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 import { ATTRS, POS, ovr, sb, uploadPhoto, type Pos, type Profile, type Stats } from '../lib/supabase';
 import { Radar } from '../lib/Radar';
 
-export function Onboarding({ me, done }: { me: Profile; done: () => void }) {
+/** Ficha inicial y edición de perfil (con `cancel` es modo edición). */
+export function Onboarding({ me, done, cancel }: { me: Profile; done: () => void; cancel?: () => void }) {
   const [name, setName] = useState(me.name);
   const [pos, setPos] = useState<Pos>(me.pos);
   const [photo, setPhoto] = useState(me.photo_url);
   const [stats, setStats] = useState<Stats>({ rit: 50, tir: 50, pas: 50, reg: 50, def: 50, fis: 50 });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+
+  useEffect(() => {
+    if (!cancel) return;
+    setBusy(true);
+    sb.from('base_stats').select('rit,tir,pas,reg,def,fis').eq('profile_id', me.id).maybeSingle()
+      .then(({ data, error }) => { if (error) setErr(error.message); else if (data) setStats(data as Stats); setBusy(false); });
+  }, [me.id]);
 
   const onPhoto = async (e: Event) => {
     const f = (e.target as HTMLInputElement).files?.[0];
@@ -30,7 +38,8 @@ export function Onboarding({ me, done }: { me: Profile; done: () => void }) {
 
   return (
     <div class="wrap">
-      <h2 style="margin-bottom:12px">Tu ficha</h2>
+      {cancel && <a href="#/" class="muted">← Volver</a>}
+      <h2 style="margin:8px 0 12px">{cancel ? 'Editar perfil' : 'Tu ficha'}</h2>
       <div class="card">
         <div class="row" style="margin-bottom:14px">
           {photo ? <img class="avatar" src={photo} alt="" referrerpolicy="no-referrer" /> : <span class="avatar">{name.charAt(0).toUpperCase() || '?'}</span>}
@@ -59,8 +68,9 @@ export function Onboarding({ me, done }: { me: Profile; done: () => void }) {
         ))}
       </div>
       <button class="btn primary block" disabled={busy || !name.trim()} onClick={save}>
-        {busy ? 'Guardando…' : 'Listo'}
+        {busy ? 'Guardando…' : cancel ? 'Guardar' : 'Listo'}
       </button>
+      {cancel && <button class="btn block" style="margin-top:8px" disabled={busy} onClick={cancel}>Cancelar</button>}
       {err && <p class="err">{err}</p>}
     </div>
   );

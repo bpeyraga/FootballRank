@@ -33,7 +33,10 @@ export function Home({ me }: { me: Profile }) {
     <div class="wrap">
       <div class="row" style="justify-content:space-between;margin-bottom:16px">
         <h2>Hola, {me.name}</h2>
-        <button class="btn" onClick={() => sb.auth.signOut()}>Salir</button>
+        <div class="row">
+          <a class="btn sm" href="#/perfil">Editar perfil</a>
+          <button class="btn sm" onClick={() => sb.auth.signOut()}>Cerrar sesión</button>
+        </div>
       </div>
 
       <h3 style="margin-bottom:8px">Tus comunidades</h3>

@@ -23,6 +23,9 @@ export function Login() {
       <p class="muted">Armá tu comunidad, convocá partidos y calificá a tus compañeros.</p>
       <button class="btn primary" onClick={go}>Entrar con Google</button>
       {err && <p class="err">{err}</p>}
+      <p class="muted" style="font-size:.85rem;margin-top:16px">
+        Al entrar aceptás los <a href="/terminos.html">términos</a> y la <a href="/privacidad.html">política de privacidad</a>.
+      </p>
     </div>
   );
 }
