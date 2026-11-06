@@ -6,21 +6,9 @@ if (!url || !key) throw new Error('Faltan VITE_SUPABASE_URL / VITE_SUPABASE_ANON
 
 export const sb = createClient(url, key);
 
-export const ATTRS = [
-  ['rit', 'RIT', 'Ritmo'], ['tir', 'TIR', 'Tiro'], ['pas', 'PAS', 'Pase'],
-  ['reg', 'REG', 'Regate'], ['def', 'DEF', 'Defensa'], ['fis', 'FIS', 'Físico'],
-] as const;
-export type AttrKey = typeof ATTRS[number][0];
-export type Stats = Record<AttrKey, number>;
-export const POS = ['ARQ', 'DEF', 'MED', 'DEL'] as const;
-export type Pos = typeof POS[number];
-
-export interface Profile {
-  id: string; user_id: string | null; name: string; pos: Pos;
-  photo_url: string | null; onboarded: boolean;
-}
-
-export const ovr = (s: Stats) => Math.round(ATTRS.reduce((t, [k]) => t + s[k], 0) / 6);
+// Constantes y tipos viven en model.ts (sin dependencias); se re-exportan acá para no cambiar los imports existentes.
+export * from './model';
+import type { Profile } from './model';
 
 export async function loadMe(): Promise<Profile | null> {
   const { data: { user } } = await sb.auth.getUser();

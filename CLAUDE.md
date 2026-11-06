@@ -1,51 +1,31 @@
 # Ranking Fútbol
 
-App web para calificar a los jugadores de un equipo amateur al estilo FIFA y armar equipos parejos. Cualquiera con el link vota; el puntaje de cada jugador es el promedio de todos los votos.
+App para armar comunidades de fútbol amateur, calificar jugadores al estilo FIFA, convocar partidos y armar equipos parejos.
 
-## Arquitectura
-- Front en un solo archivo: `index.html`, sin build ni librerías. Back: funciones de Vercel en `api/` (ver abajo).
-- Modos, en orden de detección: claude.ai (`db` + `user`, legado), Vercel (`/api/data` responde) y local (`localStorage`, clave `futrank-v1`, voterId `"local"`, con banner "Modo local").
-- Capa de datos abstraída en el objeto `store` (`addPlayer`, `deletePlayer`, `saveVote`); la UI no sabe qué backend usa.
-- Vistas por hash: `#plantel` (default), `#votar`, `#equipos`.
+## Estructura
+- `web/`: la app (Preact + TypeScript + Vite). Es lo único que se publica.
+- `supabase/migrations/`: esquema de la base (tablas, RLS, funciones). Se aplica en el SQL Editor de Supabase o con `supabase db push`.
+- La app vieja (index.html + `api/` con Upstash Redis) fue eliminada.
 
-## Plantel fijo
-- `ROSTER` en `index.html` tiene los jugadores del equipo hardcodeados con ids estables (`javier`, `david`, …). `withRoster()` los mezcla con los de la db / localStorage; no se pueden borrar desde la app. Para cambiar nombre o posición, editar `ROSTER` y republicar (los votos se mantienen porque van por id).
-
-## Vercel (modo principal)
-- `api/data.js` (GET), `api/players.js` (POST/DELETE), `api/vote.js` (PUT); helpers en `api/_redis.js` (REST de Upstash vía `fetch`, sin dependencias). `package.json` solo marca `"type":"module"`.
-- Redis: hash `players` (pid → JSON), hash `votes` (`voter|pid` → JSON de 6 atributos). Toda mutación devuelve `{players,votes}` completo.
-- Votante anónimo: id `v…` en localStorage (`futrank-voter`). Sin login; el front refresca cada 15 s.
-- Env vars: `KV_REST_API_URL`/`KV_REST_API_TOKEN` (o `UPSTASH_REDIS_REST_*`).
-- El artifact de claude.ai fue borrado; el modo `db` de claude.ai queda en el código pero no se usa.
-
-## Modelo de datos (modo claude.ai)
-- `players/{pid}`: `{name, pos, createdBy, createdAt}`, con `pos` en `ARQ|DEF|MED|DEL`.
-- `votes/{voterId}`: un doc por votante, `{ratings:{[pid]:{rit,tir,pas,reg,def,fis}}, updatedAt}`. Cada persona escribe solo su doc con `.set(docCompleto)`, de a una escritura por vez.
-- Solo se guardan ids, nunca nombres de votantes. Los nombres de jugadores se muestran con `textContent`.
-- Atributos 1–99: RIT, TIR, PAS, REG, DEF, FIS. Promedio por atributo entre votantes, `ovr` = promedio de los 6. Sin votos: se muestra "—" y cuenta como 50 al armar equipos.
-- Suscripciones `onSnapshot` una sola vez al inicio (nunca dentro de render).
-
-## Capacidades al publicar
+## Desarrollo
 ```
-{db:{rules:[{path:"votes",read:"view",write:"owner"},{path:"votes/{self}",write:"interact"}]},user:{}}
+cd web
+npm install
+npm run dev     # http://localhost:5173
+npm test        # vitest
+npm run build   # tsc + vite build → web/dist
 ```
-- Todos pueden leer los votos; cada persona escribe solo su propio doc `votes/{self}`; el dueño puede moderar (escribir cualquier voto).
-- `players` queda escribible por Colaboradores (default). Un `invalid_argument` en una escritura se interpreta como falta de permiso.
+- Variables en `web/.env.local` (ver `web/.env.example`): `VITE_SUPABASE_URL` (solo `https://xxx.supabase.co`, sin `/rest/v1`) y `VITE_SUPABASE_ANON_KEY` (clave anon/publishable, nunca service_role ni la contraseña de la base).
+- `src/lib/model.ts`: constantes y tipos puros (sin Supabase) para que los tests no necesiten variables de entorno. `supabase.ts` los re-exporta.
 
-## Algoritmo de equipos
-`balance(players)` devuelve las 5 mejores particiones. Con n ≤ 22 enumera todo (jugador 0 fijo en A); con n > 22 usa 300 arranques aleatorios + hill-climbing por intercambios. El costo combina diferencia de OVR, de atributos, arqueros y posiciones (ver código).
+## Auth
+- Login con Google vía Supabase Auth. En Supabase → Authentication → URL Configuration: Site URL y Redirect URLs deben incluir `http://localhost:5173/**` y `https://footbal-rank.vercel.app/**`.
+
+## Deploy
+- Vercel, proyecto `footbal-rank`, Root Directory = `web`, framework Vite. Push a `main` publica solo.
+- Variables `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` cargadas en Vercel (se leen al compilar: cambiar una requiere redeploy).
 
 ## Convenciones
-- UI en español rioplatense ("vos").
-- Mantener todo en un solo archivo.
-- Mobile-first: `index.html` empieza con `<!doctype html>`, `charset` y `viewport` (sin eso el celu lo muestra como escritorio). Navegación inferior fija; respetar `env(safe-area-inset-*)`. Instalable (`manifest.webmanifest` + `icon.svg`).
-- Sin `alert/confirm/prompt` (confirmaciones inline); nombres siempre con `textContent`.
-- Fotos: el front recorta a 256×256 JPEG; en Vercel van al hash Redis `photos` y se sirven por `api/photo.js` con caché inmutable (`?v=photoV`). Editar jugador = `PATCH /api/players` (también para el plantel fijo, como override).
-- Probar la API con un mock de Upstash (ver historial: script `apitest.mjs`) antes de subir.
-- Colores como tokens en `:root`, con variantes dark (media query + `data-theme`).
-- Deploy: push a `main` (Vercel conectado al repo) o `vercel --prod`. Commits sin línea de coautoría de Claude.
-
-## Preferencias de trabajo
-- Ahorrar tokens: no explorar de más, no releer archivos.
-- Planificar con Opus; delegar la ejecución a Sonnet (high) o hacerla con Opus, pero siempre revisar con Opus. La calidad final importa más que el ahorro.
-- Sin `db`/`user` (sin sesión) se ve el ranking compartido en solo lectura; el modo local es solo para abrir el archivo fuera de claude.ai.
+- UI en español rioplatense ("vos"), mobile-first.
+- Commits sin línea de coautoría de Claude.
+- Ahorrar tokens; planificar con Opus y revisar siempre con Opus. La calidad final importa más que el ahorro.

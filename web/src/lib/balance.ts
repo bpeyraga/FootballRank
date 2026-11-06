@@ -1,4 +1,4 @@
-import { POS, type Pos, type Stats } from './supabase';
+import { POS, type Pos, type Stats } from './model';
 
 export interface BPlayer { id: string; pos: Pos; ovr: number; attrs: Stats }
 export interface Split<T> { cost: number; A: T[]; B: T[] }

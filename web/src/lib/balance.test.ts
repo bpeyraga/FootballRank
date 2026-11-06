@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { balance, type BPlayer } from './balance';
-import type { Pos } from './supabase';
+import type { Pos } from './model';
 
 const mk = (id: string, pos: Pos, o: number): BPlayer =>
   ({ id, pos, ovr: o, attrs: { rit: o, tir: o, pas: o, reg: o, def: o, fis: o } });
