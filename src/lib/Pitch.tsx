@@ -31,9 +31,8 @@ export function Pitch({ placed, href, showAlts = false }: {
               <span class="pc-top"><b>{p.ovr ?? '—'}</b><i>{s.slot.pos}</i></span>
               <Avatar p={p.profile} size={34} />
               {p.profile.shirt_number && <span class="pc-num">#{p.profile.shirt_number}</span>}
-              {p.profile.fav_team && <span class="pc-crest"><Crest team={p.profile.fav_team} size={10} /></span>}
             </span>
-            <span class="pc-name ellipsis">{displayName(p.profile)}</span>
+            <span class="pc-name"><Crest team={p.profile.fav_team} size={8} /><span class="ellipsis">{displayName(p.profile)}</span></span>
           </>
         ) : (
           <>
