@@ -7,6 +7,7 @@ import { Avatar } from '../../shared/ui/Avatar';
 import { Crest } from '../../shared/ui/Crest';
 import { CommunityPhoto } from './CommunityPhoto';
 import { Matches } from '../matches/MatchesPage';
+import { seenKey } from '../chat/model';
 import { Loading, page } from '../../app/lazy';
 import { ClaimsCard } from './ClaimsCard';
 import { VenuesCard } from '../venues/VenuesManager';
@@ -15,7 +16,6 @@ import './admin.css';
 import { initials } from '../../shared/text';
 
 // Clave del "último visto" del chat (misma que usa Chat.tsx), acá para no traer todo el chat al cargar la comunidad.
-const seenKey = (communityId: string) => `futrank-seen-${communityId}`;
 const Ranking = page(() => import('../ranking/RankingPage'), m => m.Ranking);
 const Vote = page(() => import('../ranking/VotePage'), m => m.Vote);
 const Player = page(() => import('../player/PlayerPage'), m => m.Player);

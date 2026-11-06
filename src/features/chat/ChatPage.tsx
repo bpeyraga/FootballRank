@@ -1,78 +1,17 @@
 import { createPortal } from 'preact/compat';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
-import { displayName, hue, sb } from '../../shared/supabase';
+import { displayName, hue } from '../../shared/supabase';
 import { Avatar } from '../../shared/ui/Avatar';
 import type { Ranked } from '../ranking/ranking';
 import { EMOJIS, REACTIONS, STICKERS, isJumbo } from './emoji';
 import { PollCard } from './PollCard';
 import { PollSheet } from './PollSheet';
-import {
-  addVote, pollError, pollSnippet, removeVote, replaceVotes, setMine, toggleChoice,
-  type Poll, type PollVote, type Votes,
-} from './polls';
+import { pollSnippet } from './polls';
+import { GONE, MAX, byDay, dayLabel, hhmm, reactionCounts, seenKey, snippet, splitLinks, type Msg } from './model';
+import { useChat } from './useChat';
 
-/** id < 0 + tmp = mensaje local todavía no confirmado por el servidor. */
-interface Msg {
-  id: number; author_id: string; body: string; created_at: string;
-  reply_to?: number | null; image_url?: string | null;
-  tmp?: string; status?: 'sending' | 'failed';
-}
-/** reacciones[mensaje][perfil] = emoji */
-type Reacts = Record<number, Record<string, string>>;
-interface RxRow { message_id: number; profile_id: string; emoji: string }
-
-const PAGE = 50;
-const MAX = 500;
-const GONE = { name: 'Ex miembro', photo_url: null };
-
-/** Último mensaje visto por comunidad (para el contador de no leídos de la pestaña). */
-export const seenKey = (communityId: string) => `futrank-seen-${communityId}`;
-const TYPING_MS = 3500;
-
-const hhmm = (d: Date) => d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
-const dayLabel = (d: Date) => {
-  const today = new Date(), yest = new Date();
-  yest.setDate(today.getDate() - 1);
-  if (d.toDateString() === today.toDateString()) return 'Hoy';
-  if (d.toDateString() === yest.toDateString()) return 'Ayer';
-  return d.toLocaleDateString('es-AR', {
-    weekday: 'long', day: 'numeric', month: 'long',
-    ...(d.getFullYear() === today.getFullYear() ? {} : { year: 'numeric' }),
-  });
-};
-const URL_RE = /(https?:\/\/[^\s<]+[^\s<.,;:!?)\]'"])/g;
-const linkify = (s: string) => s.split(URL_RE).map((part, i) =>
+const linkify = (s: string) => splitLinks(s).map((part, i) =>
   i % 2 ? <a href={part} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}>{part}</a> : part);
-const friendly = (m: string) =>
-  m.includes('row-level security') ? 'No tenés permiso para hacer eso (¿seguís siendo miembro?).'
-  : m.includes('Failed to fetch') || m.includes('NetworkError') ? 'Sin conexión. Probá de nuevo.'
-  : m.includes('Bucket not found') || m.includes('image_url') || m.includes('reply_to') ? 'Las fotos y respuestas todavía no están habilitadas (falta actualizar la base).'
-  : m.includes('does not exist') ? 'El chat todavía no está habilitado en esta comunidad.'
-  : m.includes('exceeded the maximum allowed size') || m.includes('Payload too large') ? 'La foto es muy pesada (máximo 5 MB).'
-  : m;
-const snippet = (m: Msg) => m.body.trim() ? m.body.trim().slice(0, 90) : m.image_url ? '📷 Foto' : '';
-
-/** Une mensajes por id, ordena por fecha y deja los pendientes (locales) al final. */
-const merge = (prev: Msg[], incoming: Msg[]) => {
-  const byId = new Map<number, Msg>();
-  for (const m of prev) if (m.id > 0) byId.set(m.id, m);
-  for (const m of incoming) byId.set(m.id, m);
-  const real = [...byId.values()].sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id - b.id);
-  return [...real, ...prev.filter(m => m.id < 0)];
-};
-
-/** Achica la foto a 1280 px de lado mayor (JPEG); los GIF se suben tal cual para no perder la animación. */
-async function shrink(file: File): Promise<{ blob: Blob; ext: string; type: string }> {
-  if (file.type === 'image/gif') return { blob: file, ext: 'gif', type: 'image/gif' };
-  const img = await createImageBitmap(file);
-  const k = Math.min(1, 1280 / Math.max(img.width, img.height));
-  const c = document.createElement('canvas');
-  c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
-  c.getContext('2d')!.drawImage(img, 0, 0, c.width, c.height);
-  const blob = await new Promise<Blob>((ok, ko) =>
-    c.toBlob(b => (b ? ok(b) : ko(new Error('No se pudo procesar la foto'))), 'image/jpeg', 0.82));
-  return { blob, ext: 'jpg', type: 'image/jpeg' };
-}
 
 const docH = () => document.documentElement.scrollHeight;
 const nearBottom = () => innerHeight + scrollY >= docH() - 160;
@@ -92,11 +31,6 @@ export function Chat({ communityId, rows, meId, isAdmin, onUnknown }: {
   /** Llega un mensaje de alguien que no está en `rows` (se acaba de sumar): recargar miembros. */
   onUnknown?: () => void;
 }) {
-  const [msgs, setMsgs] = useState<Msg[] | null>(null);
-  const [reacts, setReacts] = useState<Reacts>({});
-  const [reactOk, setReactOk] = useState(true);   // false si la tabla de reacciones todavía no existe
-  const [more, setMore] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [text, setText] = useState('');
   const [replyTo, setReplyTo] = useState<Msg | null>(null);
   const [panel, setPanel] = useState<'' | 'emoji' | 'sticker'>('');
@@ -106,254 +40,23 @@ export function Chat({ communityId, rows, meId, isAdmin, onUnknown }: {
   const [atBottom, setAtBottom] = useState(true);
   const [unseen, setUnseen] = useState(0);
   const [composerH, setComposerH] = useState(64);
-  const [err, setErr] = useState('');
-  const [online, setOnline] = useState(0);
-  const [polls, setPolls] = useState<Record<number, Poll>>({});   // encuesta por id de mensaje
-  const [votes, setVotes] = useState<Votes>({});
   const [pollOpen, setPollOpen] = useState(false);
-  const [typing, setTyping] = useState<Record<string, number>>({}); // autor → último "escribiendo"
-  const chRef = useRef<ReturnType<typeof sb.channel> | null>(null);
-  const lastTyping = useRef(0);
   const ta = useRef<HTMLTextAreaElement>(null);
   const fileIn = useRef<HTMLInputElement>(null);
   const composer = useRef<HTMLFormElement>(null);
-  const msgsRef = useRef<Msg[] | null>(null);
-  msgsRef.current = msgs;
-  const files = useRef(new Map<string, File>());   // fotos de mensajes pendientes (para reintentar)
   const stick = useRef(false);                     // bajar al final en el próximo render
   const keepFrom = useRef<number | null>(null);    // alto previo al cargar anteriores (mantener posición)
   const asked = useRef(new Set<string>());         // autores desconocidos ya pedidos
-  const pollsRef = useRef(polls);
-  pollsRef.current = polls;
-  const votesRef = useRef<Votes>({});              // siempre al día (los toques seguidos parten de lo último)
   const atBottomRef = useRef(true);
   atBottomRef.current = atBottom;
-  const pending = useRef(new Map<string, number>());       // votos míos en vuelo, por encuesta
-  const voteChain = useRef(new Map<string, Promise<void>>()); // los votos de una encuesta salen de a uno, en orden
-  const mineAt = useRef(new Map<string, number>());        // último voto mío por encuesta
-  const live = useRef<{ add: boolean; row: PollVote }[]>([]); // votos que llegan en vivo, juntados de a poco
-  const liveTimer = useRef(0);
 
-  const loadReacts = async (ids: number[]) => {
-    if (!ids.length) return;
-    const { data, error } = await sb.from('message_reactions').select('message_id,profile_id,emoji').in('message_id', ids);
-    if (error) { setReactOk(false); return; }
-    setReacts(prev => {
-      const next = { ...prev };
-      for (const id of ids) delete next[id];
-      for (const r of data ?? []) next[r.message_id] = { ...next[r.message_id], [r.profile_id]: r.emoji };
-      return next;
-    });
-  };
-
-  const onReact = (n: RxRow) =>
-    setReacts(prev => ({ ...prev, [n.message_id]: { ...prev[n.message_id], [n.profile_id]: n.emoji } }));
-
-  // ---- Encuestas ----
-  const commitVotes = (fn: (v: Votes) => Votes) => {
-    const next = fn(votesRef.current);
-    if (next === votesRef.current) return;
-    votesRef.current = next;
-    setVotes(next);
-  };
-  /** Con un voto mío en vuelo (o recién hecho) lo que está en pantalla manda: no se pisa con datos viejos del servidor. */
-  const holdPoll = (id: string, recent = true) =>
-    (pending.current.get(id) ?? 0) > 0 || (recent && Date.now() - (mineAt.current.get(id) ?? 0) < 4000);
-  const dropPoll = (messageId: number) =>
-    setPolls(prev => { if (!(messageId in prev)) return prev; const { [messageId]: _, ...rest } = prev; return rest; });
-
-  /** Los votos de esas encuestas, tal cual están en el servidor. false si no se pudo traer. */
-  const loadVotes = async (pollIds: string[], force = false) => {
-    if (!pollIds.length) return true;
-    const { data, error } = await sb.from('poll_votes').select('poll_id,profile_id,option').in('poll_id', pollIds);
-    if (error) return false;
-    const skip = new Set(pollIds.filter(id => holdPoll(id, !force)));
-    commitVotes(v => replaceVotes(v, pollIds, (data ?? []) as PollVote[], skip));
-    return true;
-  };
-  /** Encuestas (y sus votos) de esos mensajes. Los mensajes comunes no tienen fila en `polls`. */
-  const loadPolls = async (messageIds: number[]) => {
-    if (!messageIds.length) return;
-    const { data, error } = await sb.from('polls').select('*').in('message_id', messageIds);
-    if (error || !data?.length) return;
-    const ps = data as Poll[];
-    setPolls(prev => { const next = { ...prev }; for (const p of ps) next[p.message_id] = p; return next; });
-    await loadVotes(ps.map(p => p.id));
-  };
-
-  /** Votos en vivo: se juntan unos 150 ms y se aplican de una vez (el servidor reemplaza votos borrando y volviendo a insertar). */
-  const queueVote = (add: boolean, row: PollVote | undefined) => {
-    if (!row?.poll_id || !row.profile_id || row.option == null) return;
-    live.current.push({ add, row });
-    if (liveTimer.current) return;
-    liveTimer.current = window.setTimeout(() => {
-      liveTimer.current = 0;
-      const evs = live.current;
-      live.current = [];
-      // Mis propios votos ya están en pantalla (optimista): sus ecos no hacen falta ni deben parpadear.
-      commitVotes(v => evs.reduce((acc, e) =>
-        e.row.profile_id === meId && holdPoll(e.row.poll_id) ? acc : e.add ? addVote(acc, e.row) : removeVote(acc, e.row), v));
-    }, 150);
-  };
-
-  /** Tocar una opción: se ve al instante y se manda; si falla, vuelve a lo que dice el servidor. */
-  const vote = (poll: Poll, option: number) => {
-    const before = votesRef.current[poll.id]?.[meId] ?? [];
-    const next = toggleChoice(before, option, poll.multi);
-    setErr('');
-    mineAt.current.set(poll.id, Date.now());
-    pending.current.set(poll.id, (pending.current.get(poll.id) ?? 0) + 1);
-    commitVotes(v => setMine(v, poll.id, meId, next));
-    const run = async () => {
-      let failed = '';
-      try {
-        const { error } = await sb.rpc('vote_poll', { p_poll: poll.id, p_options: next });
-        if (error) failed = error.message;
-      } catch (e: any) { failed = e?.message ?? 'Sin conexión. Probá de nuevo.'; }
-      mineAt.current.set(poll.id, Date.now());
-      const left = Math.max(0, (pending.current.get(poll.id) ?? 1) - 1);
-      pending.current.set(poll.id, left);
-      if (!failed) {
-        chRef.current?.send({ type: 'broadcast', event: 'poll', payload: { id: poll.id } }).catch(() => {});
-        return;
-      }
-      setErr(friendly(pollError(failed)));
-      if (left === 0 && !(await loadVotes([poll.id], true)) && !holdPoll(poll.id, false)) commitVotes(v => setMine(v, poll.id, meId, before));
-    };
-    voteChain.current.set(poll.id, (voteChain.current.get(poll.id) ?? Promise.resolve()).then(run));
-  };
-
-  /** Crea la encuesta (RPC) y la trae enseguida; el INSERT en vivo del mensaje se une por id sin duplicar. */
-  const createPoll = async (question: string, options: string[], multi: boolean) => {
-    const { data, error } = await sb.rpc('create_poll', { p_community: communityId, p_question: question, p_options: options, p_multi: multi });
-    if (error) throw new Error(friendly(pollError(error.message)));
-    const id = Number(data);
-    try {
-      stick.current = true;
-      const [row] = await Promise.all([sb.from('messages').select('*').eq('id', id).maybeSingle(), loadPolls([id])]);
-      if (row.data) setMsgs(prev => merge(prev ?? [], [row.data as Msg]));
-    } catch { /* ya se creó: llega por el canal en vivo */ }
-  };
-
-  /** Libera la foto local (blob:) de un mensaje pendiente. */
-  const revoke = (m?: Msg) => { if (m?.image_url?.startsWith('blob:')) URL.revokeObjectURL(m.image_url); };
-  useEffect(() => () => { msgsRef.current?.forEach(revoke); }, []);
-
-  /** `withPolls`: esperar las encuestas antes de devolver (al cargar anteriores, para que no se corra el scroll). */
-  const fetchPage = async (before?: string, withPolls = false) => {
-    let q = sb.from('messages').select('*').eq('community_id', communityId)
-      .order('created_at', { ascending: false }).order('id', { ascending: false }).limit(PAGE);
-    if (before) q = q.lt('created_at', before);
-    const { data, error } = await q;
-    if (error) { setErr(friendly(error.message)); return null; }
-    const got = ((data ?? []) as Msg[]).reverse();
-    loadReacts(got.map(m => m.id));
-    const ids = got.map(m => m.id);
-    if (withPolls) await loadPolls(ids); else loadPolls(ids);
-    return got;
-  };
-
-  useEffect(() => {
-    let alive = true;
-    // Carga inicial y, cada vez que el WebSocket (re)conecta, se trae lo último y se une por id:
-    // así no se pierde nada de lo que llegó mientras el celu estaba en segundo plano.
-    const sync = async (first: boolean) => {
-      const got = await fetchPage();
-      if (!alive || !got) return;
-      if (first) setMore(got.length === PAGE);
-      const fresh = got.filter(g => !msgsRef.current?.some(x => x.id === g.id)).length;
-      if (first || nearBottom()) stick.current = true; else if (fresh) setUnseen(n => n + fresh);
-      setMsgs(prev => merge(prev ?? [], got));
-      if (!first) {
-        // Al reconectar, también se refrescan los votos de encuestas más viejas que ya están cargadas.
-        const inPage = new Set(got.map(g => g.id));
-        const rest = Object.values(pollsRef.current).filter(p => !inPage.has(p.message_id)).map(p => p.id);
-        if (rest.length) loadVotes(rest);
-      }
-    };
-    sync(true);
-    let connected = false;
-    // Un solo canal: mensajes y reacciones (tablas), presencia (en línea) y broadcast ("escribiendo…").
-    const ch = sb.channel(`chat-${communityId}`, { config: { presence: { key: meId }, broadcast: { self: false } } })
-      .on('presence', { event: 'sync' }, () => setOnline(Object.keys(ch.presenceState()).length))
-      .on('broadcast', { event: 'typing' }, ({ payload }) => {
-        const id = (payload as { id?: string })?.id;
-        if (id && id !== meId) setTyping(t => ({ ...t, [id]: Date.now() }));
-      })
-      .on('postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'messages', filter: `community_id=eq.${communityId}` },
-        p => {
-          const m = p.new as Msg;
-          const cur = msgsRef.current ?? [];
-          if (cur.some(x => x.id === m.id)) return;
-          // Mío y todavía esperando la respuesta del insert: lo reemplaza post().
-          if (m.author_id === meId && cur.some(x => x.status === 'sending' && x.body === m.body)) return;
-          if (m.author_id === meId || nearBottom()) stick.current = true; else setUnseen(n => n + 1);
-          setTyping(t => { if (!(m.author_id in t)) return t; const { [m.author_id]: _, ...rest } = t; return rest; });
-          setMsgs(prev => merge(prev ?? [], [m]));
-        })
-      .on('postgres_changes',
-        { event: 'DELETE', schema: 'public', table: 'messages' },
-        p => {
-          const id = (p.old as { id?: number }).id;
-          if (!id) return;
-          setMsgs(prev => prev && prev.filter(x => x.id !== id));
-          dropPoll(id); // la encuesta se borra en cascada en la base
-        })
-      // Encuestas: la fila nueva (el mensaje ya llegó por su lado) y los votos, juntados en queueVote.
-      .on('postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'polls', filter: `community_id=eq.${communityId}` },
-        p => {
-          const row = p.new as Poll;
-          // Si las opciones no vinieron como lista, se pide la fila por la API.
-          if (!Array.isArray(row.options)) { loadPolls([row.message_id]); return; }
-          setPolls(prev => ({ ...prev, [row.message_id]: row }));
-        })
-      .on('postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'poll_votes', filter: `community_id=eq.${communityId}` },
-        p => queueVote(true, p.new as PollVote))
-      // Los DELETE de votos no se pueden filtrar por comunidad (llegarían los de toda la app): en su lugar,
-      // quien vota avisa por broadcast en este canal y los demás releen los votos de esa encuesta.
-      .on('broadcast', { event: 'poll' }, ({ payload }) => { if (payload?.id) loadVotes([payload.id], true); })
-      .on('postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'message_reactions', filter: `community_id=eq.${communityId}` },
-        p => onReact(p.new as RxRow))
-      .on('postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'message_reactions', filter: `community_id=eq.${communityId}` },
-        p => onReact(p.new as RxRow))
-      // Los DELETE solo traen la clave (message_id, profile_id): no se pueden filtrar por comunidad.
-      .on('postgres_changes',
-        { event: 'DELETE', schema: 'public', table: 'message_reactions' },
-        p => {
-          const o = p.old as { message_id?: number; profile_id?: string };
-          if (!o.message_id || !o.profile_id) return;
-          setReacts(prev => {
-            if (!prev[o.message_id!]?.[o.profile_id!]) return prev;
-            const { [o.profile_id!]: _, ...rest } = prev[o.message_id!];
-            return { ...prev, [o.message_id!]: rest };
-          });
-        })
-      .subscribe(status => {
-        if (status !== 'SUBSCRIBED') return;
-        ch.track({ at: Date.now() }).catch(() => {});
-        if (connected) sync(false); // reconexión
-        connected = true;
-      });
-    chRef.current = ch;
-    return () => { alive = false; chRef.current = null; clearTimeout(liveTimer.current); liveTimer.current = 0; sb.removeChannel(ch); };
-  }, [communityId]);
-
-  // "Escribiendo…" se apaga solo si el otro deja de tipear
-  const typingIds = Object.keys(typing);
-  useEffect(() => {
-    if (!typingIds.length) return;
-    const t = setInterval(() => setTyping(cur => {
-      const now = Date.now();
-      const left = Object.entries(cur).filter(([, at]) => now - at < TYPING_MS);
-      return left.length === Object.keys(cur).length ? cur : Object.fromEntries(left);
-    }), 1000);
-    return () => clearInterval(t);
-  }, [typingIds.length > 0]);
+  const c = useChat(communityId, meId, {
+    nearBottom,
+    stick: () => { stick.current = true; },
+    keep: () => { keepFrom.current = docH(); },
+    unseen: n => setUnseen(u => u + n),
+  });
+  const { msgs, reacts, polls, votes, typingIds, err } = c;
 
   // Marcar como leído lo último que se ve (para el contador de la pestaña)
   useEffect(() => {
@@ -426,56 +129,12 @@ export function Chat({ communityId, rows, meId, isAdmin, onUnknown }: {
     return () => removeEventListener('keydown', on);
   }, [zoom, panel, sel, replyTo, pollOpen]);
 
-  const loadOlder = async () => {
-    const first = msgs?.find(m => m.id > 0);
-    if (!first || loadingMore) return;
-    setLoadingMore(true);
-    const got = await fetchPage(first.created_at, true);
-    setLoadingMore(false);
-    if (!got) return;
-    setMore(got.length === PAGE);
-    if (got.length) { keepFrom.current = docH(); setMsgs(prev => merge(prev ?? [], got)); }
-  };
-
-  const post = async (tmp: string, body: string, reply: number | null) => {
-    let image_url: string | null = null;
-    const file = files.current.get(tmp);
-    try {
-      if (file) {
-        const { blob, ext, type } = await shrink(file);
-        const path = `${communityId}/${meId}/${crypto.randomUUID()}.${ext}`;
-        const up = await sb.storage.from('chat').upload(path, blob, { contentType: type });
-        if (up.error) throw up.error;
-        image_url = sb.storage.from('chat').getPublicUrl(path).data.publicUrl;
-      }
-      const row: Record<string, unknown> = { community_id: communityId, author_id: meId, body };
-      if (reply) row.reply_to = reply;
-      if (image_url) row.image_url = image_url;
-      const { data, error } = await sb.from('messages').insert(row).select('*').single();
-      if (error) throw error;
-      files.current.delete(tmp);
-      revoke(msgsRef.current?.find(m => m.tmp === tmp));
-      setMsgs(prev => prev && merge(prev.filter(m => m.tmp !== tmp), [data as Msg]));
-    } catch (e: any) {
-      setErr(friendly(e?.message ?? 'No se pudo enviar'));
-      setMsgs(prev => prev && prev.map(m => m.tmp === tmp ? { ...m, status: 'failed' as const } : m));
-    }
-  };
-
   const queue = (body: string, file?: File) => {
     if ((!body && !file) || msgs === null) return;
-    const tmp = Math.random().toString(36).slice(2);
-    if (file) files.current.set(tmp, file);
     const reply = replyTo?.id ?? null;
-    setErr(''); setSel(null); setReplyTo(null);
-    stick.current = true;
-    setMsgs(prev => [...(prev ?? []), {
-      id: -Date.now(), tmp, author_id: meId, body, created_at: new Date().toISOString(), status: 'sending',
-      reply_to: reply, image_url: file ? URL.createObjectURL(file) : null,
-    }]);
-    post(tmp, body, reply);
+    setSel(null); setReplyTo(null);
+    c.queue(body, reply, file);
   };
-
   const send = () => {
     const body = text.trim();
     if (!body) return;
@@ -489,58 +148,23 @@ export function Chat({ communityId, rows, meId, isAdmin, onUnknown }: {
     const f = input.files?.[0];
     input.value = '';
     if (!f) return;
-    if (!f.type.startsWith('image/')) return setErr('Solo se pueden mandar fotos.');
-    if (f.size > 15 * 1024 * 1024) return setErr('La foto es muy pesada.');
+    if (!f.type.startsWith('image/')) return c.setErr('Solo se pueden mandar fotos.');
+    if (f.size > 15 * 1024 * 1024) return c.setErr('La foto es muy pesada.');
     const caption = text.trim();
     setText(''); setPanel('');
     queue(caption, f);
   };
 
-  const retry = (m: Msg) => {
-    setErr('');
-    setMsgs(prev => prev && prev.map(x => x.tmp === m.tmp ? { ...x, status: 'sending' as const } : x));
-    post(m.tmp!, m.body, m.reply_to ?? null);
-  };
-  const discard = (m: Msg) => { files.current.delete(m.tmp!); revoke(m); setMsgs(prev => prev && prev.filter(x => x.tmp !== m.tmp)); };
-
-  const del = async (id: number) => {
+  const del = (id: number) => {
     if (!confirm('¿Borrar este mensaje para todos?')) return;
     setSel(null);
-    const img = msgsRef.current?.find(m => m.id === id)?.image_url;
-    const { data, error } = await sb.from('messages').delete().eq('id', id).select('id');
-    if (error) return setErr(friendly(error.message));
-    if (!data?.length) return setErr('No tenés permiso para borrar ese mensaje.');
-    setMsgs(prev => prev && prev.filter(m => m.id !== id));
-    dropPoll(id);
-    // La foto también se borra del almacenamiento (si no, quedaba accesible por su link)
-    const path = img?.split('/object/public/chat/')[1]?.split('?')[0];
-    if (path) sb.storage.from('chat').remove([decodeURIComponent(path)]).catch(() => {});
+    c.remove(id);
   };
   const copy = async (body: string) => {
     setSel(null);
     try { await navigator.clipboard.writeText(body); } catch { /* sin permiso */ }
   };
-  const react = async (m: Msg, emoji: string) => {
-    setSel(null);
-    const mineNow = reacts[m.id]?.[meId];
-    // Optimista: tocar la misma reacción la saca (como en WhatsApp)
-    setReacts(r => {
-      const cur = { ...r[m.id] };
-      if (mineNow === emoji) delete cur[meId]; else cur[meId] = emoji;
-      return { ...r, [m.id]: cur };
-    });
-    const { error } = mineNow === emoji
-      ? await sb.from('message_reactions').delete().eq('message_id', m.id).eq('profile_id', meId)
-      : await sb.from('message_reactions').upsert({ message_id: m.id, profile_id: meId, community_id: communityId, emoji });
-    if (error) {
-      // Deshacer solo mi reacción en ese mensaje (sin pisar lo que llegó en vivo mientras tanto)
-      setReacts(r => {
-        const cur = { ...r[m.id] };
-        if (mineNow) cur[meId] = mineNow; else delete cur[meId];
-        return { ...r, [m.id]: cur };
-      });
-      setErr(error.message.includes('does not exist') ? 'Las reacciones todavía no están habilitadas.' : friendly(error.message)); }
-  };
+  const react = (m: Msg, emoji: string) => { setSel(null); c.react(m, emoji); };
   const reply = (m: Msg) => { setSel(null); setReplyTo(m); ta.current?.focus(); };
   const goTo = (id: number) => {
     const el = document.getElementById(`msg-${id}`);
@@ -549,14 +173,7 @@ export function Chat({ communityId, rows, meId, isAdmin, onUnknown }: {
     setFlash(id); setTimeout(() => setFlash(f => (f === id ? null : f)), 1400);
   };
 
-  const onType = (v: string) => {
-    setText(v);
-    const now = Date.now();
-    if (v.trim() && now - lastTyping.current > 2000 && chRef.current) {
-      lastTyping.current = now;
-      chRef.current.send({ type: 'broadcast', event: 'typing', payload: { id: meId } }).catch(() => {});
-    }
-  };
+  const onType = (v: string) => { setText(v); c.typed(v); };
   const addEmoji = (e: string) => {
     const el = ta.current;
     const start = el?.selectionStart ?? text.length, end = el?.selectionEnd ?? text.length;
@@ -576,12 +193,7 @@ export function Chat({ communityId, rows, meId, isAdmin, onUnknown }: {
   const byMsg = new Map((msgs ?? []).map(m => [m.id, m]));
 
   // Agrupado por día: cada día es una sección con su etiqueta "pegajosa" (sticky) arriba.
-  const days: { key: string; date: Date; items: Msg[] }[] = [];
-  for (const m of msgs ?? []) {
-    const d = new Date(m.created_at), key = d.toDateString();
-    if (days[days.length - 1]?.key !== key) days.push({ key, date: d, items: [] });
-    days[days.length - 1].items.push(m);
-  }
+  const days = byDay(msgs ?? []);
 
   const bubble = (m: Msg, first: boolean) => {
     const mine = m.author_id === meId;
@@ -590,8 +202,7 @@ export function Chat({ communityId, rows, meId, isAdmin, onUnknown }: {
     const poll = polls[m.id];
     const jumbo = !poll && !m.image_url && !m.reply_to && isJumbo(m.body);
     const quoted = m.reply_to ? byMsg.get(m.reply_to) : undefined;
-    const rx = Object.values(reacts[m.id] ?? {});
-    const counts = [...new Set(rx)].map(e => [e, rx.filter(x => x === e).length] as const);
+    const counts = reactionCounts(reacts[m.id]);
     const myRx = reacts[m.id]?.[meId];
     const meta = (
       <span class={`msg-meta${m.image_url && !m.body ? ' on-img' : ''}`}>
@@ -618,7 +229,7 @@ export function Chat({ communityId, rows, meId, isAdmin, onUnknown }: {
                 onClick={e => { e.stopPropagation(); setZoom(m.image_url!); }} />
             )}
             {poll
-              ? <PollCard poll={poll} byProfile={votes[poll.id]} meId={meId} who={who} onVote={vote} meta={meta} />
+              ? <PollCard poll={poll} byProfile={votes[poll.id]} meId={meId} who={who} onVote={c.vote} meta={meta} />
               : <>
                 {jumbo
                   ? <span class="msg-jumbo">{m.body}</span>
@@ -640,13 +251,13 @@ export function Chat({ communityId, rows, meId, isAdmin, onUnknown }: {
         {m.status === 'failed' && (
           <div class="msg-sub mine">
             <span class="err" style="margin:0">No se envió</span>
-            <button class="linkbtn" onClick={() => retry(m)}>Reintentar</button>
-            <button class="linkbtn danger" onClick={() => discard(m)}>Descartar</button>
+            <button class="linkbtn" onClick={() => c.retry(m)}>Reintentar</button>
+            <button class="linkbtn danger" onClick={() => c.discard(m)}>Descartar</button>
           </div>
         )}
         {sel === m.id && (
           <div class={`msg-menu${mine ? ' mine' : ''}`}>
-            {reactOk && (
+            {c.reactOk && (
               <div class="rx-bar" role="group" aria-label="Reaccionar">
                 {REACTIONS.map(e => (
                   <button type="button" class={myRx === e ? 'on' : ''} onClick={() => react(m, e)} aria-label={`Reaccionar ${e}`}>{e}</button>
@@ -667,11 +278,11 @@ export function Chat({ communityId, rows, meId, isAdmin, onUnknown }: {
   return (
     <div class="chat" style={`padding-bottom:${Math.max(8, composerH - 88)}px`}>
       <div class="chat-head">
-        <span><i class={`dot${online > 1 ? ' on' : ''}`} />{online === 0 ? 'Conectando…' : online === 1 ? 'Solo vos en línea' : `${online} en línea`}</span>
+        <span><i class={`dot${c.online > 1 ? ' on' : ''}`} />{c.online === 0 ? 'Conectando…' : c.online === 1 ? 'Solo vos en línea' : `${c.online} en línea`}</span>
         <span>{rows.length} {rows.length === 1 ? 'miembro' : 'miembros'}</span>
       </div>
-      {more && <button class="btn sm chat-more" disabled={loadingMore} onClick={loadOlder}>
-        {loadingMore ? 'Cargando…' : 'Ver mensajes anteriores'}</button>}
+      {c.more && <button class="btn sm chat-more" disabled={c.loadingMore} onClick={c.loadOlder}>
+        {c.loadingMore ? 'Cargando…' : 'Ver mensajes anteriores'}</button>}
       {msgs === null && !err && <p class="muted chat-empty">Cargando…</p>}
       {msgs?.length === 0 && <p class="muted chat-empty">Todavía no hay mensajes. ¡Arrancá la charla! ⚽</p>}
 
@@ -699,7 +310,7 @@ export function Chat({ communityId, rows, meId, isAdmin, onUnknown }: {
         document.body,
       )}
 
-      {pollOpen && <PollSheet onClose={() => setPollOpen(false)} onCreate={createPoll} />}
+      {pollOpen && <PollSheet onClose={() => setPollOpen(false)} onCreate={c.createPoll} />}
 
       <form class="composer" ref={composer} onSubmit={e => { e.preventDefault(); send(); }}>
         {typingIds.length > 0 && (
