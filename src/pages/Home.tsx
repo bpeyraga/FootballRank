@@ -5,7 +5,7 @@ import { Avatar } from '../lib/Avatar';
 import { FutCard } from '../lib/FutCard';
 import { useInstall } from '../lib/install';
 
-interface Comm { id: string; name: string; slug: string }
+interface Comm { id: string; name: string; slug: string; photo_url?: string | null }
 interface Row { role: string; community: Comm }
 interface Next { title: string; starts_at: string }
 
@@ -34,7 +34,7 @@ export function Home({ me }: { me: Profile }) {
     sb.from('base_stats').select('rit,tir,pas,reg,def,fis').eq('profile_id', me.id).maybeSingle()
       .then(({ data }) => setStats((data as Stats) ?? null));
 
-    sb.from('memberships').select('role, community:communities(id,name,slug)').eq('profile_id', me.id)
+    sb.from('memberships').select('role, community:communities(id,name,slug,photo_url)').eq('profile_id', me.id)
       .then(async ({ data, error }) => {
         if (error) return setErr(error.message);
         const list = ((data ?? []) as any[]).filter(r => r.community) as Row[];
@@ -146,7 +146,7 @@ export function Home({ me }: { me: Profile }) {
         const c = r.community, n = next[c.id], h = hue(c.id);
         return (
           <a class="comm" href={`#/c/${c.slug}`}>
-            <span class="comm-crest" style={`--h:${h}`}>{initials(c.name)}</span>
+            <span class={`comm-crest${c.photo_url ? ' photo' : ''}`} style={`--h:${h}${c.photo_url ? `;background-image:url("${c.photo_url}")` : ''}`}>{initials(c.name)}</span>
             <div class="comm-body">
               <b class="ellipsis">{c.name}</b>
               <span class="muted comm-meta">

@@ -39,3 +39,17 @@ export async function uploadPhoto(profileId: string, file: File): Promise<string
   if (error) throw error;
   return `${sb.storage.from('avatars').getPublicUrl(path).data.publicUrl}?v=${Date.now()}`;
 }
+
+/** Foto grupal: achica a 1600 px del lado más largo (sin recortar) y la sube como JPEG. */
+export async function uploadCommunityPhoto(communityId: string, file: File): Promise<string> {
+  const img = await createImageBitmap(file);
+  const k = Math.min(1, 1600 / Math.max(img.width, img.height));
+  const c = document.createElement('canvas');
+  c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+  c.getContext('2d')!.drawImage(img, 0, 0, c.width, c.height);
+  const blob = await new Promise<Blob>((ok, ko) => c.toBlob(b => (b ? ok(b) : ko(new Error('No se pudo procesar la foto'))), 'image/jpeg', 0.85));
+  const path = `${communityId}/${crypto.randomUUID()}.jpg`;
+  const { error } = await sb.storage.from('communities').upload(path, blob, { contentType: 'image/jpeg' });
+  if (error) throw error;
+  return sb.storage.from('communities').getPublicUrl(path).data.publicUrl;
+}

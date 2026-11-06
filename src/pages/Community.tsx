@@ -4,6 +4,7 @@ import { go, inviteUrl } from '../lib/router';
 import { loadRanking, type Ranked } from '../lib/ranking';
 import { Avatar } from '../lib/Avatar';
 import { Crest } from '../lib/Crest';
+import { CommunityPhoto } from '../lib/CommunityPhoto';
 import { Ranking } from './Ranking';
 import { Vote } from './Vote';
 import { Player } from './Player';
@@ -13,7 +14,7 @@ import { Chat, seenKey } from './Chat';
 
 import '../admin.css';
 
-interface Community { id: string; name: string; slug: string; invite_code: string; owner_id: string; invite_expires_at?: string | null }
+interface Community { id: string; name: string; slug: string; invite_code: string; owner_id: string; invite_expires_at?: string | null; photo_url?: string | null }
 const ROLE: Record<string, string> = { owner: 'Owner', admin: 'Admin', member: 'Miembro' };
 const ORDER: Record<string, number> = { owner: 0, admin: 1, member: 2 };
 
@@ -187,6 +188,8 @@ export function Community({ slug, sub, me }: { slug: string; sub: string[]; me: 
     <div class="wrap">
       <a href="#/" class="muted">← Comunidades</a>
       <h2 style="margin:8px 0 12px">{c.name}</h2>
+      {(tab === 'partidos' || tab === 'miembros') &&
+        <CommunityPhoto id={c.id} name={c.name} url={c.photo_url ?? null} isAdmin={isAdmin} changed={load} />}
       <nav class="tabs">
         <Tab id="partidos" label="Partidos" />
         <Tab id="chat" label="Chat" badge={unread} />
