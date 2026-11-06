@@ -15,6 +15,7 @@ import { CustomStats, MatchHistory, SuspensionNotice } from './PlayerExtras';
 import { aggregateCustom, loadCustom, radarHouse, type CustomRow } from '../lib/customStats';
 import { fmtDay, loadOvrHistory, type OvrHistory } from '../lib/history';
 import { OvrChart } from '../lib/OvrChart';
+import { loadBeerTotal } from './Beers';
 import '../stats.css';
 import '../history.css';
 
@@ -70,6 +71,8 @@ export function Player({ r, rows, slug, meId, communityId, isAdmin, communityNam
   const [withHouse, setWithHouse] = useState(true);
   const inRadar = radarHouse(house);
   const extra = withHouse ? inRadar.map(h => ({ label: h.label, code: h.code, value: (h.avg ?? h.own)!, compare: h.own })) : [];
+  const [beers, setBeers] = useState<number | null>(null);
+  useEffect(() => { setBeers(null); loadBeerTotal(communityId, r.profile.id).then(setBeers).catch(() => setBeers(null)); }, [communityId, r.profile.id]);
   const decided = st ? st.won + st.drawn + st.lost : 0;
   return (
     <>
@@ -144,6 +147,10 @@ export function Player({ r, rows, slug, meId, communityId, isAdmin, communityNam
               <div class="st-tile"><b>{decided ? st.lost : '—'}</b><span>Perdidos</span></div>
               <div class="st-tile"><b>{fmtAvg(perMatch(st.goals, st.pj))}</b><span>Goles/PJ</span></div>
             </div>
+          )}
+          {beers != null && beers > 0 && (
+            <p class="beer-line">🍺 <b>{beers}</b> {beers === 1 ? 'cerveza' : 'cervezas'} en el tercer tiempo
+              {st.pj > 0 && <span class="muted"> · {fmtAvg(perMatch(beers, st.pj))} por partido</span>}</p>
           )}
           {st.pj > 0 && decided < st.pj && (
             <p class="muted st-note">Ganados, empatados y perdidos cuentan solo los partidos con equipos y resultado cargados.</p>

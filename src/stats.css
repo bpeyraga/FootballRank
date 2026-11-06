@@ -131,3 +131,7 @@
 .duo-pct{flex:none;font:700 1.5rem var(--f-display)}
 .duo-pct.good{color:var(--accent)}
 .duo-pct.bad{color:var(--danger)}
+/* Tercer tiempo */
+.beer-total{font:700 1.3rem var(--f-display);padding:2px 10px;border-radius:8px;background:var(--note-bg);color:var(--note-fg)}
+.beer-n{min-width:1.8em;text-align:center;font:700 1.2rem var(--f-display)}
+.beer-line{margin-top:10px;text-align:center}

@@ -9,6 +9,7 @@ import { Pitch, type PitchPlayer } from '../lib/Pitch';
 import type { Ranked } from '../lib/ranking';
 import { fmtDate, statusLabel, type Match as M } from './Matches';
 import { loadMatchEvents, type EventKind, type MatchEvent } from '../lib/stats';
+import { Beers } from './Beers';
 import { EventRows, EventSummary, type EvPlayer } from '../lib/EventSteppers';
 import { MemberChecklist } from '../lib/MemberChecklist';
 import { eventCounts, lastEvent } from '../lib/quickMatch';
@@ -421,6 +422,11 @@ export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: str
             id: s.profile_id, name: displayName(prof(s.profile_id)), profile: prof(s.profile_id), team: hasTeams ? s.team : null,
           }))}
           nameOf={pid => displayName(prof(pid))} teamOf={pid => (hasTeams ? inList.find(s => s.profile_id === pid)?.team ?? null : null)} />
+      )}
+
+      {/* Tercer tiempo: cervezas de los que jugaron */}
+      {m.status === 'played' && (
+        <Beers matchId={id} meId={meId} players={inList.filter(s => !s.absent).map(s => prof(s.profile_id))} />
       )}
 
       {/* Admin */}
