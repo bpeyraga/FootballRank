@@ -1,13 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
-import { displayName, sb, type Profile } from '../../shared/supabase';
+import { displayName, type Profile } from '../../shared/supabase';
 import { Avatar } from '../../shared/ui/Avatar';
-
-/** Total de cervezas de un jugador en la comunidad (para el perfil). */
-export async function loadBeerTotal(communityId: string, pid: string): Promise<number> {
-  const { data, error } = await sb.from('match_beers').select('beers').eq('community_id', communityId).eq('profile_id', pid);
-  if (error) throw error;
-  return (data ?? []).reduce((t, r) => t + r.beers, 0);
-}
+import { loadBeers, setBeers } from './api';
 
 /** Tercer tiempo: cuántas cervezas tomó cada uno. Cualquier miembro carga las de cualquiera. */
 export function Beers({ matchId, players, meId }: { matchId: string; players: Profile[]; meId: string }) {
@@ -17,9 +11,8 @@ export function Beers({ matchId, players, meId }: { matchId: string; players: Pr
   const [order, setOrder] = useState<string[] | null>(null);
 
   const load = async () => {
-    const { data, error } = await sb.from('match_beers').select('profile_id,beers').eq('match_id', matchId);
-    if (error) return setErr(error.message);
-    const c = Object.fromEntries((data ?? []).map(r => [r.profile_id, r.beers as number]));
+    let c: Record<string, number>;
+    try { c = await loadBeers(matchId); } catch (e: any) { return setErr(e?.message ?? 'Error de red'); }
     setCount(c);
     // El orden se fija una sola vez (vos primero, después los que más tomaron) para que las filas no salten al tocar.
     setOrder(o => o ?? [...players].sort((a, b) =>
@@ -38,9 +31,9 @@ export function Beers({ matchId, players, meId }: { matchId: string; players: Pr
     if (next === (c[pid] ?? 0)) return;
     setBusy(pid); setErr('');
     setCount({ ...c, [pid]: next }); // optimista
-    const { error } = await sb.rpc('set_beers', { p_match: matchId, p_profile: pid, p_beers: next });
+    const ok = await setBeers(matchId, pid, next).then(() => true, () => false);
     setBusy(null);
-    if (error) { setErr('No se pudo guardar. Probá de nuevo.'); load(); }
+    if (!ok) { setErr('No se pudo guardar. Probá de nuevo.'); load(); }
   };
 
   const sorted = [

@@ -17,6 +17,13 @@ export async function loadVenues(communityId: string): Promise<Venue[]> {
   return (data ?? []) as Venue[];
 }
 
+/** Borra una cancha. Devuelve false si no había nada que borrar (ya la sacaron o no hay permiso). */
+export async function deleteVenue(id: string): Promise<boolean> {
+  const r = await sb.from('venues').delete().eq('id', id).select('id');
+  if (r.error) throw r.error;
+  return !!r.data?.length;
+}
+
 /** Datos válidos para dar de alta? (el nombre es lo único obligatorio) */
 export const draftValid = (d: VenueDraft) => d.name.trim().length > 0 && d.name.trim().length <= 80 && d.address.trim().length <= 160;
 

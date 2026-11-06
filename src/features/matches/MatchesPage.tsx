@@ -1,44 +1,25 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { Tip } from '../../shared/ui/Tip';
-import { sb } from '../../shared/supabase';
 import { go } from '../../app/router';
 import { mapUrl, type Venue } from '../venues/maps';
-import { NEW_VENUE, draftValid, emptyDraft, loadVenues, pickVenue } from '../venues/venues';
+import { NEW_VENUE, deleteVenue, draftValid, emptyDraft, loadVenues, pickVenue } from '../venues/venues';
 import { VenueField } from '../venues/VenueField';
 import type { Ranked } from '../ranking/ranking';
-import type { Profile } from '../../shared/model';
-import { debtsOf, type PaySignup } from './fees';
+import { debtsOf } from './fees';
+import { createMatch, loadMatchList, loadProfileNames, type ProfileName } from './api';
+import { fmtDate, splitUpcoming, statusLabel, type MatchListItem } from './model';
 import { SchedulesSection } from './ScheduleCard';
 import { DebtsCard } from './DebtsCard';
 import { Loading, page } from '../../app/lazy';
 const QuickMatch = page(() => import('./QuickMatchPage'), m => m.QuickMatch);
-
-export interface Match {
-  id: string; community_id: string; title: string; starts_at: string; location: string | null;
-  slots: number; status: 'open' | 'closed' | 'played' | 'cancelled';
-  score_a: number | null; score_b: number | null; created_by: string;
-  venue_id: string | null; venue?: Venue | null; // `venue` solo viene cuando se pide con select('*, venue:venues(...)')
-  fee_total?: number | string | null; // costo de la cancha (null = sin cuota); numeric: la API puede devolverlo como string
-  schedule_id?: string | null; // el partido fijo que la creó
-}
-
-export const fmtDate = (iso: string) => new Date(iso).toLocaleString('es-AR',
-  { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-
-export const STATUS: Record<Match['status'], string> =
-  { open: 'Inscripción abierta', closed: 'Lista cerrada', played: 'Jugado', cancelled: 'Cancelado' };
-
-/** Una lista abierta se cierra sola cuando llega la hora del partido (lo hace también el servidor al anotarse). */
-export const statusLabel = (m: Pick<Match, 'status' | 'starts_at'>) =>
-  m.status === 'open' && new Date(m.starts_at) <= new Date() ? 'Lista cerrada (ya empezó)' : STATUS[m.status];
 
 const byName = (a: Venue, b: Venue) => a.name.localeCompare(b.name, 'es');
 
 /** Lista de próximos e historial; los admins crean convocatorias y administran las canchas. */
 export function Matches({ communityId, slug, meId, isAdmin, rows }:
   { communityId: string; slug: string; meId: string; isAdmin: boolean; rows?: Ranked[] }) {
-  const [list, setList] = useState<(Match & { taken: number; mine: string | null; match_signups: PaySignup[] })[] | null>(null);
-  const [names, setNames] = useState<Map<string, Pick<Profile, 'id' | 'name' | 'nickname' | 'photo_url'>>>(new Map()); // quién es quién en las deudas (si no vienen `rows`)
+  const [list, setList] = useState<MatchListItem[] | null>(null);
+  const [names, setNames] = useState<Map<string, ProfileName>>(new Map()); // quién es quién en las deudas (si no vienen `rows`)
   const [venues, setVenues] = useState<Venue[]>([]);
   const [form, setForm] = useState(false);
   const [quick, setQuick] = useState(false); // "Cargar partido jugado"
@@ -47,15 +28,8 @@ export function Matches({ communityId, slug, meId, isAdmin, rows }:
 
   // absent y paid_at vienen en la misma consulta: de ahí salen las deudas sin pedir nada más.
   const loadList = async () => {
-    const m = await sb.from('matches').select('*, match_signups(profile_id,status,absent,paid_at)')
-      .eq('community_id', communityId).order('starts_at', { ascending: false }).limit(100);
-    if (m.error) return setErr(m.error.message);
-    setErr('');
-    setList((m.data ?? []).map((x: any) => ({
-      ...x,
-      taken: x.match_signups.filter((s: any) => s.status === 'in').length,
-      mine: x.match_signups.find((s: any) => s.profile_id === meId && s.status !== 'out')?.status ?? null,
-    })));
+    try { setList(await loadMatchList(communityId, meId)); setErr(''); }
+    catch (e: any) { setErr(e?.message ?? 'Error de red'); }
   };
   useEffect(() => { loadList(); }, [communityId]);
 
@@ -69,9 +43,9 @@ export function Matches({ communityId, slug, meId, isAdmin, rows }:
     if (!isAdmin || !debtKey || rows) return;
     const ids = debtKey.split(',').filter(id => !names.has(id));
     if (!ids.length) return;
-    sb.from('profiles').select('id,name,nickname,photo_url').in('id', ids).then(r => {
-      if (r.data?.length) setNames(x => new Map([...x, ...r.data.map((p: any) => [p.id, p] as const)]));
-    });
+    loadProfileNames(ids).then(ps => {
+      if (ps.length) setNames(x => new Map([...x, ...ps.map(p => [p.id, p] as const)]));
+    }, () => { /* sin nombres: la tarjeta muestra lo que tenga */ });
   }, [debtKey, isAdmin, !!rows]);
   const whoIs = (pid: string) => rows?.find(r => r.profile.id === pid)?.profile ?? names.get(pid);
 
@@ -85,14 +59,13 @@ export function Matches({ communityId, slug, meId, isAdmin, rows }:
   const delVenue = async (v: Venue) => {
     if (!confirm(`¿Borrar la cancha "${v.name}"? Los partidos que la usan conservan el nombre como lugar.`)) return;
     setVenueErr('');
-    const r = await sb.from('venues').delete().eq('id', v.id).select('id');
-    if (r.error || !r.data?.length) return setVenueErr(r.error?.message ?? 'No se pudo borrar la cancha (puede que ya la hayan sacado).');
+    let gone: boolean;
+    try { gone = await deleteVenue(v.id); } catch (e: any) { return setVenueErr(e?.message ?? 'Error de red'); }
+    if (!gone) return setVenueErr('No se pudo borrar la cancha (puede que ya la hayan sacado).');
     setVenues(x => x.filter(y => y.id !== v.id));
   };
 
-  const now = Date.now() - 3 * 3600e3; // un partido sigue "próximo" hasta 3 h después de empezar
-  const upcoming = (list ?? []).filter(m => m.status !== 'played' && m.status !== 'cancelled' && +new Date(m.starts_at) > now).reverse();
-  const past = (list ?? []).filter(m => !upcoming.includes(m));
+  const { upcoming, past } = splitUpcoming(list ?? []); // un partido sigue "próximo" hasta 3 h después de empezar
   const lastVenue = (list ?? []).find(m => m.venue_id && venues.some(v => v.id === m.venue_id))?.venue_id ?? ''; // la cancha del último partido
 
   const Item = ({ m }: { m: (typeof upcoming)[number] }) => (
@@ -178,13 +151,14 @@ function NewMatch({ communityId, meId, slug, venues, defaultVenue, addVenue, can
     const p = await pickVenue(venue, draft, venues, communityId, meId);
     if ('error' in p) { setBusy(false); return setErr(p.error); }
     if (p.created) { addVenue(p.created); setVenue(p.created.id); }
-    const { data, error } = await sb.from('matches').insert({
-      community_id: communityId, created_by: meId, title: f.title.trim(),
-      starts_at: new Date(f.when).toISOString(), slots: f.slots,
-      venue_id: p.id, location: p.name ?? (f.location.trim() || null), // location lleva el nombre de la cancha: avisos y compartir lo usan
-    }).select('id').single();
+    try {
+      const id = await createMatch({
+        communityId, meId, title: f.title.trim(), startsAt: new Date(f.when).toISOString(), slots: f.slots,
+        venueId: p.id, location: p.name ?? (f.location.trim() || null), // location lleva el nombre de la cancha: avisos y compartir lo usan
+      });
+      go(`c/${slug}/m/${id}`);
+    } catch (e: any) { setErr(e?.message ?? 'Error de red'); }
     setBusy(false);
-    if (error) setErr(error.message); else go(`c/${slug}/m/${data.id}`);
   };
   return (
     <div class="card">

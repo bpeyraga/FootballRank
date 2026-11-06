@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'preact/hooks';
-import { sb } from '../../shared/supabase';
+import { deleteSchedule, loadSchedules, saveSchedule, setScheduleActive } from './api';
 import type { Venue } from '../venues/maps';
 import { NEW_VENUE, draftValid, emptyDraft, pickVenue } from '../venues/venues';
 import { VenueField } from '../venues/VenueField';
 import {
-  SCHEDULE_COLS, WEEKDAY_CHIPS, emptyScheduleForm, formError, formOf, memberLine, opensText, previewText, scheduleError,
+  WEEKDAY_CHIPS, emptyScheduleForm, formError, formOf, memberLine, opensText, previewText, scheduleError,
   scheduleLine, schedulePayload, type Schedule, type ScheduleForm,
 } from './schedule';
 
@@ -26,10 +26,10 @@ export function SchedulesSection({ communityId, meId, isAdmin, venues, defaultVe
 
   useEffect(() => {
     let dead = false;
-    sb.from('match_schedules').select(SCHEDULE_COLS).eq('community_id', communityId).then(r => {
+    loadSchedules(communityId).then(ss => { if (!dead) setList(ss.sort(byTime)); }, (e: any) => {
       if (dead) return;
-      if (r.error) { if (isAdmin) setErr(scheduleError(r.error.message)); setList([]); return; } // para los demás, sin horarios no se ve nada
-      setList(((r.data ?? []) as Schedule[]).sort(byTime));
+      if (isAdmin) setErr(scheduleError(e?.message ?? '')); // para los demás, sin horarios no se ve nada
+      setList([]);
     });
     return () => { dead = true; };
   }, [communityId]);
@@ -38,18 +38,21 @@ export function SchedulesSection({ communityId, meId, isAdmin, venues, defaultVe
 
   const toggle = async (s: Schedule) => {
     setBusyId(s.id); setErr('');
-    const r = await sb.from('match_schedules').update({ active: !s.active }).eq('id', s.id).select(SCHEDULE_COLS).single();
+    let saved: Schedule;
+    try { saved = await setScheduleActive(s.id, !s.active); }
+    catch (e: any) { setBusyId(''); return setErr(scheduleError(e?.message || 'No se pudo cambiar (puede que ya lo hayan borrado).')); }
     setBusyId('');
-    if (r.error || !r.data) return setErr(scheduleError(r.error?.message ?? 'No se pudo cambiar (puede que ya lo hayan borrado).'));
-    put(r.data as Schedule);
+    put(saved);
     if (!s.active) onChanged(); // al activarlo se puede crear la convocatoria en el acto
   };
   const del = async (s: Schedule) => {
     if (!confirm(`¿Borrar el partido fijo (${scheduleLine(s)})? Las convocatorias que ya se crearon se mantienen.`)) return;
     setBusyId(s.id); setErr('');
-    const r = await sb.from('match_schedules').delete().eq('id', s.id).select('id');
+    let gone: boolean;
+    try { gone = await deleteSchedule(s.id); }
+    catch (e: any) { setBusyId(''); return setErr(scheduleError(e?.message || 'No se pudo borrar.')); }
     setBusyId('');
-    if (r.error || !r.data?.length) return setErr(scheduleError(r.error?.message ?? 'No se pudo borrar (puede que ya lo hayan sacado).'));
+    if (!gone) return setErr(scheduleError('No se pudo borrar (puede que ya lo hayan sacado).'));
     setList(x => (x ?? []).filter(y => y.id !== s.id));
   };
 
@@ -119,13 +122,11 @@ function ScheduleForm({ cur, communityId, meId, venues, defaultVenue, addVenue, 
     if ('error' in p) { setBusy(false); return setErr(p.error); }
     if (p.created) { addVenue(p.created); setVenue(p.created.id); }
     const payload = schedulePayload(f, { id: p.id, name: p.name ?? (place.trim() || null) });
-    const q = cur
-      ? sb.from('match_schedules').update(payload).eq('id', cur.id)
-      : sb.from('match_schedules').insert({ ...payload, community_id: communityId, created_by: meId, active: true });
-    const r = await q.select(SCHEDULE_COLS).single();
+    let saved: Schedule;
+    try { saved = await saveSchedule(payload, cur?.id ?? null, communityId, meId); }
+    catch (e: any) { setBusy(false); return setErr(scheduleError(e?.message || 'No se pudo guardar.')); }
     setBusy(false);
-    if (r.error || !r.data) return setErr(scheduleError(r.error?.message ?? 'No se pudo guardar.'));
-    onSaved(r.data as Schedule);
+    onSaved(saved);
   };
 
   return (

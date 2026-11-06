@@ -2,7 +2,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { displayName, sb } from '../../shared/supabase';
 import { outcome, type Team } from '../stats/stats';
 import type { Ranked } from '../ranking/ranking';
-import { fmtDate } from '../matches/MatchesPage';
+import { fmtDate } from '../matches/model';
 import { houseCodes, plain } from '../../shared/ui/Radar';
 import { labelKey } from '../stats/customStats';
 

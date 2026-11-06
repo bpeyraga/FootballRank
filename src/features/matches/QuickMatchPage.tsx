@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { sb } from '../../shared/supabase';
+import { loadPlayedMatch } from './api';
 import { displayName, ovr, posLine, type Stats } from '../../shared/model';
 import { go } from '../../app/router';
 import { balance, type BPlayer, type Split } from './balance';
@@ -102,12 +102,11 @@ export function QuickMatch({ communityId, meId, slug, venues, defaultVenue, addV
       if ('error' in p) setErr(p.error);
       else {
         if (p.created) { addVenue(p.created); setVenue(p.created.id); }
-        const { data, error } = await sb.rpc('load_played_match', {
-          p_community: communityId, p_title: title.trim() || 'Partido', p_starts_at: new Date(when).toISOString(),
-          p_location: p.name, p_venue: p.id, p_players: buildPlayers(sel), p_a: score.a, p_b: score.b, p_events: buildEvents(sel, counts),
+        const id = await loadPlayedMatch({
+          communityId, title: title.trim() || 'Partido', startsAt: new Date(when).toISOString(),
+          location: p.name, venueId: p.id, players: buildPlayers(sel), a: score.a, b: score.b, events: buildEvents(sel, counts),
         });
-        if (error) setErr(quickError(error.message));
-        else { ok = true; go(`c/${slug}/m/${data}`); }
+        ok = true; go(`c/${slug}/m/${id}`);
       }
     } catch (e: any) {
       setErr(quickError(e?.message ?? 'Error de red'));

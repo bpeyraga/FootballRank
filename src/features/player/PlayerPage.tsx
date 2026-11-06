@@ -15,7 +15,7 @@ import { CustomStats, MatchHistory, SuspensionNotice } from './PlayerExtras';
 import { aggregateCustom, loadCustom, radarHouse, type CustomRow } from '../stats/customStats';
 import { fmtDay, loadOvrHistory, type OvrHistory } from '../stats/history';
 import { OvrChart } from './OvrChart';
-import { loadBeerTotal } from '../matches/Beers';
+import { loadBeerTotal } from '../matches/api';
 import { ClaimProfile } from '../community/ClaimProfile';
 import './stats.css';
 import './history.css';
