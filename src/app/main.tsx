@@ -2,7 +2,7 @@ import { render } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import './styles/styles.css';
 import './install'; // registra el service worker y escucha "instalar app" desde el arranque
-import { sb, type Profile } from '../shared/supabase';
+import type { Profile } from '../shared/supabase';
 import { pushForget, pushSync } from '../features/push/push';
 import { loadMe, onAuthChange, signOut } from '../features/auth/api';
 import { startTracking, trackNow } from './track';
@@ -103,5 +103,5 @@ function App() {
   return <Home me={me} />;
 }
 
-startTracking(sb); // visitas, en vivo e instalaciones (también en la landing, sin sesión)
+startTracking(); // visitas, en vivo e instalaciones (también en la landing, sin sesión)
 render(<Loading><App /></Loading>, document.getElementById('app')!);

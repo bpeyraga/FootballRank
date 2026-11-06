@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { sb } from '../../shared/supabase';
 import { isMapsUrl, parseMapsUrl, type Venue } from './maps';
 import { NEW_VENUE, type VenueDraft } from './venues';
+import { resolvePlace } from './api';
 
 /**
  * Datos de una cancha nueva: link de Google Maps, nombre y dirección.
@@ -21,9 +21,7 @@ export function VenueNewFields({ draft, onDraft }: { draft: VenueDraft; onDraft:
     if (r.lat == null) { // link corto: lo resuelve la función `place`
       setState('busy');
       try {
-        const { data, error } = await sb.functions.invoke('place', { body: { url } });
-        if (error || !data) throw error ?? new Error('sin respuesta');
-        r = { name: data.name ?? null, lat: data.lat ?? null, lng: data.lng ?? null };
+        r = await resolvePlace(url);
       } catch {
         done.current = ''; // que volver a tocar el link reintente
         if (cur.current.url.trim() === url) setState('fail');

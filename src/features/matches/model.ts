@@ -29,6 +29,10 @@ export const STATUS: Record<Match['status'], string> =
 export const statusLabel = (m: Pick<Match, 'status' | 'starts_at'>) =>
   m.status === 'open' && new Date(m.starts_at) <= new Date() ? 'Lista cerrada (ya empezó)' : STATUS[m.status];
 
+/** Suspensión activa: pendiente (sin partido) o de un partido abierto/cerrado que todavía no pasó (hasta 3 h después). */
+export const isActiveSuspension = (x: { match: { status: string; starts_at: string } | null }, now = Date.now()) =>
+  !x.match || ((x.match.status === 'open' || x.match.status === 'closed') && +new Date(x.match.starts_at) > now - 3 * 3600e3);
+
 /** Próximos (hasta 3 h después de empezar, del más cercano al más lejano) e historial. */
 export function splitUpcoming<T extends Pick<Match, 'status' | 'starts_at'>>(list: T[], now = Date.now()) {
   const limit = now - 3 * 3600e3;

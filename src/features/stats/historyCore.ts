@@ -172,3 +172,10 @@ export function buildMatchHistory(apps: readonly MatchApp[], scores: readonly Ma
   });
   return { lines, total: sorted.length, avg: nRatings ? round1(sum / nRatings) : null, nRatings, nRated };
 }
+
+export interface OvrHistory {
+  /** false si la migración del historial todavía no está aplicada. */
+  available: boolean;
+  /** Un punto por día, de más viejo a más nuevo. */
+  points: OvrPoint[];
+}

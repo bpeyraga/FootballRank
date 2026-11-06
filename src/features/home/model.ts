@@ -9,8 +9,8 @@ export interface SignupSummary { taken: number; waiting: number; mine: 'in' | 'w
 
 export const ROLE: Record<string, string> = { owner: 'Owner', admin: 'Admin', member: 'Miembro' };
 
-/** Color de la carta según el OVR. */
-export const tierOf = (o: number | null) => o == null ? 'none' : o >= 75 ? 'gold' : o >= 65 ? 'silver' : 'bronze';
+/** Color de la carta según el OVR (misma regla que el ranking). */
+export { tier as tierOf } from '../ranking/ranking';
 
 /** Acepta el link completo (…/#/join/abc123) o solo el código. */
 export const inviteCode = (s: string) => s.trim().match(/join\/([a-z0-9]+)/i)?.[1] ?? (/^[a-z0-9]{6,}$/i.test(s.trim()) ? s.trim() : null);

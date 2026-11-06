@@ -14,7 +14,7 @@ import { MemberChecklist } from './MemberChecklist';
 import { EditMatch, MatchEvents, MvpVote, RateTeammates } from './MatchSections';
 import { downloadIcs, gcalUrl, matchUrl, shareText, whatsappUrl } from './share';
 import { directionsUrl, embedUrl, type Venue } from '../venues/maps';
-import { loadVenues } from '../venues/venues';
+import { loadVenues } from '../venues/api';
 import { FeeCard } from './FeeCard';
 import { WeatherChip } from './WeatherChip';
 import { feeNum } from './fees';

@@ -1,7 +1,8 @@
 // Perfil del jugador: reglas puras (sin Supabase ni Preact).
 import { plain } from '../../shared/ui/Radar';
-import type { Team } from '../stats/stats';
+import type { Team } from '../stats/statsCore';
 import { labelKey, type CustomRow } from '../stats/customStats';
+import { isActiveSuspension } from '../matches/model';
 
 export interface Played {
   id: string; title: string; starts_at: string; team: Team | null;
@@ -36,10 +37,8 @@ export function historySummary(list: Played[]) {
 
 export interface SuspensionRow { id: string; reason: string | null; match: { title: string; starts_at: string; status: string } | null }
 
-/** Activa = pendiente (sin partido) o con un partido que todavía no se jugó (hasta 3 h después de empezar). */
-export const activeSuspensions = (rows: SuspensionRow[], now = Date.now()) =>
-  rows.filter(x => !x.match || ((x.match.status === 'open' || x.match.status === 'closed')
-    && +new Date(x.match.starts_at) > now - 3 * 3600e3));
+/** Las que siguen activas (la regla está en matches/model). */
+export const activeSuspensions = (rows: SuspensionRow[], now = Date.now()) => rows.filter(x => isActiveSuspension(x, now));
 
 /** Código para el radar: mayúsculas, solo letras (con Ñ) y números, máx. 3. */
 export const cleanCode = (s: string) => plain(s).slice(0, 3);

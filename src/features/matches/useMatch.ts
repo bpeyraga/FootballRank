@@ -1,6 +1,7 @@
 // Estado y acciones de la pantalla de un partido (el "controlador"): MatchPage solo dibuja lo que esto expone.
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { loadMatchEvents, type EventKind, type MatchEvent } from '../stats/stats';
+import { loadMatchEvents } from '../stats/api';
+import type { EventKind, MatchEvent } from '../stats/statsCore';
 import { lastEvent } from './quickMatch';
 import { feeError } from './fees';
 import * as api from './api';

@@ -15,5 +15,17 @@ export function must<T>(r: { data: T; error: { message: string } | null }): T {
   return r.data;
 }
 
+/** Tope de filas por request de PostgREST. */
+const PAGE = 1000;
+/** Trae todas las páginas de una consulta (el orden tiene que ser estable). */
+export async function fetchAll<T>(page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>): Promise<T[]> {
+  const out: T[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const data = must(await page(from, from + PAGE - 1));
+    out.push(...(data ?? []));
+    if (!data || data.length < PAGE) return out;
+  }
+}
+
 // Constantes y tipos viven en model.ts (sin dependencias); se re-exportan acá para no cambiar los imports existentes.
 export * from './model';

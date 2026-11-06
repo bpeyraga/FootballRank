@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { Tip } from '../../shared/ui/Tip';
 import { ATTRS, displayName, infoLine } from '../../shared/supabase';
-import { ovr, tier, type Ranked } from './ranking';
+import { tier, type Ranked } from './ranking';
 import { Avatar } from '../../shared/ui/Avatar';
 import { Crest } from '../../shared/ui/Crest';
-import { emptyStats, fmtAvg, leaderboard, loadCommunityStats, perMatch, type PlayerStats } from '../stats/stats';
-import { loadAttendanceData, loadMvps } from '../stats/playData';
+import { emptyStats, fmtAvg, leaderboard, perMatch, type PlayerStats } from '../stats/statsCore';
+import { loadAttendanceData, loadCommunityStats, loadMvps } from '../stats/api';
 import { mvpBoard, presenceBoard } from './boards';
 import '../player/stats.css';
 

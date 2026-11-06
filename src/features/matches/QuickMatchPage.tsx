@@ -3,11 +3,13 @@ import { loadPlayedMatch } from './api';
 import { displayName, ovr, posLine, type Stats } from '../../shared/model';
 import { go } from '../../app/router';
 import { balance, type BPlayer, type Split } from './balance';
-import { loadRanking, type Ranked } from '../ranking/ranking';
+import type { Ranked } from '../ranking/ranking';
+import { loadRanking } from '../ranking/api';
 import { Avatar } from '../../shared/ui/Avatar';
 import { EventRows, type EvPlayer } from './EventSteppers';
 import { VenueField } from '../venues/VenueField';
-import { NEW_VENUE, draftValid, emptyDraft, pickVenue } from '../venues/venues';
+import { NEW_VENUE, draftValid, emptyDraft } from '../venues/venues';
+import { pickVenue } from '../venues/api';
 import type { Venue } from '../venues/maps';
 import {
   applyTeams, autoScore, buildEvents, buildPlayers, bump, clampScore, defaultStart, quickError, selectAll, setSide,

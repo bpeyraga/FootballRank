@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
 import { displayName } from '../../shared/supabase';
-import { outcome } from '../stats/stats';
+import { outcome } from '../stats/statsCore';
 import type { Ranked } from '../ranking/ranking';
 import { fmtDate } from '../../shared/text';
 import { houseCodes } from '../../shared/ui/Radar';

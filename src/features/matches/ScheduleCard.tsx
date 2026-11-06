@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'preact/hooks';
 import { deleteSchedule, loadSchedules, saveSchedule, setScheduleActive } from './api';
 import type { Venue } from '../venues/maps';
-import { NEW_VENUE, draftValid, emptyDraft, pickVenue } from '../venues/venues';
+import { NEW_VENUE, draftValid, emptyDraft } from '../venues/venues';
+import { pickVenue } from '../venues/api';
 import { VenueField } from '../venues/VenueField';
 import {
   WEEKDAY_CHIPS, emptyScheduleForm, formError, formOf, memberLine, opensText, previewText, scheduleError,

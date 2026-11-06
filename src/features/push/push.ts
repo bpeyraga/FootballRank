@@ -1,4 +1,4 @@
-import { sb } from '../../shared/supabase';
+import { deletePush, loadPushKinds, savePush, sendTestPush } from './api';
 
 /** Clave pública VAPID (es pública a propósito; la privada está solo en los secretos de Supabase). */
 const VAPID = 'BEvKobO6rMvQwL3lvd_QGwdYh-QrHyZT-jhsMv0LXCywqkwZszKeodqqCa-vVi3xLkls5H1oLV0ltCS6r5j1q1Q';
@@ -29,7 +29,7 @@ const current = async () => (supported() ? (await reg()).pushManager.getSubscrip
 
 const save = (s: PushSubscription, kinds?: PushKind[]) => {
   const j = s.toJSON();
-  return sb.rpc('save_push', { p_endpoint: s.endpoint, p_p256dh: j.keys!.p256dh, p_auth: j.keys!.auth, p_kinds: kinds ?? null });
+  return savePush(s.endpoint, j.keys!.p256dh, j.keys!.auth, kinds ?? null);
 };
 
 export async function pushStatus(): Promise<PushStatus> {
@@ -48,9 +48,8 @@ export async function pushOn(): Promise<string> {
     const r = await reg();
     const s = (await r.pushManager.getSubscription())
       ?? (await r.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key() }));
-    const { error } = await save(s);
-    if (error) return 'No se pudo guardar. Probá de nuevo.';
-    sb.functions.invoke('push', { body: { type: 'test' } }).catch(() => {});
+    if (!(await save(s).then(() => true, () => false))) return 'No se pudo guardar. Probá de nuevo.';
+    sendTestPush();
     return '';
   } catch {
     return 'Este navegador no dejó activar los avisos.';
@@ -60,7 +59,7 @@ export async function pushOn(): Promise<string> {
 export async function pushOff() {
   const s = await current().catch(() => null);
   if (!s) return;
-  await sb.from('push_subscriptions').delete().eq('endpoint', s.endpoint);
+  await deletePush(s.endpoint);
   await s.unsubscribe().catch(() => {});
 }
 
@@ -68,8 +67,7 @@ export async function pushOff() {
 export async function pushKinds(): Promise<PushKind[]> {
   const s = await current();
   if (!s) return [];
-  const { data } = await sb.from('push_subscriptions').select('kinds').eq('endpoint', s.endpoint).maybeSingle();
-  return (data?.kinds as PushKind[]) ?? PUSH_KINDS.map(k => k[0]);
+  return ((await loadPushKinds(s.endpoint)) as PushKind[] | null) ?? PUSH_KINDS.map(k => k[0]);
 }
 
 export async function setPushKinds(kinds: PushKind[]) {

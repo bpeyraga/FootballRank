@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
-import { sb } from '../../shared/supabase';
 import { mapUrl, type Venue } from './maps';
-import { NEW_VENUE, VENUE_COLS, draftValid, emptyDraft, loadVenues, pickVenue, type VenueDraft } from './venues';
+import { NEW_VENUE, draftValid, emptyDraft, type VenueDraft } from './venues';
+import { deleteVenue, loadVenues, pickVenue, updateVenue } from './api';
 import { VenueNewFields } from './VenueField';
 
 const byName = (a: Venue, b: Venue) => a.name.localeCompare(b.name, 'es');
@@ -51,17 +51,20 @@ export function VenuesManager({ communityId, meId, onCount, openIfEmpty }: {
     const name = edit.name.trim(), address = edit.address.trim();
     if (!name || name.length > 80 || address.length > 160) return;
     setBusy(true); setErr('');
-    const r = await sb.from('venues').update({ name, address: address || null }).eq('id', edit.id).select(VENUE_COLS).maybeSingle();
+    let saved: Venue | null;
+    try { saved = await updateVenue(edit.id, name, address || null); }
+    catch (e: any) { setBusy(false); return setErr(e?.message ?? 'Error de red'); }
     setBusy(false);
-    if (r.error || !r.data) return setErr(r.error?.message ?? 'No se pudo guardar la cancha (puede que ya la hayan sacado).');
-    put(r.data as Venue); setEdit(null);
+    if (!saved) return setErr('No se pudo guardar la cancha (puede que ya la hayan sacado).');
+    put(saved); setEdit(null);
   };
 
   const del = async (v: Venue) => {
     if (!confirm(`¿Borrar la cancha "${v.name}"? Los partidos que la usan conservan el nombre como lugar.`)) return;
     setErr('');
-    const r = await sb.from('venues').delete().eq('id', v.id).select('id');
-    if (r.error || !r.data?.length) return setErr(r.error?.message ?? 'No se pudo borrar la cancha (puede que ya la hayan sacado).');
+    let gone: boolean;
+    try { gone = await deleteVenue(v.id); } catch (e: any) { return setErr(e?.message ?? 'Error de red'); }
+    if (!gone) return setErr('No se pudo borrar la cancha (puede que ya la hayan sacado).');
     setVenues(x => (x ?? []).filter(y => y.id !== v.id));
     if (edit?.id === v.id) setEdit(null);
   };

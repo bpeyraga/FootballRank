@@ -2,11 +2,12 @@
 import { useEffect, useState } from 'preact/hooks';
 import { displayName, type Profile } from '../../shared/supabase';
 import { Avatar } from '../../shared/ui/Avatar';
-import type { EventKind, MatchEvent } from '../stats/stats';
+import type { EventKind, MatchEvent } from '../stats/statsCore';
 import { EventRows, EventSummary, type EvPlayer } from './EventSteppers';
 import { eventCounts } from './quickMatch';
 import type { Venue } from '../venues/maps';
-import { NEW_VENUE, draftValid, emptyDraft, pickVenue } from '../venues/venues';
+import { NEW_VENUE, draftValid, emptyDraft } from '../venues/venues';
+import { pickVenue } from '../venues/api';
 import { VenueField } from '../venues/VenueField';
 import type { Match as M } from './model';
 

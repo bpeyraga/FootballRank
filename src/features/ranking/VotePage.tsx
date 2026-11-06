@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { Tip } from '../../shared/ui/Tip';
-import { ATTRS, displayName, ovr, posLine, sb, type Stats } from '../../shared/supabase';
+import { ATTRS, displayName, ovr, posLine, type Stats } from '../../shared/supabase';
+import { saveVote } from './api';
 import { Radar } from '../../shared/ui/Radar';
 import { Avatar } from '../../shared/ui/Avatar';
 import type { Ranked } from './ranking';
@@ -44,21 +45,20 @@ export function Vote({ rows, communityId, slug, meId, startId, saved }:
   const move = (i: number) => { setIdx(i); setStats(init(others[i])); setErr(''); };
   const save = async (next: boolean) => {
     setBusy(true); setErr('');
-    let { error } = await sb.from('stat_votes').upsert({
-      community_id: communityId, voter_id: meId, target_id: cur.profile.id, ...stats,
-      updated_at: new Date().toISOString(),
-    });
-    const changed = house.filter(h => touched.has(h.key));
-    // Si ya tengo fila para esa stat, la actualizo (aunque mi etiqueta tenga otras mayúsculas); si no, creo la mía.
-    for (const h of error ? [] : changed) {
-      try {
+    try {
+      await saveVote(communityId, meId, cur.profile.id, stats);
+      // Stats de la casa que tocaste: si ya tengo fila para esa stat, la actualizo (aunque mi etiqueta tenga otras
+      // mayúsculas); si no, creo la mía.
+      for (const h of house.filter(x => touched.has(x.key))) {
         if (h.mineId) await updateCustom(h.mineId, { value: hv[h.key] });
         else await addCustom({ communityId, targetId: cur.profile.id, meId, label: h.label, value: hv[h.key] });
-      } catch (e: any) { error = { message: e?.message ?? 'Error de red' } as any; break; }
+      }
+      await saved();
+    } catch (e: any) {
+      setBusy(false);
+      return setErr(e?.message ?? 'Error de red');
     }
-    if (!error) await saved();
     setBusy(false);
-    if (error) return setErr(error.message);
     if (next && idx < others.length - 1) move(idx + 1); else go(`c/${slug}/ranking`);
   };
 

@@ -1,9 +1,9 @@
 // Partidos: la única puerta a la base para esta funcionalidad. Las pantallas no llaman a Supabase:
 // usan estas funciones (directo o a través de un hook). Todas tiran Error con el mensaje del servidor si algo falla.
 import { must, sb, type Profile } from '../../shared/supabase';
-import { VENUE_COLS } from '../venues/venues';
+import { VENUE_COLS } from '../venues/api';
 import { SCHEDULE_COLS, type Schedule } from './schedule';
-import type { EventKind } from '../stats/stats';
+import type { EventKind } from '../stats/statsCore';
 import type { Match, MatchListItem, Mvp, Score, Signup, Suspension, Team } from './model';
 
 const rpc = async (fn: string, args: Record<string, unknown>) => { must(await sb.rpc(fn, args)); };

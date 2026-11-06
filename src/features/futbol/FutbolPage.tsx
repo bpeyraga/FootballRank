@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'preact/hooks';
 import type { ComponentChildren } from 'preact';
-import { sb, type Profile } from '../../shared/supabase';
+import type { Profile } from '../../shared/supabase';
+import { fetchFutbol, type FutKind, type Reply } from './api';
 import { Crest } from '../../shared/ui/Crest';
 import { KITS } from '../../shared/teams';
 import { initials } from '../../shared/text';
@@ -10,24 +11,22 @@ import {
   type Club, type Fixtures, type Match, type News, type NewsItem, type Row, type Table, type TeamData,
 } from './futbol';
 
-// ---------- Datos: se piden a la Edge Function `futbol` (que cachea 12 min) ----------
-interface Reply<T> { data: T; fetched_at: string; stale: boolean }
+// ---------- Datos: se piden a la Edge Function `futbol` (ver api.ts) ----------
 interface Slot<T> { r: Reply<T> | null; loading: boolean; err: boolean; reload: () => void }
 
 /** Lo último que trajo cada pedido: al volver a la pantalla se muestra al instante y se renueva si ya pasaron 2 min. */
 const mem = new Map<string, { at: number; r: Reply<any> }>();
 const FRESH_MS = 2 * 60_000;
 
-function useFut<T>(kind: 'table' | 'fixtures' | 'news' | 'team', team: string | null = null, on = true): Slot<T> {
+function useFut<T>(kind: FutKind, team: string | null = null, on = true): Slot<T> {
   const key = `${kind}|${team ?? ''}`;
   const [st, setSt] = useState(() => ({ r: (mem.get(key)?.r ?? null) as Reply<T> | null, loading: on && !mem.has(key), err: false }));
   const run = useCallback(async (force: boolean) => {
     setSt(s => ({ ...s, loading: true }));
     try {
-      const { data, error } = await sb.functions.invoke('futbol', { body: { kind, team, force } });
-      if (error || !data || data.error) throw error ?? new Error(String(data?.error ?? 'sin datos'));
-      mem.set(key, { at: Date.now(), r: data });
-      setSt({ r: data as Reply<T>, loading: false, err: false });
+      const r = await fetchFutbol<T>(kind, team, force);
+      mem.set(key, { at: Date.now(), r });
+      setSt({ r, loading: false, err: false });
     } catch {
       setSt(s => ({ ...s, loading: false, err: true }));
     }

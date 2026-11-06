@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import type { ComponentChildren } from 'preact';
-import { sb } from '../../shared/supabase';
+import { loadAdminStats } from './api';
 import {
   dayLong, fmtInt, niceMax, normalizeStats, pct, platformLabel, plural, sectionLabel, seriesTotal, shortDate, timeAgo,
   type AdminStats, type SeriesKey, type SeriesPoint,
@@ -232,14 +232,12 @@ export function Admin() {
     const id = ++seq.current;
     setBusy(true);
     try {
-      const { data, error } = await sb.rpc('admin_stats');
+      const r = await loadAdminStats();
       if (id !== seq.current) return; // llegó una respuesta más nueva
-      if (error) {
-        if (error.code === '42501' || /forbidden/i.test(error.message)) { blocked.current = true; setStats(null); setFail('forbidden'); }
-        else setFail('error');
-      } else {
+      if ('forbidden' in r) { blocked.current = true; setStats(null); setFail('forbidden'); }
+      else {
         lastOk.current = Date.now();
-        setStats(normalizeStats(data)); setAt(lastOk.current); setFail('');
+        setStats(normalizeStats(r.data)); setAt(lastOk.current); setFail('');
       }
     } catch {
       if (id === seq.current) setFail('error');
