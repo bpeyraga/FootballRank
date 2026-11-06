@@ -121,7 +121,7 @@ export function Community({ slug, sub, me }: { slug: string; sub: string[]; me: 
           <div class="row rank-row">
             <Avatar p={m.profile} />
             <a href={`#/c/${slug}/p/${m.profile.id}`} style="flex:1;min-width:0;color:inherit;text-decoration:none">
-              <div class="row" style="gap:6px"><span class="ellipsis">{displayName(m.profile)}</span><Crest team={m.profile.fav_team} size={14} /></div>
+              <div class="row" style="gap:6px"><span class="ellipsis">{displayName(m.profile)}</span><Crest team={m.profile.fav_team} size={11} /></div>
               <div class="muted ellipsis" style="font-size:.85rem">{infoLine(m.profile)} · {ROLE[m.role]}</div>
             </a>
             {isOwner && m.role === 'member' && <button class="btn sm" onClick={() => setRole(m.profile.id, 'admin')}>Hacer admin</button>}
@@ -136,7 +136,7 @@ export function Community({ slug, sub, me }: { slug: string; sub: string[]; me: 
           ? <p class="muted">Nadie eligió equipo todavía. Se elige en "Editar perfil".</p>
           : fans.teams.map(t => (
             <div class="fan-row">
-              <span class="row ellipsis" style="gap:6px"><Crest team={t.team} size={16} /><span class="ellipsis">{t.team}</span></span>
+              <span class="row ellipsis" style="gap:6px"><Crest team={t.team} size={12} /><span class="ellipsis">{t.team}</span></span>
               <span class="fan-bar"><i style={`width:${(t.n / top) * 100}%`} /></span>
               <b>{t.n}</b>
             </div>

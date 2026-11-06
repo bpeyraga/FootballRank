@@ -68,7 +68,7 @@ export function Ranking({ rows, slug, meId, communityId }: { rows: Ranked[]; slu
               <span class="muted" style="width:1.4em;text-align:right">{r.ovr == null ? '' : i + 1}</span>
               <Avatar p={r.profile} />
               <div style="flex:1;min-width:0">
-                <div class="row" style="gap:6px"><span class="ellipsis">{displayName(r.profile)}{r.profile.id === meId && <span class="muted"> (vos)</span>}</span><Crest team={r.profile.fav_team} size={14} /></div>
+                <div class="row" style="gap:6px"><span class="ellipsis">{displayName(r.profile)}{r.profile.id === meId && <span class="muted"> (vos)</span>}</span><Crest team={r.profile.fav_team} size={11} /></div>
                 <div class="muted ellipsis" style="font-size:.85rem">
                   {infoLine(r.profile)} · {r.nVotes ? `${r.nVotes} ${r.nVotes === 1 ? 'voto' : 'votos'}` : 'sin votos'}
                 </div>

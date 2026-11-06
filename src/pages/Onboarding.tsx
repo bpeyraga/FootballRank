@@ -68,7 +68,7 @@ export function Onboarding({ me, done, cancel }: { me: Profile; done: () => void
         {!shirtOk && <p class="err">El número tiene que ser entre 1 y 99.</p>}
         <label class="field"><span>¿De qué equipo sos hincha?</span>
           <div class="row" style="gap:10px">
-          {team && <Crest team={team} size={30} />}
+          {team && <Crest team={team} size={20} />}
           <select style="flex:1" value={team} onChange={e => setTeam((e.target as HTMLSelectElement).value)}>
             <option value="">— Ninguno —</option>
             {team && !TEAMS_PRIMERA.includes(team) && !TEAMS_ASCENSO.includes(team) && <option value={team}>{team}</option>}
