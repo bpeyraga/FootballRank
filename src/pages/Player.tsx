@@ -2,6 +2,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { ATTRS, displayName, posLine } from '../lib/supabase';
 import { Radar } from '../lib/Radar';
 import { Avatar } from '../lib/Avatar';
+import { Crest } from '../lib/Crest';
 import { tier, type Ranked } from '../lib/ranking';
 import { fmtAvg, loadPlayerStats, perMatch, type PlayerStats } from '../lib/stats';
 import '../stats.css';
@@ -31,7 +32,7 @@ export function Player({ r, slug, meId, communityId }: { r: Ranked; slug: string
             <h2>{displayName(r.profile)}</h2>
             {r.profile.nickname && <div style="font-size:.85rem;opacity:.8">{r.profile.name}</div>}
             <div>{posLine(r.profile)} · {ROLE[r.role]}</div>
-            {r.profile.fav_team && <div style="font-size:.85rem;opacity:.8">Hincha de {r.profile.fav_team}</div>}
+            {r.profile.fav_team && <div class="row" style="gap:6px;font-size:.85rem;margin-top:2px"><Crest team={r.profile.fav_team} size={16} /><span style="opacity:.8">Hincha de {r.profile.fav_team}</span></div>}
           </div>
           <div style="text-align:center">
             <div class="big">{r.ovr ?? '—'}</div>

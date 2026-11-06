@@ -1,14 +1,61 @@
 // Equipos para elegir "de qué cuadro sos hincha". Se guarda el nombre tal cual en profiles.fav_team.
-export const TEAMS_PRIMERA = [
-  'Aldosivi', 'Argentinos Juniors', 'Atlético Tucumán', 'Banfield', 'Barracas Central', 'Belgrano',
-  'Boca Juniors', 'Central Córdoba (SdE)', 'Defensa y Justicia', 'Deportivo Riestra', 'Estudiantes de La Plata',
-  'Estudiantes de Río Cuarto', 'Gimnasia de La Plata', 'Gimnasia de Mendoza', 'Godoy Cruz', 'Huracán',
-  'Independiente', 'Independiente Rivadavia', 'Instituto', 'Lanús', "Newell's Old Boys", 'Platense',
-  'Racing Club', 'River Plate', 'Rosario Central', 'San Lorenzo', 'San Martín de San Juan', 'Sarmiento',
-  'Talleres', 'Tigre', 'Unión', 'Vélez Sarsfield',
-];
+// Los escuditos son propios (colores y diseño de la camiseta), no los escudos oficiales de los clubes.
 
-export const TEAMS_ASCENSO = [
-  'All Boys', 'Almagro', 'Arsenal de Sarandí', 'Atlanta', 'Chacarita', 'Chicago', 'Colón', 'Ferro Carril Oeste',
-  'Los Andes', 'Morón', 'Quilmes', 'San Martín de Tucumán', 'Temperley',
-];
+/** plain: liso · stripes: bastones · hband: franja horizontal · sash: banda diagonal · halves: mitades · vee: V */
+export type Pattern = 'plain' | 'stripes' | 'hband' | 'sash' | 'halves' | 'vee';
+export interface Kit { s: string; p: Pattern; c: string[]; t: string } // sigla, diseño, colores, color de la sigla
+
+const W = '#ffffff', R = '#d71920', B = '#0b3b8c', N = '#1d1d1d', Y = '#f6c400', G = '#0a7a3d', C = '#6cb4e4';
+
+export const KITS: Record<string, Kit> = {
+  // Primera División
+  'Aldosivi': { s: 'ALD', p: 'stripes', c: [G, Y], t: N },
+  'Argentinos Juniors': { s: 'ARG', p: 'plain', c: [R], t: W },
+  'Atlético Tucumán': { s: 'ATU', p: 'stripes', c: [C, W], t: B },
+  'Banfield': { s: 'BAN', p: 'stripes', c: [G, W], t: N },
+  'Barracas Central': { s: 'BAR', p: 'stripes', c: [R, W], t: N },
+  'Belgrano': { s: 'BEL', p: 'plain', c: [C], t: W },
+  'Boca Juniors': { s: 'BOC', p: 'hband', c: [B, Y], t: W },
+  'Central Córdoba (SdE)': { s: 'CCO', p: 'stripes', c: [N, W], t: R },
+  'Defensa y Justicia': { s: 'DYJ', p: 'halves', c: [Y, G], t: N },
+  'Deportivo Riestra': { s: 'RIE', p: 'plain', c: [N], t: W },
+  'Estudiantes de La Plata': { s: 'EST', p: 'stripes', c: [R, W], t: N },
+  'Estudiantes de Río Cuarto': { s: 'ERC', p: 'stripes', c: [C, W], t: N },
+  'Gimnasia de La Plata': { s: 'GEL', p: 'hband', c: [W, B], t: B },
+  'Gimnasia de Mendoza': { s: 'GEM', p: 'hband', c: [W, N], t: N },
+  'Godoy Cruz': { s: 'GCR', p: 'stripes', c: [B, W], t: N },
+  'Huracán': { s: 'HUR', p: 'plain', c: [W], t: R },
+  'Independiente': { s: 'IND', p: 'plain', c: [R], t: W },
+  'Independiente Rivadavia': { s: 'IRM', p: 'plain', c: [B], t: W },
+  'Instituto': { s: 'INS', p: 'stripes', c: [R, W], t: N },
+  'Lanús': { s: 'LAN', p: 'plain', c: ['#7a1f2b'], t: W },
+  "Newell's Old Boys": { s: 'NOB', p: 'halves', c: [R, N], t: W },
+  'Platense': { s: 'PLA', p: 'hband', c: [W, '#6b3e1f'], t: '#6b3e1f' },
+  'Racing Club': { s: 'RAC', p: 'stripes', c: [C, W], t: B },
+  'River Plate': { s: 'RIV', p: 'sash', c: [W, R], t: N },
+  'Rosario Central': { s: 'RCE', p: 'stripes', c: [B, Y], t: W },
+  'San Lorenzo': { s: 'SLO', p: 'stripes', c: [B, R], t: W },
+  'San Martín de San Juan': { s: 'SMJ', p: 'stripes', c: [G, N], t: W },
+  'Sarmiento': { s: 'SAR', p: 'plain', c: [G], t: W },
+  'Talleres': { s: 'TAL', p: 'stripes', c: ['#16295c', W], t: R },
+  'Tigre': { s: 'TIG', p: 'hband', c: [B, R], t: W },
+  'Unión': { s: 'UNI', p: 'stripes', c: [R, W], t: N },
+  'Vélez Sarsfield': { s: 'VEL', p: 'vee', c: [W, B], t: B },
+  // Ascenso
+  'All Boys': { s: 'ALL', p: 'plain', c: [W], t: N },
+  'Almagro': { s: 'ALM', p: 'plain', c: ['#16295c'], t: W },
+  'Arsenal de Sarandí': { s: 'ARS', p: 'sash', c: [C, R], t: N },
+  'Atlanta': { s: 'ATL', p: 'stripes', c: [B, Y], t: W },
+  'Chacarita': { s: 'CHA', p: 'stripes', c: [R, N, W], t: W },
+  'Chicago': { s: 'NCH', p: 'stripes', c: [G, N], t: W },
+  'Colón': { s: 'COL', p: 'halves', c: [R, N], t: W },
+  'Ferro Carril Oeste': { s: 'FER', p: 'plain', c: [G], t: W },
+  'Los Andes': { s: 'AND', p: 'hband', c: [R, W], t: W },
+  'Morón': { s: 'MOR', p: 'plain', c: [W], t: R },
+  'Quilmes': { s: 'QUI', p: 'plain', c: [W], t: B },
+  'San Martín de Tucumán': { s: 'SMT', p: 'stripes', c: [R, W], t: N },
+  'Temperley': { s: 'TEM', p: 'plain', c: [C], t: W },
+};
+
+export const TEAMS_PRIMERA = Object.keys(KITS).slice(0, 32);
+export const TEAMS_ASCENSO = Object.keys(KITS).slice(32);

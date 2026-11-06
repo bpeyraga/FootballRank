@@ -23,3 +23,5 @@
 .pc-card.silver{background:linear-gradient(135deg,var(--silver-1),var(--silver-2));color:var(--silver-f)}
 .pc-card.bronze{background:linear-gradient(135deg,var(--bronze-1),var(--bronze-2));color:var(--bronze-f)}
 .pc-card.none{background:linear-gradient(135deg,var(--none-1),var(--none-2));color:var(--none-f)}
+.pc-crest{position:absolute;top:17px;right:4px;line-height:0}
+.crest{flex:none;vertical-align:middle}

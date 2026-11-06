@@ -2,6 +2,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { ATTRS, POS, ovr, sb, uploadPhoto, type Pos, type Profile, type Stats } from '../lib/supabase';
 import { Radar } from '../lib/Radar';
 import { TEAMS_ASCENSO, TEAMS_PRIMERA } from '../lib/teams';
+import { Crest } from '../lib/Crest';
 
 /** Ficha inicial y edición de perfil (con `cancel` es modo edición). */
 export function Onboarding({ me, done, cancel }: { me: Profile; done: () => void; cancel?: () => void }) {
@@ -66,12 +67,15 @@ export function Onboarding({ me, done, cancel }: { me: Profile; done: () => void
             onInput={e => setShirt((e.target as HTMLInputElement).value)} /></label>
         {!shirtOk && <p class="err">El número tiene que ser entre 1 y 99.</p>}
         <label class="field"><span>¿De qué equipo sos hincha?</span>
-          <select value={team} onChange={e => setTeam((e.target as HTMLSelectElement).value)}>
+          <div class="row" style="gap:10px">
+          {team && <Crest team={team} size={30} />}
+          <select style="flex:1" value={team} onChange={e => setTeam((e.target as HTMLSelectElement).value)}>
             <option value="">— Ninguno —</option>
             {team && !TEAMS_PRIMERA.includes(team) && !TEAMS_ASCENSO.includes(team) && <option value={team}>{team}</option>}
             <optgroup label="Primera División">{TEAMS_PRIMERA.map(t => <option value={t}>{t}</option>)}</optgroup>
             <optgroup label="Ascenso">{TEAMS_ASCENSO.map(t => <option value={t}>{t}</option>)}</optgroup>
-          </select></label>
+          </select>
+          </div></label>
       </div>
       <div class="card">
         <div class="row" style="justify-content:space-between;margin-bottom:8px">
