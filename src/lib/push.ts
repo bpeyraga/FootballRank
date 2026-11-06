@@ -5,7 +5,8 @@ const VAPID = 'BEvKobO6rMvQwL3lvd_QGwdYh-QrHyZT-jhsMv0LXCywqkwZszKeodqqCa-vVi3xL
 
 export type PushKind = 'match' | 'reminder' | 'teams' | 'chat';
 export const PUSH_KINDS: [PushKind, string][] = [
-  ['match', 'Partido nuevo'], ['reminder', 'Recordatorios (1 h antes, figura, pagos)'], ['teams', 'Equipos armados'], ['chat', 'Mensajes del chat'],
+  ['match', 'Partidos (nuevos, cambios de horario o lugar, faltan jugadores)'],
+  ['reminder', 'Recordatorios (hoy jugás, 1 h antes, figura, pagos)'], ['teams', 'Equipos armados'], ['chat', 'Mensajes del chat'],
 ];
 
 export type PushStatus = 'unsupported' | 'ios-install' | 'denied' | 'off' | 'on';

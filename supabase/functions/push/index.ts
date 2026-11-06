@@ -60,10 +60,16 @@ const members = async (c: string) =>
 const playing = async (m: string) =>
   ((await db.from('match_signups').select('profile_id').eq('match_id', m).eq('status', 'in')).data ?? [])
     .map(r => r.profile_id as string);
+/** Anotados + lista de espera (a los que les cambia algo si se mueve o cancela el partido). */
+const involved = async (m: string) =>
+  ((await db.from('match_signups').select('profile_id').eq('match_id', m).in('status', ['in', 'waitlist'])).data ?? [])
+    .map(r => r.profile_id as string);
+const hour = (iso: string) => new Date(iso).toLocaleTimeString('es-AR',
+  { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'America/Argentina/Buenos_Aires' });
 
 Deno.serve(async req => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
-  const p = await req.json().catch(() => ({})) as Record<string, string>;
+  const p = await req.json().catch(() => ({})) as Record<string, string> & { time_changed?: boolean; place_changed?: boolean };
 
   // Prueba desde la app: solo a los celulares de quien la pide.
   if (p.type === 'test') {
@@ -97,6 +103,19 @@ Deno.serve(async req => {
     return json({ sent });
   }
 
+  if (p.type === 'suspended') {
+    const { data: su } = await db.from('suspensions').select('profile_id,match_id,reason,community:communities(name,slug)')
+      .eq('id', p.suspension_id).maybeSingle();
+    if (!su) return json({ sent: 0 });
+    const x = su as unknown as { profile_id: string; match_id: string | null; reason: string | null; community: { name: string; slug: string } };
+    const mm = x.match_id ? await matchInfo(x.match_id) : null;
+    return json({ sent: await send([x.profile_id], null, {
+      title: `🚫 Suspendido en ${x.community.name}`,
+      body: `${mm ? `No podés jugar ${mm.title} (${when(mm.starts_at)})` : 'No podés jugar el próximo partido'}${x.reason ? `. Motivo: ${x.reason}` : ''}.`,
+      url: mm ? `/#/c/${x.community.slug}/m/${mm.id}` : `/#/c/${x.community.slug}`, tag: `susp-${p.suspension_id}`,
+    }) });
+  }
+
   const m = p.match_id ? await matchInfo(p.match_id) : null;
   if (!m) return json({ sent: 0 });
   const url = `/#/c/${m.community.slug}/m/${m.id}`;
@@ -121,7 +140,7 @@ Deno.serve(async req => {
   }
   if (p.type === 'mvp') {
     return json({ sent: await send(await playing(m.id), 'reminder', {
-      title: `🏆 ¿Quién fue la figura?`, body: `${m.title} terminó. Votá a la figura del partido.`, url, tag: `mvp-${m.id}`,
+      title: `🏆 ¿Quién fue la figura?`, body: `${m.title} terminó. Votá a la figura y calificá a tu equipo.`, url, tag: `mvp-${m.id}`,
     }) });
   }
   if (p.type === 'fee') {
@@ -133,6 +152,50 @@ Deno.serve(async req => {
     return json({ sent: await send(unpaid, 'reminder', {
       title: `💸 Te falta pagar la cancha`, body: `${m.title}: $${each.toLocaleString('es-AR')} c/u. Cuando pagues, marcalo en la app.`,
       url, tag: `fee-${m.id}`,
+    }) });
+  }
+  if (p.type === 'today') {
+    const { data: rows } = await db.from('match_signups').select('profile_id,status').eq('match_id', m.id);
+    const all = rows ?? [];
+    const ins = all.filter(r => r.status === 'in').map(r => r.profile_id as string);
+    const { data: mm } = await db.from('matches').select('slots').eq('id', m.id).single();
+    const missing = Math.max(0, (mm?.slots ?? 0) - ins.length);
+    let sent = await send(ins, 'reminder', {
+      title: `⚽ Hoy jugás: ${m.title}`,
+      body: `A las ${hour(m.starts_at)}${where}.${missing ? ` Faltan ${missing} para completar.` : ''} Si no podés ir, bajate a tiempo.`,
+      url, tag: `match-${m.id}`,
+    });
+    if (missing > 0) {
+      // A los que no están anotados ni en espera ni suspendidos para este partido
+      const busy = new Set(all.filter(r => r.status === 'in' || r.status === 'waitlist').map(r => r.profile_id as string));
+      const { data: susp } = await db.from('suspensions').select('profile_id').eq('match_id', m.id);
+      (susp ?? []).forEach(r => busy.add(r.profile_id as string));
+      const to = (await members(m.community.id)).filter(id => !busy.has(id));
+      sent += await send(to, 'match', {
+        title: `🙋 Faltan ${missing === 1 ? '1 jugador' : `${missing} jugadores`} para hoy`,
+        body: `${m.title} · ${hour(m.starts_at)}${where}. ¿Te sumás?`, url, tag: `match-${m.id}`,
+      });
+    }
+    return json({ sent });
+  }
+  if (p.type === 'promoted') {
+    // Siempre se manda (sin filtro de tipo): le cambia si tiene que ir o no.
+    return json({ sent: await send([p.profile_id], null, {
+      title: `✅ ¡Entraste! ${m.title}`,
+      body: `Pasaste de la lista de espera a anotado. Vas a tener que jugar: ${when(m.starts_at)}${where}. Si no podés, bajate así entra otro.`,
+      url, tag: `match-${m.id}`,
+    }) });
+  }
+  if (p.type === 'cancelled') {
+    return json({ sent: await send((await involved(m.id)).filter(id => id !== m.created_by), null, {
+      title: `❌ Se canceló ${m.title}`, body: `El partido del ${when(m.starts_at)} no se juega.`, url, tag: `match-${m.id}`,
+    }) });
+  }
+  if (p.type === 'changed') {
+    const what = p.time_changed && p.place_changed ? 'Cambió el horario y el lugar'
+      : p.time_changed ? 'Cambió el horario' : 'Cambió el lugar';
+    return json({ sent: await send(await involved(m.id), 'match', {
+      title: `🕒 ${what}: ${m.title}`, body: `Ahora es ${when(m.starts_at)}${where}.`, url, tag: `match-${m.id}`,
     }) });
   }
   return json({ error: 'bad_type' }, 400);
