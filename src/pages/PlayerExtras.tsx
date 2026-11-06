@@ -3,7 +3,8 @@ import { displayName, sb } from '../lib/supabase';
 import { outcome, type Team } from '../lib/stats';
 import type { Ranked } from '../lib/ranking';
 import { fmtDate } from './Matches';
-import { houseCodes } from '../lib/Radar';
+import { houseCodes, plain } from '../lib/Radar';
+import { labelKey } from '../lib/customStats';
 
 interface Custom { id: string; label: string; value: number; created_by: string; hidden: boolean; code: string | null }
 
@@ -14,7 +15,7 @@ interface Custom { id: string; label: string; value: number; created_by: string;
 export function CustomStats({ pid, rows, meId, communityId, isAdmin, onChange }:
   { pid: string; rows: Ranked[]; meId: string; communityId: string; isAdmin: boolean; onChange?: () => void }) {
   const [list, setList] = useState<Custom[] | null>(null);
-  const [form, setForm] = useState<{ label: string; value: number; code: string } | null>(null);
+  const [form, setForm] = useState<{ id?: string; label: string; value: number; code: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const canModerate = pid === meId || isAdmin;
@@ -40,10 +41,14 @@ export function CustomStats({ pid, rows, meId, communityId, isAdmin, onChange }:
     return true;
   };
   const save = async () => {
-    const ok = await run(sb.from('custom_stats').upsert(
-      { community_id: communityId, target_id: pid, created_by: meId, label: form!.label.trim(), value: form!.value, hidden: false,
-        code: cleanCode(form!.code) || null },
-      { onConflict: 'community_id,target_id,created_by,label' }));
+    const f = form!, label = f.label.trim(), code = cleanCode(f.code) || null;
+    // Si estoy editando, o ya tengo esa stat (aunque con otras mayúsculas), actualizo mi fila: nunca dos filas mías por stat.
+    const existing = f.id ?? (list ?? []).find(c => c.created_by === meId && labelKey(c.label) === labelKey(label))?.id;
+    const dup = (list ?? []).find(c => c.created_by === meId && c.id !== existing && labelKey(c.label) === labelKey(label));
+    if (dup) { setErr(`Ya le pusiste "${dup.label}". Editá esa.`); return; }
+    const ok = await run(existing
+      ? sb.from('custom_stats').update({ label, value: f.value, code, hidden: false }).eq('id', existing)
+      : sb.from('custom_stats').insert({ community_id: communityId, target_id: pid, created_by: meId, label, value: f.value, hidden: false, code }));
     if (ok) setForm(null);
   };
 
@@ -70,7 +75,7 @@ export function CustomStats({ pid, rows, meId, communityId, isAdmin, onChange }:
             <small class="muted">por {nameOf(c.created_by)}{c.hidden && ' · oculta'}</small>
             <span class="chip-actions">
               {c.created_by === meId &&
-                <button disabled={busy} onClick={() => setForm({ label: c.label, value: c.value, code: c.code ?? '' })}>Editar</button>}
+                <button disabled={busy} onClick={() => setForm({ id: c.id, label: c.label, value: c.value, code: c.code ?? '' })}>Editar</button>}
               {(c.created_by === meId || isAdmin) &&
                 <button disabled={busy} onClick={() => run(sb.from('custom_stats').delete().eq('id', c.id))}>Borrar</button>}
               {canModerate && c.created_by !== meId &&
@@ -212,5 +217,4 @@ export function SuspensionNotice({ pid, communityId, isAdmin }: { pid: string; c
 }
 
 /** Código: mayúsculas, solo letras (con Ñ) y números, máx. 3. */
-const cleanCode = (s: string) => s.toLocaleUpperCase('es').replace(/Ñ/g, ' ').normalize('NFD')
-  .replace(/[̀-ͯ]/g, '').replace(/ /g, 'Ñ').replace(/[^A-Z0-9Ñ]/g, '').slice(0, 3);
+const cleanCode = (s: string) => plain(s).slice(0, 3);

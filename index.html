@@ -16,14 +16,12 @@
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
 <script>
 try {
-  var t = JSON.parse(localStorage.getItem('fr-theme') || 'null'), e = document.documentElement;
-  if (t) {
-    if (t.mode === 'light' || t.mode === 'dark') e.setAttribute('data-theme', t.mode);
-    if (t.palette && t.palette !== 'cancha' && (t.palette !== 'club' || t.club)) e.setAttribute('data-palette', t.palette);
-    if (t.palette === 'club' && t.club) {
-      e.style.setProperty('--club', t.club.c); e.style.setProperty('--club-fg', t.club.fg);
-      e.style.setProperty('--club-d', t.club.d); e.style.setProperty('--club-d-fg', t.club.dfg);
-    }
+  // Aplica el tema ya resuelto por la app (src/lib/theme.ts → bootOf), sin lógica propia, para que no parpadee.
+  var b = (JSON.parse(localStorage.getItem('fr-theme') || 'null') || {}).boot, e = document.documentElement;
+  if (b) {
+    if (b.theme) e.setAttribute('data-theme', b.theme);
+    if (b.palette) e.setAttribute('data-palette', b.palette);
+    for (var k in b.vars) e.style.setProperty(k, b.vars[k]);
   }
 } catch (_) {}
 </script>

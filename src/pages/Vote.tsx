@@ -48,10 +48,12 @@ export function Vote({ rows, communityId, slug, meId, startId, saved }:
       updated_at: new Date().toISOString(),
     });
     const changed = house.filter(h => touched.has(h.key));
-    if (!error && changed.length) {
-      ({ error } = await sb.from('custom_stats').upsert(
-        changed.map(h => ({ community_id: communityId, target_id: cur.profile.id, created_by: meId, label: h.label, value: hv[h.key], hidden: false })),
-        { onConflict: 'community_id,target_id,created_by,label' }));
+    // Si ya tengo fila para esa stat, la actualizo (aunque mi etiqueta tenga otras mayúsculas); si no, creo la mía.
+    for (const h of error ? [] : changed) {
+      ({ error } = h.mineId
+        ? await sb.from('custom_stats').update({ value: hv[h.key] }).eq('id', h.mineId)
+        : await sb.from('custom_stats').insert({ community_id: communityId, target_id: cur.profile.id, created_by: meId, label: h.label, value: hv[h.key], hidden: false }));
+      if (error) break;
     }
     if (!error) await saved();
     setBusy(false);

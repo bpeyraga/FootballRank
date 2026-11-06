@@ -3,7 +3,11 @@ import { sb } from './supabase';
 export interface CustomRow { id: string; label: string; value: number; created_by: string; hidden: boolean; code: string | null }
 
 /** Una stat de la casa agrupada por nombre: cada miembro que la puntúa aporta su valor. */
-export interface HouseStat { key: string; label: string; code: string | null; avg: number | null; n: number; own: number | null; mine: number | null }
+export interface HouseStat {
+  key: string; label: string; code: string | null; avg: number | null; n: number; own: number | null; mine: number | null;
+  /** id de mi fila para esta stat, si ya la puntué (para actualizarla en vez de crear otra). */
+  mineId: string | null;
+}
 
 export async function loadCustom(communityId: string, pid: string): Promise<CustomRow[]> {
   const { data, error } = await sb.from('custom_stats').select('id,label,value,created_by,hidden,code')
@@ -36,6 +40,7 @@ export function aggregateCustom(list: CustomRow[], pid: string, meId: string): H
       n: others.length,
       own: cs.find(c => c.created_by === pid)?.value ?? null,
       mine: cs.find(c => c.created_by === meId)?.value ?? null,
+      mineId: cs.find(c => c.created_by === meId)?.id ?? null,
     };
   }).sort((a, b) => (b.avg ?? b.own ?? 0) - (a.avg ?? a.own ?? 0) || a.label.localeCompare(b.label));
 }

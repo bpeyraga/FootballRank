@@ -10,7 +10,12 @@ const Onboarding = page(() => import('./pages/Onboarding'), m => m.Onboarding);
 import { Home } from './pages/Home';
 const Join = page(() => import('./pages/Join'), m => m.Join);
 const Theme = page(() => import('./pages/Theme'), m => m.Theme);
-import { clubVars, loadTheme, saveTheme } from './lib/theme';
+import { KEY as THEME_KEY, applyTheme, clubVars, loadTheme, saveTheme } from './lib/theme';
+
+// Al arrancar: color de la barra del celular según el tema, y migra temas guardados en el formato viejo.
+{ const t = loadTheme(); if (t.boot) applyTheme(t); else saveTheme(t); }
+// Si se cambia el tema en otra pestaña de este dispositivo, aplicarlo acá también.
+addEventListener('storage', e => { if (e.key === THEME_KEY) applyTheme(loadTheme()); });
 const Community = page(() => import('./pages/Community'), m => m.Community);
 const Futbol = page(() => import('./pages/Futbol'), m => m.Futbol);
 import { go, NEXT_KEY, useRoute } from './lib/router';
@@ -61,7 +66,7 @@ function App() {
     if (t.palette !== 'club' || !me) return;
     const club = clubVars(me.fav_team);
     if (JSON.stringify(club) !== JSON.stringify(t.club ?? null)) saveTheme({ ...t, club });
-  }, [me?.fav_team]);
+  }, [me?.id, me?.fav_team]);
 
   useEffect(() => {
     refresh();

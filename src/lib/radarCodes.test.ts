@@ -22,3 +22,12 @@ describe('houseCodes con código manual', () => {
     expect(houseCodes(['Tiro libre'], ['TIR'])[0]).not.toBe('TIR');
   });
 });
+
+describe('plain', () => {
+  it('mayúsculas sin tildes, conserva Ñ, saca espacios y símbolos', async () => {
+    const { plain } = await import('./Radar');
+    expect(plain('Caño')).toBe('CAÑO');
+    expect(plain('Morfón!')).toBe('MORFON');
+    expect(plain('pañuelo é ü 9')).toBe('PAÑUELOEU9');
+  });
+});
