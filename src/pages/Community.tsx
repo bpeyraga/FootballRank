@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
+import { Suspense } from 'preact/compat';
 import { displayName, hue, infoLine, sb, teamTally, type Profile } from '../lib/supabase';
 import { go, inviteUrl } from '../lib/router';
 import { loadRanking, type Ranked } from '../lib/ranking';
@@ -7,6 +8,9 @@ import { Crest } from '../lib/Crest';
 import { CommunityPhoto } from '../lib/CommunityPhoto';
 import { Matches } from './Matches';
 import { Loading, page } from '../lib/lazy';
+import { ClaimsCard } from '../lib/ClaimsCard';
+import { VenuesCard } from '../lib/VenuesManager';
+import { nPlayers, stepFromRoute } from '../lib/players';
 import '../admin.css';
 
 // Clave del "último visto" del chat (misma que usa Chat.tsx), acá para no traer todo el chat al cargar la comunidad.
@@ -16,7 +20,10 @@ const Vote = page(() => import('./Vote'), m => m.Vote);
 const Player = page(() => import('./Player'), m => m.Player);
 const Match = page(() => import('./Match'), m => m.Match);
 const Chat = page(() => import('./Chat'), m => m.Chat);
-
+// Solo para admins: se bajan cuando se usan
+const Setup = page(() => import('./Setup'), m => m.Setup);
+const AddPlayersSheet = page(() => import('../lib/AddPlayers'), m => m.AddPlayersSheet);
+const EditPlayerSheet = page(() => import('../lib/EditPlayerSheet'), m => m.EditPlayerSheet);
 
 interface Community { id: string; name: string; slug: string; invite_code: string; owner_id: string; invite_expires_at?: string | null; photo_url?: string | null }
 const ROLE: Record<string, string> = { owner: 'Owner', admin: 'Admin', member: 'Miembro' };
@@ -31,11 +38,14 @@ const TAB_ICONS: Record<string, any> = {
 };
 const initials = (s: string) => s.trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?';
 
-/** sub: [] (partidos) | ['m', id] | ['chat'] | ['ranking'] | ['votar', pid?] | ['miembros'] | ['p', pid] */
+/** sub: [] (partidos) | ['m', id] | ['chat'] | ['ranking'] | ['votar', pid?] | ['miembros'] | ['p', pid] | ['setup', paso?] (asistente de armado, solo admins) */
 export function Community({ slug, sub, me }: { slug: string; sub: string[]; me: Profile }) {
   const [c, setC] = useState<Community | null | undefined>(undefined);
   const [rows, setRows] = useState<Ranked[]>([]);
   const [msg, setMsg] = useState('');
+  // Hojas de admin: agregar jugadores / editar uno sin cuenta
+  const [sheet, setSheet] = useState<{ k: 'add'; mode: 'uno' | 'varios' } | { k: 'edit'; id: string } | null>(null);
+  const [note, setNote] = useState('');
   const [err, setErr] = useState('');        // no se pudo cargar la comunidad (pantalla completa)
   const [actErr, setActErr] = useState('');  // falló una acción (se muestra en línea)
 
@@ -50,7 +60,7 @@ export function Community({ slug, sub, me }: { slug: string; sub: string[]; me: 
     }
     setC(r.data);
   };
-  useEffect(() => { setC(undefined); setActErr(''); load(); }, [slug]);
+  useEffect(() => { setC(undefined); setActErr(''); setSheet(null); setNote(''); load(); }, [slug]);
   // Mensajes nuevos de otros desde la última vez que abriste el chat (badge en la pestaña)
   const [unread, setUnread] = useState(0);
   useEffect(() => {
@@ -112,8 +122,10 @@ export function Community({ slug, sub, me }: { slug: string; sub: string[]; me: 
     scrollTo({ top: 0, behavior: 'smooth' });
     return true;
   };
-  const kick = async (pid: string, name: string) => {
-    if (!confirm(`¿Sacar a ${name} de la comunidad? Se libera su lugar en los partidos abiertos. Si no querés que vuelva a entrar, después regenerá el link de invitación.`)) return;
+  const kick = async (pid: string, name: string, noAccount = false) => {
+    if (!confirm(noAccount
+      ? `¿Sacar a ${name} del grupo? Se libera su lugar en los partidos abiertos.`
+      : `¿Sacar a ${name} de la comunidad? Se libera su lugar en los partidos abiertos. Si no querés que vuelva a entrar, después regenerá el link de invitación.`)) return;
     const { error } = await sb.from('memberships').delete().eq('community_id', c.id).eq('profile_id', pid);
     if (error) setActErr(error.message); else { setActErr(''); loadRows(c.id); }
   };
@@ -131,6 +143,23 @@ export function Community({ slug, sub, me }: { slug: string; sub: string[]; me: 
     const { error } = await sb.from('communities').delete().eq('id', c.id);
     if (error) setActErr(error.message); else go('');
   };
+
+  const inviteCard = (admin: boolean) => (
+    <InviteCard link={link} expiresAt={c.invite_expires_at ?? null} isAdmin={admin} msg={msg}
+      onShare={share} onCopy={copy} onRegen={regen} />
+  );
+
+  // Asistente de armado del grupo: pantalla propia, sin pestañas (Setup manda afuera a quien no es admin)
+  if (tab === 'setup') {
+    return (
+      <div class="wrap comm-page setup-page">
+        <Loading>
+          <Setup slug={slug} communityId={c.id} communityName={c.name} step={stepFromRoute(sub[1])} rows={rows}
+            meId={me.id} isAdmin={isAdmin} reload={() => loadRows(c.id)} invite={inviteCard(false)} />
+        </Loading>
+      </div>
+    );
+  }
 
   const Tab = ({ id, label, badge }: { id: string; label: string; badge?: number }) => {
     const on = tab === id || (id === 'partidos' && tab === 'm');
@@ -169,23 +198,68 @@ export function Community({ slug, sub, me }: { slug: string; sub: string[]; me: 
     const members = [...rows].sort((a, b) => ORDER[a.role] - ORDER[b.role] || displayName(a.profile).localeCompare(displayName(b.profile)));
     const fans = teamTally(rows.map(r => r.profile));
     const top = fans.teams[0]?.n ?? 1;
+    const existingNames = rows.flatMap(r => [r.profile.name, r.profile.nickname ?? '']).filter(Boolean);
+    const editing = sheet?.k === 'edit' ? rows.find(r => r.profile.id === sheet.id) : undefined;
+    const nLoaded = rows.filter(r => !r.profile.user_id).length;
     body = <>
-      {isAdmin && <InviteCard link={link} expiresAt={c.invite_expires_at ?? null} isAdmin={isAdmin} msg={msg}
-        onShare={share} onCopy={copy} onRegen={regen} />}
+      {isOwner && <ClaimsCard communityId={c.id} onChanged={() => loadRows(c.id)} />}
+      {isAdmin && (
+        <div class="card pl-add">
+          <h3 style="margin-bottom:4px">Jugadores</h3>
+          <p class="muted adm-note">
+            {rows.length <= 1
+              ? 'Tu grupo recién arranca. Cargá a los que juegan con vos: no hace falta que tengan la app.'
+              : nLoaded > 0
+                ? `Cargaste ${nPlayers(nLoaded)} sin cuenta. Cuando entren con el link, reclaman su ficha.`
+                : 'Sumá a los que todavía no tienen la app. Cuando entren con el link, reclaman su ficha.'}
+          </p>
+          <button class="btn primary block" onClick={() => { setNote(''); setSheet({ k: 'add', mode: 'uno' }); }}>➕ Agregar jugadores</button>
+          <a class="pl-wiz" href={`#/c/${slug}/setup`}>Armar el grupo paso a paso</a>
+          {note && <p class="pl-ok" role="status">{note}</p>}
+        </div>
+      )}
+      {isAdmin && inviteCard(true)}
       <div class="card mem-list" style="padding:4px 12px">
-        {members.map(m => (
-          <div class="row rank-row">
-            <Avatar p={m.profile} />
-            <a href={`#/c/${slug}/p/${m.profile.id}`} style="flex:1;min-width:0;color:inherit;text-decoration:none">
-              <div class="row" style="gap:6px"><span class="ellipsis">{displayName(m.profile)}</span><Crest team={m.profile.fav_team} size={11} /></div>
-              <div class="muted ellipsis" style="font-size:.85rem">{infoLine(m.profile)} · {ROLE[m.role]}</div>
-            </a>
-            {isOwner && m.role === 'member' && <button class="btn sm" onClick={() => setRole(m.profile.id, 'admin')}>Hacer admin</button>}
-            {isAdmin && m.role === 'member' && m.profile.id !== me.id && <button class="btn sm danger" onClick={() => kick(m.profile.id, displayName(m.profile))}>Sacar</button>}
-            {isOwner && m.role === 'admin' && <button class="btn sm" onClick={() => setRole(m.profile.id, 'member')}>Quitar admin</button>}
-          </div>
-        ))}
+        {members.map(m => {
+          const noAccount = !m.profile.user_id;   // jugador cargado a mano, todavía sin cuenta
+          const name = displayName(m.profile);
+          const acts = (isOwner && !noAccount && (m.role === 'member' || m.role === 'admin'))
+            || (isAdmin && noAccount) || (isAdmin && m.role === 'member' && m.profile.id !== me.id);
+          return (
+            <div class="row rank-row mem-row">
+              <Avatar p={m.profile} />
+              <a href={`#/c/${slug}/p/${m.profile.id}`} class="mem-who">
+                <div class="row" style="gap:6px">
+                  <span class="ellipsis">{name}</span><Crest team={m.profile.fav_team} size={11} />
+                  {noAccount && <span class="nacc">sin cuenta</span>}
+                </div>
+                <div class="muted ellipsis" style="font-size:.85rem">{infoLine(m.profile)} · {ROLE[m.role]}</div>
+              </a>
+              {acts && (
+                <div class="mem-acts">
+                  {isOwner && !noAccount && m.role === 'member' && <button class="btn sm" onClick={() => setRole(m.profile.id, 'admin')}>Hacer admin</button>}
+                  {isAdmin && noAccount && <button class="btn sm" aria-label={`Editar a ${name}`} onClick={() => setSheet({ k: 'edit', id: m.profile.id })}>Editar</button>}
+                  {isAdmin && m.role === 'member' && m.profile.id !== me.id && <button class="btn sm danger" onClick={() => kick(m.profile.id, name, noAccount)}>Sacar</button>}
+                  {isOwner && m.role === 'admin' && <button class="btn sm" onClick={() => setRole(m.profile.id, 'member')}>Quitar admin</button>}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
+      {isAdmin && <VenuesCard communityId={c.id} meId={me.id} />}
+      {sheet?.k === 'add' && (
+        <Suspense fallback={null}>
+          <AddPlayersSheet communityId={c.id} existing={existingNames} start={sheet.mode} onClose={() => setSheet(null)}
+            onAdded={(n: number) => { setNote(n === 1 ? 'Jugador agregado.' : `Sumaste ${nPlayers(n)}.`); loadRows(c.id); }} />
+        </Suspense>
+      )}
+      {editing && (
+        <Suspense fallback={null}>
+          <EditPlayerSheet key={editing.profile.id} communityId={c.id} profile={editing.profile} base={editing.base}
+            onClose={() => setSheet(null)} onSaved={() => loadRows(c.id)} />
+        </Suspense>
+      )}
       <div class="card">
         <h3 style="margin-bottom:10px">Hinchadas</h3>
         {fans.teams.length === 0
@@ -214,15 +288,15 @@ export function Community({ slug, sub, me }: { slug: string; sub: string[]; me: 
 
   return (
     <div class="wrap comm-page">
-      <div class="comm-head">
-        <a href="#/" class="muted comm-back">← Comunidades</a>
-        <h2 class="comm-title" style="margin:8px 0 12px">
-          <span class="desk-crest" aria-hidden="true" style={`--h:${hue(c.id)}`} data-i={initials(c.name)} />
-          {c.name}
+      {/* Portada: la foto del grupo a todo el ancho con el escudo y el nombre encima (más baja fuera de Partidos/Miembros). */}
+      <CommunityPhoto id={c.id} name={c.name} url={c.photo_url ?? null} isAdmin={isAdmin} changed={load}
+        compact={tab !== 'partidos' && tab !== 'miembros'}>
+        <a href="#/" class="cover-back">← Comunidades</a>
+        <h2 class="cover-title">
+          <span class="cover-crest" aria-hidden="true" style={`--h:${hue(c.id)}`}>{initials(c.name)}</span>
+          <span class="cover-name">{c.name}</span>
         </h2>
-        {(tab === 'partidos' || tab === 'miembros') &&
-          <CommunityPhoto id={c.id} name={c.name} url={c.photo_url ?? null} isAdmin={isAdmin} changed={load} />}
-      </div>
+      </CommunityPhoto>
       <nav class="tabs">
         <Tab id="partidos" label="Partidos" />
         <Tab id="chat" label="Chat" badge={unread} />

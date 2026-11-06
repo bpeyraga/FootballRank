@@ -170,47 +170,6 @@ a{color:var(--accent)}
 .futcard.sm .fc-badges{gap:3px;margin-top:3px}
 .futcard.sm .fc-badges span{font-size:.6rem;padding:1px 2px;border-width:1px}
 
-/* Landing (login) */
-.landing{max-width:1040px;margin:0 auto;padding-top:calc(12px + env(safe-area-inset-top,0px))}
-.landing-top{display:flex;align-items:center;gap:10px;padding:4px 0 14px;font:700 1.35rem var(--f-display);letter-spacing:.02em}
-.kicker{display:inline-block;font:700 .8rem var(--f-body);letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
-.hero{position:relative;overflow:hidden;border-radius:22px;color:#fff;padding:28px 22px 32px;display:grid;gap:28px;
-  background:linear-gradient(180deg,rgba(4,28,14,.05),rgba(4,28,14,.5)),repeating-linear-gradient(90deg,#1a6a39 0 44px,#1e7641 44px 88px)}
-.hero-lines{position:absolute;inset:0;width:100%;height:100%;color:rgba(255,255,255,.2);pointer-events:none}
-.hero-copy{position:relative;display:grid;gap:14px;justify-items:start}
-.hero .kicker{color:#c9f5d8;background:rgba(0,0,0,.22);padding:5px 10px;border-radius:999px}
-.hero h1{font-size:clamp(2.4rem,9vw,3.6rem);line-height:.98;text-transform:uppercase;letter-spacing:.01em}
-.hero p{font-size:1.06rem;line-height:1.45;max-width:34ch;color:rgba(255,255,255,.92)}
-.hero small{color:rgba(255,255,255,.8)}
-.hero .err{color:#ffd2cc}
-.hero-card{position:relative;display:flex;justify-content:center}
-.hero-card .futcard{transform:rotate(-4deg);filter:drop-shadow(0 18px 24px rgba(0,0,0,.35))}
-.gbtn{display:inline-flex;align-items:center;justify-content:center;gap:12px;min-height:50px;padding:0 22px;border-radius:12px;border:1px solid #dadce0;
-  background:#fff;color:#1f1f1f;font:600 1.02rem var(--f-body);cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.18);transition:transform .15s,box-shadow .15s}
-.gbtn:hover{box-shadow:0 4px 14px rgba(0,0,0,.24)}
-.gbtn:active{transform:translateY(1px)}
-.gbtn:disabled{opacity:.7;cursor:default}
-.features{display:grid;gap:12px;margin:22px 0}
-.feature{display:flex;gap:14px;align-items:flex-start;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px}
-.feature h3{font-size:1.25rem;margin-bottom:4px}
-.feature p{font-size:.95rem;line-height:1.45}
-.feature-ico{flex:none;width:44px;height:44px;border-radius:12px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center}
-.feature-ico svg{width:24px;height:24px}
-.steps{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:20px;display:grid;gap:16px;justify-items:start}
-.steps h2{font-size:1.6rem;text-transform:uppercase}
-.steps ol{list-style:none;margin:0;padding:0;display:grid;gap:14px;counter-reset:s;width:100%}
-.steps li{counter-increment:s;display:grid;grid-template-columns:36px 1fr;column-gap:12px}
-.steps li::before{content:counter(s);grid-row:span 2;width:36px;height:36px;border-radius:50%;background:var(--accent);color:var(--accent-fg);display:grid;place-items:center;font:700 1.2rem var(--f-display)}
-.steps li span{font-size:.92rem}
-.landing-foot{text-align:center;font-size:.85rem;padding:24px 0 8px;display:grid;gap:6px}
-.landing-foot a{color:inherit}
-@media (min-width:820px){
-  .hero{grid-template-columns:1.25fr 1fr;align-items:center;padding:48px 48px 52px}
-  .hero-card .futcard{transform:rotate(-4deg) scale(1.15)}
-  .features{grid-template-columns:repeat(3,1fr)}
-  .feature{flex-direction:column}
-}
-
 /* Inicio */
 .home-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
 .brand{display:flex;align-items:center;gap:8px;font:700 1.25rem var(--f-display);letter-spacing:.02em}

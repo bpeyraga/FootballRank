@@ -16,6 +16,7 @@ import { aggregateCustom, loadCustom, radarHouse, type CustomRow } from '../lib/
 import { fmtDay, loadOvrHistory, type OvrHistory } from '../lib/history';
 import { OvrChart } from '../lib/OvrChart';
 import { loadBeerTotal } from './Beers';
+import { ClaimProfile } from '../lib/ClaimProfile';
 import '../stats.css';
 import '../history.css';
 
@@ -82,7 +83,7 @@ export function Player({ r, rows, slug, meId, communityId, isAdmin, communityNam
           <div style="flex:1">
             <h2>{displayName(r.profile)}</h2>
             {r.profile.nickname && <div style="font-size:.85rem;opacity:.8">{r.profile.name}</div>}
-            <div>{posLine(r.profile)} · {ROLE[r.role]}</div>
+            <div>{posLine(r.profile)} · {ROLE[r.role]}{!r.profile.user_id && <span class="nacc">sin cuenta</span>}</div>
             {r.profile.fav_team && <div class="row" style="gap:6px;font-size:.85rem;margin-top:2px"><Crest team={r.profile.fav_team} size={12} /><span style="opacity:.8">Hincha de {r.profile.fav_team}</span></div>}
           </div>
           <div style="text-align:center">
@@ -94,6 +95,10 @@ export function Player({ r, rows, slug, meId, communityId, isAdmin, communityNam
           <ShareCardButton card={cardData} communityId={communityId} communityName={communityName} />
         </div>
       </div>
+      {/* Reclamar es para quien se sumó y ya estaba cargado; owner y admins cargan a los jugadores, no los reclaman */}
+      {!r.profile.user_id && r.profile.id !== meId && !isAdmin && (
+        <ClaimProfile placeholderId={r.profile.id} meId={meId} name={displayName(r.profile)} />
+      )}
       <div class="pl-grid"><div class="pl-main">
       <div class="card">
         {main ? <>

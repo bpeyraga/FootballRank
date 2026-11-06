@@ -1,0 +1,98 @@
+/*
+  Inicio del jugador: "Tu próximo partido", "Tu carta" compacta y accesos rápidos.
+  Mobile primero; el escritorio (>= 900 px) está al final. Se importa antes de desktop.css.
+*/
+
+/* ---------- Tu próximo partido ---------- */
+.nx{position:relative;isolation:isolate;overflow:hidden;display:grid;gap:10px;margin:2px 0 18px;padding:18px 18px 16px;border-radius:24px;color:#fff;text-decoration:none;
+  grid-template-areas:"top" "when" "title" "meta" "foot";
+  background:radial-gradient(80% 90% at 100% 0,rgba(244,189,44,.26),transparent 66%),linear-gradient(150deg,var(--hz2),var(--hz1));
+  box-shadow:0 16px 34px -18px color-mix(in srgb,var(--accent) 70%,#000);transition:transform .15s,box-shadow .15s}
+.nx:active{transform:scale(.99)}
+.nx-grass{position:absolute;inset:0;z-index:-2;background:repeating-linear-gradient(90deg,rgba(255,255,255,.05) 0 38px,transparent 38px 76px)}
+.nx-pitch{position:absolute;z-index:-1;right:-38px;bottom:-52px;width:210px;height:210px;color:rgba(255,255,255,.11);pointer-events:none}
+.nx-top{grid-area:top;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.nx-kicker{font:700 .78rem var(--f-body);letter-spacing:.1em;text-transform:uppercase;color:#ffe9a3}
+.nx-live{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:99px;background:rgba(255,255,255,.16);font-size:.76rem;font-weight:700}
+.nx-live i{width:8px;height:8px;border-radius:50%;background:#ff6b57;box-shadow:0 0 0 0 rgba(255,107,87,.7);animation:nx-live 1.6s infinite}
+.nx-when{grid-area:when;display:grid;gap:2px}
+.nx-when b{font:700 clamp(2.9rem,14vw,3.8rem)/.92 var(--f-display);text-transform:uppercase;letter-spacing:.005em;
+  background:linear-gradient(180deg,#ffe9a3 6%,#f4bd2c 55%,#c8870f);-webkit-background-clip:text;background-clip:text;color:transparent;justify-self:start}
+.nx-when span{font-weight:600;text-transform:capitalize;color:rgba(255,255,255,.92)}
+.nx-title{grid-area:title;font:700 1.45rem/1.1 var(--f-display);letter-spacing:.01em;margin-top:2px}
+.nx-meta{grid-area:meta;display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;min-width:0;font-size:.9rem;color:rgba(255,255,255,.88)}
+.nx-comm{display:inline-flex;align-items:center;gap:8px;min-width:0;font-weight:600}
+.nx .comm-crest{width:22px;height:25px;padding-bottom:3px;font-size:.58rem;box-shadow:none}
+.nx-place{min-width:0;max-width:100%}
+.nx-foot{grid-area:foot;display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:6px;padding-top:12px;border-top:1px solid rgba(255,255,255,.16)}
+.nx-slots{display:grid;gap:5px;min-width:0;flex:1;max-width:210px}
+.nx-slots small{font-size:.8rem;font-weight:600;color:rgba(255,255,255,.88)}
+.nx-bar{display:block;height:7px;border-radius:4px;background:rgba(255,255,255,.2);overflow:hidden}
+.nx-bar i{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#f4bd2c,#ffe9a3);transition:width .5s ease}
+.nx-state{flex:none;display:inline-flex;align-items:center;gap:2px;min-height:40px;padding:0 10px 0 16px;border-radius:99px;background:linear-gradient(180deg,#ffe9a3,#f4bd2c);color:#123d24;font-weight:700;box-shadow:0 6px 14px -6px rgba(0,0,0,.5)}
+.nx-state .chev{color:inherit}
+.nx-state.in{padding-right:16px;background:rgba(255,255,255,.18);color:#fff;box-shadow:none}
+.nx-state.in .chev{display:none}
+.nx.soon{box-shadow:0 16px 34px -14px rgba(244,189,44,.45)}
+/* Cargando y sin partidos */
+.nx.skeleton{min-height:176px;box-shadow:none;background:linear-gradient(90deg,var(--surface),var(--accent-soft),var(--surface));background-size:200% 100%;animation:shimmer 1.2s infinite linear}
+.nx.none{display:flex;flex-direction:column;align-items:flex-start;color:var(--fg);gap:6px;padding:16px 18px;background:var(--surface);border:1px solid var(--line);box-shadow:none}
+.nx.none b{font:700 1.3rem var(--f-display)}
+.nx.none .btn{margin-top:6px}
+@keyframes nx-live{70%{box-shadow:0 0 0 7px rgba(255,107,87,0)}100%{box-shadow:0 0 0 0 rgba(255,107,87,0)}}
+
+/* ---------- Tu carta (compacta) ---------- */
+.me-copy .kicker{font-size:.74rem}
+.me-chips{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.me-chips>span:not(.ovr){display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:99px;background:var(--surface);border:1px solid var(--line);font-size:.8rem;font-weight:700}
+.me-chips .ovr{min-width:0;padding:3px 11px;border-radius:99px;font-size:.98rem;line-height:1.1}
+.me-chips .me-club{padding:2px 8px}
+.me-copy p{font-size:.82rem;line-height:1.35}
+
+/* ---------- Accesos rápidos ---------- */
+.qa{display:grid;grid-template-columns:repeat(var(--n,3),minmax(0,1fr));gap:10px;margin:0 0 16px}
+.qa a{display:grid;justify-items:center;align-content:start;gap:3px;min-width:0;padding:12px 6px 10px;border-radius:18px;background:var(--surface);border:1px solid var(--line);
+  color:inherit;text-decoration:none;text-align:center;transition:border-color .15s,transform .15s}
+.qa a:active{transform:scale(.97)}
+.qa-ico{display:grid;place-items:center;width:42px;height:42px;margin-bottom:3px;border-radius:14px;background:var(--accent-soft);color:var(--accent)}
+.qa b{font-size:.92rem;line-height:1.15}
+.qa small{max-width:100%;font-size:.72rem;line-height:1.2;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.qa a.main{border-color:var(--accent)}
+.qa a.main .qa-ico{background:var(--accent);color:var(--accent-fg)}
+@media (prefers-reduced-motion:reduce){
+  .nx,.qa a,.nx-bar i{transition:none}
+  .nx-live i,.nx.skeleton{animation:none}
+}
+
+/* ---------- Escritorio ---------- */
+@media (min-width:900px){
+  .nx{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"top when" "title when" "meta when" "foot foot";gap:12px 40px;margin:0 0 32px;padding:32px 40px 26px;border-radius:30px}
+  .nx-pitch{right:-20px;bottom:-70px;width:360px;height:360px}
+  .nx-when{align-self:center;justify-items:end;text-align:right}
+  .nx-when b{justify-self:end;font-size:clamp(4.4rem,6.4vw,6rem)}
+  .nx-when span{font-size:1.15rem}
+  .nx-title{font-size:2.4rem;align-self:end}
+  .nx-meta{font-size:1.02rem}
+  .nx .comm-crest{width:26px;height:30px;font-size:.66rem}
+  .nx-foot{margin-top:10px;padding-top:18px}
+  .nx-slots{max-width:320px}
+  .nx-slots small{font-size:.9rem}
+  .nx-bar{height:9px}
+  .nx-state{min-height:48px;padding:0 14px 0 22px;font-size:1.08rem}
+  .nx-state.in{padding-right:22px}
+  .nx.skeleton{min-height:230px}
+  .nx.none{padding:22px 28px;margin-bottom:28px}
+  .me-chips{justify-content:center}
+  .me-chips .ovr{font-size:1.1rem}
+  .qa{gap:14px;margin-bottom:22px}
+  .qa a{grid-template-columns:auto minmax(0,1fr);grid-template-areas:"i b" "i s";justify-items:start;text-align:left;align-items:center;column-gap:14px;row-gap:0;padding:14px 16px;transition:border-color .15s,transform .15s,box-shadow .15s}
+  .qa-ico{grid-area:i;width:46px;height:46px;margin:0}
+  .qa b{grid-area:b;align-self:end;font-size:1.05rem}
+  .qa small{grid-area:s;align-self:start;font-size:.8rem}
+}
+@media (min-width:900px) and (hover:hover) and (pointer:fine){
+  .nx:hover{transform:translateY(-2px);box-shadow:0 22px 44px -18px color-mix(in srgb,var(--accent) 70%,#000)}
+  .nx:active{transform:none}
+  .qa a:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 10px 26px rgba(0,0,0,.14)}
+  .qa a:active{transform:none}
+}

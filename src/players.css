@@ -1,0 +1,114 @@
+/* Registrar jugadores y canchas, asistente de armado del grupo y pedidos de "¿Sos vos?".
+   Solo usa las variables de styles.css (claro y oscuro). Se importa desde pages/Community.tsx. */
+
+/* ---------- "sin cuenta": hereda el color, sirve sobre la carta de colores y sobre la tarjeta ---------- */
+.nacc{display:inline-block;flex:none;margin-left:6px;padding:1px 8px;border-radius:99px;background:rgba(127,127,127,.22);color:inherit;
+  font:600 .72rem/1.5 var(--f-body);white-space:nowrap;vertical-align:1px}
+.mem-who .nacc{margin-left:0}
+
+/* ---------- Lista de miembros: botones a la derecha; si no entran, pasan abajo ---------- */
+.mem-row{flex-wrap:wrap;row-gap:6px}
+.mem-who{flex:1 1 120px;min-width:0;color:inherit;text-decoration:none}
+.mem-acts{display:flex;gap:6px;margin-left:auto;flex:none}
+
+/* ---------- Tarjeta "Jugadores" de la pestaña Miembros ---------- */
+.pl-wiz{display:flex;align-items:center;justify-content:center;min-height:44px;margin-top:4px;font-weight:600;font-size:.92rem;text-decoration:none}
+.pl-ok{margin-top:10px;color:var(--accent);font-weight:600;font-size:.92rem}
+
+/* ---------- Hoja de alta / edición ---------- */
+.pl-sheet{padding-bottom:calc(20px + env(safe-area-inset-bottom,0px))}
+.pl-chips{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.pl-chips.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+.pl-chips button{min-width:0;min-height:44px;padding:4px 2px;border:1px solid var(--line);border-radius:10px;background:var(--surface);
+  font-weight:700;line-height:1.15;cursor:pointer}
+.pl-chips button.on{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.pl-chips button:disabled{opacity:.5;cursor:default}
+.pl-two{display:grid;grid-template-columns:minmax(0,1fr) 92px;gap:12px}
+.pl-stats{margin:4px 0 14px;padding:14px 12px 6px;border:1px solid var(--line);border-radius:12px;background:var(--bg)}
+.pl-stats h3{font-size:1.15rem}
+
+/* ---------- "Varios": lista pegada y vista previa ---------- */
+.pl-ta{width:100%;min-height:132px;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);resize:vertical;line-height:1.4}
+.pl-hint{margin:-6px 0 14px;font-size:.82rem}
+.bulk-prev{margin:2px 0 12px}
+.bulk-head{margin:0 0 8px;font-size:.95rem}
+.bulk-prev .pl-hint{margin:8px 0 14px}
+.bulk-list{border:1px solid var(--line);border-radius:12px;background:var(--bg);overflow:hidden}
+.bulk-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:0 8px;min-height:48px;padding:4px 4px 4px 8px;border-top:1px solid var(--line)}
+.bulk-row:first-child{border-top:0}
+.bulk-row.skip .bulk-name{text-decoration:line-through;opacity:.6}
+.bulk-name{min-width:0;font-weight:600}
+.bulk-pos{min-width:54px;min-height:34px;padding:0 8px;border:1px solid var(--line);border-radius:8px;background:var(--accent-soft);
+  font:700 .85rem var(--f-body);letter-spacing:.03em;cursor:pointer}
+.bulk-sub{grid-column:2/-1;display:flex;flex-wrap:wrap;align-items:center;gap:0 10px;padding-bottom:4px}
+.bulk-sub .pill{margin-left:0}
+.bulk-sub .linkbtn{min-height:30px;font-size:.82rem;white-space:nowrap}
+.pl-foot .err,.pl-foot .pl-ok{margin:0 0 8px}
+.pl-sheet .pl-foot{position:sticky;bottom:0;z-index:2;margin:0 -16px;padding:10px 16px 0;background:var(--surface);box-shadow:0 -8px 8px -8px rgba(0,0,0,.18)}
+
+/* ---------- Canchas ---------- */
+.ven-row{flex-wrap:wrap;gap:8px}
+.ven-main{flex:1 1 120px;min-width:0}
+.ven-edit{display:block;padding-top:12px}
+.ven-btns{display:flex;flex-wrap:wrap;gap:8px}
+.ven-btns .btn{flex:1 1 120px}
+.ven-new{margin-top:12px}
+.ven-new .venue-new{margin:0 0 12px;padding:0;border:0}
+.ven-add{margin-top:10px}
+.ven-empty{margin:0 0 10px}
+
+/* ---------- Pedidos de "¿Sos vos?" ---------- */
+.clm-card{border-color:var(--accent)}
+.clm-row{display:grid;gap:10px;padding:12px 0;border-top:1px solid var(--line)}
+.clm-row:first-of-type{border-top:0}
+.clm-acts{display:flex;gap:8px}
+.clm-acts .btn{flex:1}
+.claim-card{border-color:var(--accent);background:var(--accent-soft)}
+
+/* ---------- Asistente de armado (#/c/<slug>/setup) ---------- */
+.setup{max-width:640px;margin:0 auto}
+.setup-top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.setup-top .kicker{min-width:0}
+.setup-exit{flex:none;padding:10px 0 10px 12px;font-weight:600;text-decoration:none}
+.setup h2{margin:2px 0 0;font-size:2rem}
+.setup-dots{display:flex;list-style:none;margin:16px 0 18px;padding:0}
+.setup-dots li{position:relative;flex:1;min-width:0}
+.setup-dots li::before{content:"";position:absolute;top:14px;left:-50%;right:50%;height:2px;background:var(--line)}
+.setup-dots li:first-child::before{display:none}
+.setup-dots li.done::before,.setup-dots li.now::before{background:var(--accent)}
+.setup-dots a{position:relative;display:grid;justify-items:center;gap:4px;color:var(--muted);font-size:.78rem;font-weight:600;text-decoration:none}
+.setup-dots i{position:relative;z-index:1;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;
+  background:var(--surface);border:2px solid var(--line);font:700 .95rem var(--f-display);font-style:normal}
+.setup-dots .now i{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.setup-dots .now a{color:var(--fg)}
+.setup-dots .done i{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.setup-card{padding:18px 16px}
+.setup-count{margin-bottom:2px;font-size:.78rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+.setup-card h3{font-size:1.6rem}
+.setup-copy{margin:6px 0 16px;font-size:.95rem;line-height:1.4}
+.setup-have{margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}
+.setup-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.setup-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:99px;background:var(--accent-soft);font-size:.88rem}
+.setup-chip b{font:700 .7rem var(--f-body);letter-spacing:.04em;color:var(--accent)}
+.setup-chip.more{color:var(--muted)}
+.setup-invite .card{margin:0;padding:0;border:0;background:none}
+.setup-invite .card h3{display:none}
+.setup-bar{position:sticky;bottom:0;z-index:5;display:flex;gap:8px;margin:4px -16px 0;
+  padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));background:var(--bg);box-shadow:0 -1px var(--line)}
+.setup-bar .btn{flex:1;text-decoration:none;color:inherit}
+.setup-bar .btn.primary{color:var(--accent-fg)}
+.setup-bar a.btn{flex:0 0 auto;min-width:96px}
+.setup-skip{margin-top:10px;text-align:center;font-size:.82rem}
+
+/* ---------- Escritorio ---------- */
+@media (min-width:900px){
+  .setup{max-width:680px}
+  .setup-card{padding:26px 28px}
+  .setup-bar{position:static;justify-content:flex-end;margin:0;padding:0;background:none;box-shadow:none}
+  .setup-bar .btn{flex:0 0 auto;min-width:170px}
+  .pl-sheet{max-width:560px}
+}
+@media (hover:hover) and (min-width:900px){
+  .pl-chips button:not(.on):not(:disabled):hover{border-color:var(--accent);background:var(--accent-soft)}
+  .bulk-pos:hover{border-color:var(--accent)}
+}

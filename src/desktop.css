@@ -50,23 +50,6 @@
   .btn.sm{min-height:36px}
   .field input,.field select{min-height:46px}
 
-  /* ---------- Landing (login) ---------- */
-  .landing{max-width:1160px;padding-top:calc(20px + env(safe-area-inset-top,0px))}
-  .landing-top{padding:8px 0 22px;font-size:1.55rem;gap:12px}
-  .landing-top img{width:38px;height:38px}
-  .hero{min-height:540px;padding:64px 64px 68px;border-radius:28px}
-  .hero h1{font-size:clamp(3.2rem,5.4vw,4.9rem)}
-  .hero p{font-size:1.2rem;max-width:36ch}
-  .hero-card .futcard{transform:rotate(-4deg) scale(1.45)}
-  .features{gap:20px;margin:28px 0}
-  .feature{padding:26px;border-radius:18px;gap:16px;transition:transform .15s,border-color .15s,box-shadow .15s}
-  .feature h3{font-size:1.4rem;margin-bottom:6px}
-  .feature p{font-size:1.02rem}
-  .steps{grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:20px 44px;padding:30px 40px;border-radius:22px}
-  .steps ol{grid-template-columns:repeat(3,minmax(0,1fr));gap:28px}
-  .steps li span{font-size:.98rem}
-  .landing-foot{padding:32px 0 12px}
-
   /* ---------- Inicio ---------- */
   .home-top{margin-bottom:32px}
   .brand{font-size:1.55rem;gap:12px}
@@ -90,16 +73,6 @@
   .home-main>form.card{max-width:520px}
 
   /* ---------- Comunidad: encabezado y navegación ---------- */
-  .comm-head{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:32px;align-items:center;margin-bottom:4px}
-  .comm-head>.comm-back{grid-column:1;grid-row:1;align-self:end;justify-self:start;font-size:.95rem;text-decoration:none}
-  .comm-head>.comm-title{grid-column:1;grid-row:2;align-self:start}
-  .comm-head>.cphoto-wrap{grid-column:2;grid-row:1/span 2;width:320px;margin:0 0 20px}
-  .cphoto{border-radius:18px;box-shadow:0 10px 28px rgba(0,0,0,.18)}
-  .cphoto.empty{aspect-ratio:16/7;box-shadow:none}
-  .comm-title{display:flex;align-items:center;gap:16px;font-size:2.7rem;margin:12px 0 24px!important}
-  .desk-crest{flex:none;display:grid;place-items:center;width:52px;height:58px;padding-bottom:9px;font:700 1.3rem var(--f-display);letter-spacing:.03em;color:#fff;
-    background:linear-gradient(160deg,hsl(var(--h) 55% 45%),hsl(var(--h) 60% 30%));clip-path:polygon(0 0,100% 0,100% 62%,50% 100%,0 62%)}
-  .desk-crest::before{content:attr(data-i)}
   .tabs{margin-bottom:24px;gap:6px}
   .tabs a{display:flex;align-items:center;gap:9px;box-sizing:border-box;height:var(--tabs-h);padding:0 22px;font-size:1.05rem;border-radius:12px 12px 0 0;transition:background .15s,color .15s}
   .tab-ico{display:grid;place-items:center}
@@ -177,10 +150,8 @@
   .btn.primary:not(:disabled):hover{filter:brightness(1.08)}
   .btn.danger:not(:disabled):hover{border-color:var(--danger);background:rgba(179,38,30,.08)}
   .tabs a:not(.on):hover{color:var(--fg);background:var(--accent-soft)}
-  .comm-back:hover{color:var(--accent)}
   .comm:hover,.tab-partidos>a.card.row:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 10px 26px rgba(0,0,0,.14)}
   .comm:active,.tab-partidos>a.card.row:active{transform:translateY(0)}
-  .feature:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 10px 26px rgba(0,0,0,.14)}
   a.rank-row:hover,.hi-match:hover{background:var(--accent-soft)}
   .st-seg button:not(.on):not(:disabled):hover,.adm-seg button:not(.on):hover{border-color:var(--accent);background:var(--accent-soft)}
   .rate button:not(.on):hover{border-color:var(--accent);background:var(--accent-soft)}
@@ -198,8 +169,6 @@
   .tab-m{column-gap:32px}
   .pl-grid{grid-template-columns:minmax(0,5fr) minmax(0,4fr);gap:0 32px}
   .tab-miembros{gap:0 32px}
-  .hero{padding:72px 80px 76px}
-  .comm-head>.cphoto-wrap{width:400px}
 }
 
 /* Encuestas del chat en compu: tarjeta más ancha y hoja centrada */

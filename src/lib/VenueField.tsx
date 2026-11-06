@@ -4,13 +4,10 @@ import { isMapsUrl, parseMapsUrl, type Venue } from './maps';
 import { NEW_VENUE, type VenueDraft } from './venues';
 
 /**
- * Selector de cancha del formulario de partido: ninguna, una guardada o "Nueva cancha…".
- * Al pegar un link de Google Maps completa el nombre (editable) y guarda las coordenadas.
+ * Datos de una cancha nueva: link de Google Maps, nombre y dirección.
+ * Al pegar el link completa el nombre (editable) y guarda las coordenadas.
  */
-export function VenueField({ venues, value, onChange, draft, onDraft }: {
-  venues: Venue[]; value: string; onChange: (v: string) => void;
-  draft: VenueDraft; onDraft: (d: VenueDraft) => void;
-}) {
+export function VenueNewFields({ draft, onDraft }: { draft: VenueDraft; onDraft: (d: VenueDraft) => void }) {
   const [state, setState] = useState<'' | 'busy' | 'ok' | 'fail'>('');
   const cur = useRef(draft); cur.current = draft;        // siempre el borrador más nuevo (la búsqueda es asíncrona)
   const done = useRef('');                                 // último link ya procesado
@@ -53,6 +50,39 @@ export function VenueField({ venues, value, onChange, draft, onDraft }: {
 
   const url = draft.url.trim();
   return (
+    <div class="venue-new">
+      <label class="field"><span>Link de Google Maps</span>
+        <input type="url" inputMode="url" autocomplete="off" autocapitalize="none" spellcheck={false} maxLength={1000}
+          placeholder="https://maps.app.goo.gl/…" value={draft.url} onInput={onUrl} />
+      </label>
+      <p class="muted venue-hint" aria-live="polite">
+        {state === 'busy' ? 'Buscando el lugar en Google Maps…'
+          : state === 'ok' ? 'Listo, encontramos el lugar. Revisá el nombre.'
+          : state === 'fail' ? 'No pudimos leer ese link. Cargá el nombre a mano.'
+          : url && !isMapsUrl(url) ? 'Tiene que ser un link de Google Maps (https://maps.app.goo.gl/…).'
+          : 'En Google Maps tocá Compartir y copiá el link.'}
+      </p>
+      <label class="field"><span>Nombre</span>
+        <input value={draft.name} maxLength={80} placeholder="Ej: Doble 5 Fútbol Urbano"
+          onInput={e => onDraft({ ...draft, name: (e.target as HTMLInputElement).value })} />
+      </label>
+      <label class="field"><span>Dirección (opcional)</span>
+        <input value={draft.address} maxLength={160} placeholder="Calle y número, barrio…"
+          onInput={e => onDraft({ ...draft, address: (e.target as HTMLInputElement).value })} />
+      </label>
+    </div>
+  );
+}
+
+/**
+ * Selector de cancha del formulario de partido: ninguna, una guardada o "Nueva cancha…".
+ * Al elegir "Nueva cancha…" aparecen los campos de VenueNewFields.
+ */
+export function VenueField({ venues, value, onChange, draft, onDraft }: {
+  venues: Venue[]; value: string; onChange: (v: string) => void;
+  draft: VenueDraft; onDraft: (d: VenueDraft) => void;
+}) {
+  return (
     <>
       <label class="field"><span>Cancha</span>
         <select value={value} onChange={e => onChange((e.target as HTMLSelectElement).value)}>
@@ -61,29 +91,7 @@ export function VenueField({ venues, value, onChange, draft, onDraft }: {
           <option value={NEW_VENUE}>➕ Nueva cancha…</option>
         </select>
       </label>
-      {value === NEW_VENUE && (
-        <div class="venue-new">
-          <label class="field"><span>Link de Google Maps</span>
-            <input type="url" inputMode="url" autocomplete="off" autocapitalize="none" spellcheck={false} maxLength={1000}
-              placeholder="https://maps.app.goo.gl/…" value={draft.url} onInput={onUrl} />
-          </label>
-          <p class="muted venue-hint" aria-live="polite">
-            {state === 'busy' ? 'Buscando el lugar en Google Maps…'
-              : state === 'ok' ? 'Listo, encontramos el lugar. Revisá el nombre.'
-              : state === 'fail' ? 'No pudimos leer ese link. Cargá el nombre a mano.'
-              : url && !isMapsUrl(url) ? 'Tiene que ser un link de Google Maps (https://maps.app.goo.gl/…).'
-              : 'En Google Maps tocá Compartir y copiá el link.'}
-          </p>
-          <label class="field"><span>Nombre</span>
-            <input value={draft.name} maxLength={80} placeholder="Ej: Doble 5 Fútbol Urbano"
-              onInput={e => onDraft({ ...draft, name: (e.target as HTMLInputElement).value })} />
-          </label>
-          <label class="field"><span>Dirección (opcional)</span>
-            <input value={draft.address} maxLength={160} placeholder="Calle y número, barrio…"
-              onInput={e => onDraft({ ...draft, address: (e.target as HTMLInputElement).value })} />
-          </label>
-        </div>
-      )}
+      {value === NEW_VENUE && <VenueNewFields draft={draft} onDraft={onDraft} />}
     </>
   );
 }

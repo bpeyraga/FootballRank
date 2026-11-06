@@ -12,6 +12,7 @@ const Join = page(() => import('./pages/Join'), m => m.Join);
 const Theme = page(() => import('./pages/Theme'), m => m.Theme);
 import { clubVars, loadTheme, saveTheme } from './lib/theme';
 const Community = page(() => import('./pages/Community'), m => m.Community);
+const Futbol = page(() => import('./pages/Futbol'), m => m.Futbol);
 import { go, NEXT_KEY, useRoute } from './lib/router';
 // Todos los estilos en la carga inicial (son chicos) y desktop.css al final: las pantallas se bajan aparte
 // y, si sus CSS llegaran después, le ganarían a las reglas de PC.
@@ -21,6 +22,11 @@ import './admin.css';
 import './history.css';
 import './quickmatch.css';
 import './batch2.css';
+import './futbol.css';
+import './landing.css';
+import './home.css';
+import './players.css';
+import './cover.css';
 import './desktop.css';
 import './themes.css';
 
@@ -80,6 +86,7 @@ function App() {
   if (route[0] === 'tema') return <Theme me={me} />;
   if (route[0] === 'perfil') return <Onboarding me={me} done={async () => { await refresh(); go(''); }} cancel={() => go('')} />;
   if (route[0] === 'join' && route[1]) return <Join code={route[1]} />;
+  if (route[0] === 'futbol') return <Futbol me={me} />;
   if (route[0] === 'c' && route[1]) return <Community slug={route[1]} sub={route.slice(2)} me={me} />;
   return <Home me={me} />;
 }

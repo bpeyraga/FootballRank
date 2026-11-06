@@ -1,0 +1,216 @@
+/* Fútbol argentino: entrada en Inicio, "Tu club", tabla, partidos y noticias.
+   Solo usa las variables de styles.css (claro y oscuro). Se importa en main.tsx justo antes de desktop.css.
+   Celular primero; lo de escritorio (>= 900 px) va en el bloque de abajo. */
+
+/* ---------- Entrada desde Inicio ---------- */
+.fut-entry{display:flex;align-items:center;gap:12px;margin-bottom:18px;padding:12px 14px;border-radius:16px;color:inherit;text-decoration:none;
+  background:var(--accent-soft);background:linear-gradient(120deg,var(--accent-soft),var(--surface) 75%);border:1px solid var(--line);
+  transition:border-color .15s,transform .15s,box-shadow .15s}
+.fut-entry:hover{border-color:var(--accent)}
+.fut-entry:active{transform:scale(.99)}
+.fut-entry-ico{flex:none;display:grid;place-items:center;width:44px;height:44px;border-radius:12px;background:var(--accent);color:var(--accent-fg);font-size:1.45rem;line-height:1}
+.fut-entry-copy{flex:1;min-width:0;display:grid;gap:1px}
+.fut-entry-copy b{font:700 1.3rem/1.1 var(--f-display);letter-spacing:.01em}
+.fut-entry-copy span{font-size:.85rem;line-height:1.25}
+
+/* ---------- Pantalla ---------- */
+.fut-page{padding-bottom:8px}
+.fut-page picture{display:flex;flex:none}
+.fut-head{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:2px 12px;margin-bottom:14px}
+.fut-back{grid-column:1/-1;width:fit-content;padding:6px 0;font-size:.92rem;text-decoration:none}
+.fut-title{min-width:0;display:grid;gap:2px}
+.fut-sub{font-size:.84rem;line-height:1.3}
+.fut-refresh svg.spin{animation:fut-spin .9s linear infinite}
+@keyframes fut-spin{to{transform:rotate(360deg)}}
+
+/* Pestañas de la pantalla (celular). No usa .tabs: esa clase es la barra inferior de las comunidades. */
+.fut-seg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;padding:4px;margin:14px 0;border-radius:14px;background:var(--accent-soft);
+  position:sticky;top:calc(8px + env(safe-area-inset-top,0px));z-index:6;box-shadow:0 6px 16px -8px rgba(0,0,0,.25)}
+.fut-seg button{min-height:42px;border:0;border-radius:10px;background:none;color:var(--muted);font-weight:600;cursor:pointer;transition:background .15s,color .15s}
+.fut-seg button[aria-selected="true"]{background:var(--surface);color:var(--fg);box-shadow:0 1px 3px rgba(0,0,0,.18)}
+.fut-sec{display:none}
+.fut-sec.on{display:block}
+.fut-sec>h3{display:none}
+.fut-note{margin:0 2px 10px;font-size:.82rem}
+.fut-foot{margin:18px 2px 4px;font-size:.78rem;line-height:1.4}
+.fut-gap{height:6px}
+
+/* Cargando y vacío */
+.fut-sk-list{display:grid;gap:8px}
+.fut-sk{border-radius:12px;background:linear-gradient(90deg,var(--surface),var(--accent-soft),var(--surface));background-size:200% 100%;animation:shimmer 1.2s infinite linear}
+
+/* Escudos */
+.fut-badge{flex:none;width:24px;height:24px;object-fit:contain;display:block}
+.fut-ph{display:grid;place-items:center;border-radius:50%;background:var(--accent-soft);color:var(--muted);font:700 .62rem var(--f-display);letter-spacing:.02em}
+.fut-badge-own{display:grid;place-items:center}
+
+/* Punto de "en vivo" */
+.live-dot{display:inline-block;width:7px;height:7px;margin-right:5px;border-radius:50%;background:currentColor;vertical-align:1px;animation:fut-pulse 1.4s ease-in-out infinite}
+@keyframes fut-pulse{0%,100%{opacity:1}50%{opacity:.25}}
+.fut-page .live{color:var(--danger);font-weight:700}
+
+/* ---------- Tu club ---------- */
+.fut-club{--club:var(--accent);position:relative;display:grid;gap:10px;margin-bottom:4px;padding:16px;border-radius:20px;overflow:hidden;
+  border:1px solid var(--line);background:var(--accent-soft);
+  background:linear-gradient(135deg,color-mix(in srgb,var(--club) 24%,var(--surface)),var(--surface) 78%);
+  border-color:color-mix(in srgb,var(--club) 38%,var(--line))}
+.fut-club-top{display:flex;align-items:center;gap:14px;min-width:0}
+.fut-club-crest{flex:none;display:grid;place-items:center;filter:drop-shadow(0 4px 8px rgba(0,0,0,.22))}
+.fut-club-id{min-width:0;display:grid;gap:2px;justify-items:start}
+.fut-club-id h2{max-width:100%;font-size:1.8rem}
+.fut-club-pos{font-size:.88rem;color:var(--muted)}
+.fut-club-pos b{color:var(--fg);font:700 1.15rem var(--f-display)}
+.fut-club-box{display:grid;gap:6px;padding:10px 12px;border-radius:14px;background:var(--surface);border:1px solid var(--line)}
+.fut-club-lbl{font:700 .74rem var(--f-body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.fut-club-row{display:flex;align-items:center;gap:10px;min-width:0}
+.fut-club-rival{min-width:0;display:grid;line-height:1.25}
+.fut-club-rival b{font-size:1.02rem}
+.fut-club-rival .muted{font-size:.82rem}
+.fut-club-when{font-size:.9rem}
+.fut-club-none{font-size:.9rem;line-height:1.35}
+.fut-res{flex:none;display:grid;place-items:center;width:30px;height:30px;border-radius:50%;font:700 1.05rem var(--f-display);color:#fff;background:var(--muted)}
+.fut-res.G{background:#1f8a4c}
+.fut-res.P{background:#c4342d}
+.fut-res.E{background:#8a8f93}
+.fut-club-news{list-style:none;margin:0;padding:0;display:grid}
+.fut-club-news li{border-top:1px solid color-mix(in srgb,var(--club) 22%,var(--line))}
+.fut-club-news a{display:grid;gap:2px;padding:9px 0;color:inherit;text-decoration:none}
+.fut-club-nt{font-weight:600;font-size:.93rem;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.fut-club-news .muted{font-size:.78rem}
+.fut-club-empty{display:flex;align-items:center;gap:12px;color:inherit;text-decoration:none;--club:var(--accent)}
+.fut-club-empty>span:nth-child(2){flex:1;min-width:0;line-height:1.35}
+.fut-club-empty b{display:block;font-size:1.05rem}
+.fut-club-empty .muted{font-size:.88rem}
+.fut-club-ico{flex:none;display:grid;place-items:center;width:44px;height:44px;border-radius:12px;background:var(--surface);font-size:1.5rem}
+
+/* ---------- Tabla ---------- */
+.fut-group{padding:6px 12px 8px}
+.fut-group h4{margin:0;padding:8px 0 4px;font:700 1.05rem var(--f-display);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.fut-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:.92rem}
+.fut-table th{padding:4px 0;font-size:.72rem;font-weight:600;color:var(--muted);text-align:right;white-space:nowrap}
+.fut-table td{height:40px;padding:0;border-top:1px solid var(--line);text-align:right}
+.fut-table .c-team,.fut-table td.tm{text-align:left;padding-left:2px}
+.fut-table .c-pos,.fut-table td.c-pos{width:30px;text-align:center;color:var(--muted)}
+.fut-table th:nth-child(3){width:34px}
+.fut-table .c-dg{width:40px}
+.fut-table .c-pts{width:42px}
+.fut-table .opt{display:none}
+.fut-table td.pts{font:700 1.1rem var(--f-display);padding-right:2px}
+.fut-table th.c-pts{padding-right:2px}
+.tm-in{display:flex;align-items:center;gap:8px;min-width:0}
+.fut-table tr.q td.c-pos{box-shadow:inset 3px 0 var(--accent)}
+.fut-table tr.mine{background:var(--accent-soft);font-weight:700}
+.fut-table tr.mine td.c-pos{color:var(--fg)}
+.fut-legend{display:flex;align-items:center;gap:8px;margin:2px 4px 8px;font-size:.8rem}
+.fut-q{flex:none;width:3px;height:14px;border-radius:2px;background:var(--accent)}
+
+/* ---------- Partidos ---------- */
+.fut-pills{display:flex;gap:6px;margin-bottom:6px}
+.fut-pill{display:inline-flex;align-items:center;min-height:36px;padding:0 16px;border-radius:99px;border:1px solid var(--line);background:var(--surface);font-weight:600;cursor:pointer}
+.fut-pill[aria-pressed="true"]{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.fut-day{margin:14px 2px 6px;font:700 1rem var(--f-display);letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.fut-day.live{color:var(--danger)}
+.fut-list{list-style:none;margin:0;padding:0;background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.fut-m{display:grid;grid-template-columns:60px minmax(0,1fr) auto;align-items:center;gap:0 10px;padding:9px 12px;border-top:1px solid var(--line)}
+.fut-m:first-child{border-top:0}
+.fut-m-st{display:grid;justify-items:center;gap:1px;text-align:center;font-size:.78rem;line-height:1.15;color:var(--muted)}
+.fut-m.pre .fut-m-st b{font:700 1.1rem var(--f-display);color:var(--fg)}
+.fut-m-flag{font-size:.68rem;color:var(--muted)}
+.fut-m-teams{display:grid;gap:6px;min-width:0}
+.fut-m-t{display:flex;align-items:center;gap:8px;min-width:0;min-height:24px}
+.fut-m-t.w{font-weight:700}
+.fut-m-sc{display:grid;gap:6px;min-width:1.2em;text-align:right;font:700 1.15rem var(--f-display)}
+.fut-m-sc b{height:24px;line-height:24px}
+.fut-m-v{grid-column:2/-1;margin-top:5px;font-size:.76rem;color:var(--muted)}
+.fut-phase{color:var(--accent)}
+.fut-m.mine{background:linear-gradient(90deg,var(--accent-soft),transparent 70%);box-shadow:inset 3px 0 var(--accent)}
+
+/* ---------- Noticias ---------- */
+.fut-chips{display:flex;gap:6px;margin:0 -16px 12px;padding:2px 16px;overflow-x:auto;scrollbar-width:none}
+.fut-chips::-webkit-scrollbar{display:none}
+.fut-chip{flex:none;display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:0 14px;border-radius:99px;border:1px solid var(--line);background:var(--surface);font-weight:600;cursor:pointer}
+.fut-chip span{font-size:.76rem;font-weight:600;color:var(--muted)}
+.fut-chip[aria-pressed="true"]{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.fut-chip[aria-pressed="true"] span{color:inherit;opacity:.8}
+.fut-news{display:grid;gap:10px}
+.fut-new{display:flex;align-items:flex-start;gap:12px;padding:12px;border:1px solid var(--line);border-radius:14px;background:var(--surface);color:inherit;text-decoration:none;
+  transition:border-color .15s,transform .15s,box-shadow .15s}
+.fut-new:hover{border-color:var(--accent)}
+.fut-new:active{transform:scale(.99)}
+.fut-new-body{flex:1;min-width:0;display:grid;gap:5px}
+.fut-new-meta{display:flex;align-items:center;gap:8px;font-size:.76rem;color:var(--muted)}
+.fut-src{padding:1px 9px;border-radius:99px;background:var(--accent-soft);color:var(--fg);font-weight:600}
+.fut-ext{margin-left:auto;opacity:.7}
+.fut-new-t{font-size:1rem;line-height:1.25;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.fut-new-s{font-size:.86rem;line-height:1.35;color:var(--muted);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.fut-new-img{flex:none;width:96px;height:96px;object-fit:cover;border-radius:10px;background:var(--accent-soft)}
+
+@media (prefers-reduced-motion:reduce){
+  .fut-sk,.live-dot,.fut-refresh svg.spin{animation:none}
+  .fut-entry,.fut-new{transition:none}
+}
+
+/* ================= Escritorio ================= */
+@media (min-width:900px){
+  .fut-entry{padding:14px 18px;margin-bottom:24px;border-radius:18px}
+  .fut-entry:hover{transform:translateY(-2px);box-shadow:0 10px 26px rgba(0,0,0,.14)}
+  .fut-entry-ico{width:52px;height:52px;border-radius:14px;font-size:1.7rem}
+  .fut-entry-copy b{font-size:1.5rem}
+  .fut-entry-copy span{font-size:.95rem}
+
+  .fut-head{grid-template-columns:minmax(0,1fr) auto;margin-bottom:22px}
+  .fut-head h2{font-size:2.6rem}
+  .fut-sub{font-size:.95rem}
+  .fut-refresh{min-height:40px;padding:0 16px}
+  .fut-seg{display:none}
+  .fut-sec,.fut-sec.on{display:block}
+  .fut-sec>h3{display:block;margin:0 0 12px;font-size:1.7rem}
+  .fut-cols{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:8px 40px;align-items:start;margin-top:26px}
+  .fut-sec-noticias{grid-column:1/-1;margin-top:20px}
+  .fut-foot{margin-top:28px;font-size:.82rem}
+
+  /* Tu club: identidad · próximo · último, y abajo las noticias */
+  .fut-club{grid-template-columns:minmax(0,1.05fr) minmax(0,1fr) minmax(0,1fr);gap:14px 18px;align-items:stretch;padding:22px 24px;border-radius:24px}
+  .fut-club-top{align-self:center}
+  .fut-club-crest .crest{width:68px;height:auto}
+  .fut-club-id h2{font-size:2.3rem}
+  .fut-club-pos{font-size:.95rem}
+  .fut-club-box{align-content:start;padding:14px 16px;gap:8px}
+  .fut-club-news{grid-column:1/-1;grid-template-columns:repeat(3,minmax(0,1fr));gap:0 22px}
+  .fut-club-news li{border-top:1px solid color-mix(in srgb,var(--club) 22%,var(--line))}
+  .fut-club-empty{grid-template-columns:none;padding:18px 22px}
+
+  /* Tabla con más columnas */
+  .fut-group{padding:10px 18px 12px}
+  .fut-group h4{padding:6px 0 6px;font-size:1.15rem}
+  .fut-table{font-size:.97rem}
+  .fut-table .opt{display:table-cell}
+  .fut-table .c-pos,.fut-table td.c-pos{width:34px}
+  .fut-table th:nth-child(3){width:38px}
+  .fut-table .c-s{width:32px}
+  .fut-table .c-g{width:36px}
+  .fut-table .c-dg{width:44px}
+  .fut-table .c-pts{width:50px}
+  .fut-table td{height:42px}
+  .fut-table tr{transition:background .15s}
+  .fut-table tbody tr:not(.mine):hover{background:color-mix(in srgb,var(--accent-soft) 55%,transparent)}
+
+  /* Partidos */
+  .fut-pills{margin-bottom:8px}
+  .fut-m{grid-template-columns:70px minmax(0,1fr) auto;padding:10px 16px}
+  .fut-m-st{font-size:.82rem}
+  .fut-list{border-radius:16px}
+
+  /* Noticias en 3 columnas, con la foto arriba */
+  .fut-chips{flex-wrap:wrap;margin:0 0 16px;padding:0;overflow:visible}
+  .fut-news{grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+  .fut-new{flex-direction:column-reverse;gap:0;padding:0;overflow:hidden;border-radius:16px}
+  .fut-new:hover{transform:translateY(-2px);box-shadow:0 10px 26px rgba(0,0,0,.14)}
+  .fut-new-body{padding:14px 16px 16px;gap:7px;align-content:start;flex:1;width:100%}
+  .fut-new-img{width:100%;height:auto;aspect-ratio:16/9;border-radius:0}
+  .fut-new-t{font-size:1.08rem;-webkit-line-clamp:3}
+  .fut-new-s{-webkit-line-clamp:3}
+}
+@media (min-width:1280px){
+  .fut-cols{grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:8px 48px}
+}

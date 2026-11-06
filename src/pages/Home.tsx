@@ -1,28 +1,42 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { Tip } from '../lib/Tip';
-import { displayName, hue, posLine, sb, type Profile, type Stats } from '../lib/supabase';
+import { displayName, hue, ovr, posLine, sb, type Profile, type Stats } from '../lib/supabase';
 import { go, slugify } from '../lib/router';
 import { Avatar } from '../lib/Avatar';
 import { FutCard } from '../lib/FutCard';
 import { useInstall } from '../lib/install';
 import { pushOff } from '../lib/push';
 import { PushPanel } from '../lib/PushPanel';
+import { Crest } from '../lib/Crest';
+import { countdown, slotsLine } from '../lib/nextMatch';
 
 interface Comm { id: string; name: string; slug: string; photo_url?: string | null }
 interface Row { role: string; community: Comm }
-interface Next { title: string; starts_at: string }
+interface Next { id: string; community_id: string; title: string; starts_at: string; location: string | null; slots: number; status: string }
+/** Anotados del próximo partido y si estoy adentro. */
+interface Su { taken: number; waiting: number; mine: 'in' | 'waitlist' | null }
 
 const ROLE: Record<string, string> = { owner: 'Owner', admin: 'Admin', member: 'Miembro' };
+const tierOf = (o: number | null) => o == null ? 'none' : o >= 75 ? 'gold' : o >= 65 ? 'silver' : 'bronze';
 const initials = (s: string) => s.trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?';
 const when = (iso: string) => new Date(iso).toLocaleString('es-AR',
   { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 /** Acepta el link completo (…/#/join/abc123) o solo el código. */
 const inviteCode = (s: string) => s.trim().match(/join\/([a-z0-9]+)/i)?.[1] ?? (/^[a-z0-9]{6,}$/i.test(s.trim()) ? s.trim() : null);
 
+const Chev = () => <svg class="chev" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>;
+const QIco = ({ d }: { d: string }) => (
+  <span class="qa-ico"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d={d} /></svg></span>
+);
+
 export function Home({ me }: { me: Profile }) {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [next, setNext] = useState<Record<string, Next>>({});
+  const [hero, setHero] = useState<Next | null>(null); // el partido más cercano de todas mis comunidades
+  const [su, setSu] = useState<Su | null>(null);
+  const [nxLoaded, setNxLoaded] = useState(false);
+  const [now, setNow] = useState(() => new Date());
   const [stats, setStats] = useState<Stats | null>(null);
   const [mode, setMode] = useState<'' | 'create' | 'join'>('');
   const [name, setName] = useState('');
@@ -48,17 +62,38 @@ export function Home({ me }: { me: Profile }) {
         if (!ids.length) return;
         const [m, x] = await Promise.all([
           sb.from('memberships').select('community_id').in('community_id', ids),
-          sb.from('matches').select('community_id,title,starts_at').in('community_id', ids)
+          sb.from('matches').select('id,community_id,title,starts_at,location,slots,status').in('community_id', ids)
             .in('status', ['open', 'closed']).gte('starts_at', new Date().toISOString()).order('starts_at'),
         ]);
         const c: Record<string, number> = {};
         for (const r of m.data ?? []) c[r.community_id] = (c[r.community_id] ?? 0) + 1;
         setCounts(c);
+        const upcoming = (x.data ?? []) as Next[];
         const n: Record<string, Next> = {};
-        for (const r of x.data ?? []) n[r.community_id] ??= r;
+        for (const r of upcoming) n[r.community_id] ??= r;
         setNext(n);
+        const first = upcoming[0] ?? null; // viene ordenado: el más próximo de todas las comunidades
+        setHero(first);
+        setNxLoaded(true);
+        if (first) {
+          // Una sola consulta más, solo del partido destacado (sin N+1).
+          const s = await sb.from('match_signups').select('profile_id,status').eq('match_id', first.id);
+          const l = (s.data ?? []) as { profile_id: string; status: string }[];
+          const mine = l.find(r => r.profile_id === me.id)?.status;
+          setSu({
+            taken: l.filter(r => r.status === 'in').length,
+            waiting: l.filter(r => r.status === 'waitlist').length,
+            mine: mine === 'in' || mine === 'waitlist' ? mine : null,
+          });
+        }
       });
   }, [me.id]);
+
+  // La cuenta regresiva se actualiza sola
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(t);
+  }, []);
 
   // Cerrar el menú al tocar afuera
   useEffect(() => {
@@ -79,7 +114,7 @@ export function Home({ me }: { me: Profile }) {
       res = await sb.rpc('create_community', { p_name: name.trim(), p_slug: slug });
     }
     setBusy(false);
-    if (res.error) setErr(res.error.message); else go(`c/${slug}`);
+    if (res.error) setErr(res.error.message); else go(`c/${slug}/setup`);
   };
 
   const join = (e: Event) => {
@@ -89,6 +124,21 @@ export function Home({ me }: { me: Profile }) {
   };
 
   const pick = (m: typeof mode) => { setErr(''); setMode(mode === m ? '' : m); };
+
+  const o = stats ? ovr(stats) : null;
+  const heroComm = hero ? rows?.find(r => r.community.id === hero.community_id) : undefined;
+  const cd = hero ? countdown(hero.starts_at, now) : null;
+  // Accesos rápidos: apuntan a la comunidad del próximo partido (o a la primera) y solo a pantallas que existen.
+  const target = heroComm ?? rows?.[0];
+  const adminOf = heroComm && heroComm.role !== 'member' ? heroComm : rows?.find(r => r.role !== 'member');
+  const heroHref = hero && heroComm ? `#/c/${heroComm.community.slug}/m/${hero.id}` : '';
+  const quick: { href: string; label: string; sub: string; d: string; main?: boolean }[] = [];
+  if (hero && heroComm) quick.push({
+    href: heroHref, label: su?.mine ? 'Ver lista' : 'Anotarme', sub: heroComm.community.name, main: !su?.mine,
+    d: 'M5 12.5l4.5 4.5L19 7.5',
+  });
+  if (adminOf) quick.push({ href: `#/c/${adminOf.community.slug}`, label: 'Crear partido', sub: adminOf.community.name, d: 'M4 6h16v14H4zM4 10h16M8 3v4M16 3v4M12 13v5M9.5 15.5h5' });
+  if (target) quick.push({ href: `#/c/${target.community.slug}/ranking`, label: 'Ranking', sub: target.community.name, d: 'M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0zM7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3' });
 
   return (
     <div class="wrap home">
@@ -125,18 +175,85 @@ export function Home({ me }: { me: Profile }) {
         if (install.kind === 'prompt') install.run(); else if (install.kind === 'help') setTip(install.text);
       }} />}
 
+      {/* Tu próximo partido: el más cercano de todas tus comunidades */}
+      {hero && heroComm && cd && (
+        <a class={`nx${cd.soon ? ' soon' : ''}`} href={heroHref}>
+          <span class="nx-grass" aria-hidden="true" />
+          <svg class="nx-pitch" viewBox="0 0 200 200" aria-hidden="true">
+            <g fill="none" stroke="currentColor" stroke-width="3"><circle cx="100" cy="100" r="62" /><circle cx="100" cy="100" r="5" fill="currentColor" /><path d="M-10 100h220" /></g>
+          </svg>
+          <div class="nx-top">
+            <span class="nx-kicker">Tu próximo partido</span>
+            {cd.soon && <span class="nx-live"><i />Ya casi</span>}
+          </div>
+          <div class="nx-when">
+            <b>{cd.big}</b>
+            <span>{cd.date} · {cd.time} hs</span>
+          </div>
+          <b class="nx-title ellipsis">{hero.title}</b>
+          <div class="nx-meta">
+            <span class="nx-comm">
+              <span class={`comm-crest${heroComm.community.photo_url ? ' photo' : ''}`} style={`--h:${hue(heroComm.community.id)}${heroComm.community.photo_url ? `;background-image:url("${heroComm.community.photo_url}")` : ''}`}>{initials(heroComm.community.name)}</span>
+              <span class="ellipsis">{heroComm.community.name}</span>
+            </span>
+            {hero.location && <span class="nx-place ellipsis">📍 {hero.location}</span>}
+          </div>
+          <div class="nx-foot">
+            <span class="nx-slots">
+              <span class="nx-bar"><i style={`width:${su ? Math.min(100, Math.round(su.taken / Math.max(1, hero.slots) * 100)) : 0}%`} /></span>
+              <small>{su ? slotsLine(su.taken, hero.slots, su.waiting) : `${hero.slots} lugares`}{hero.status === 'closed' ? ' · lista cerrada' : ''}</small>
+            </span>
+            <span class={`nx-state${su?.mine ? ' in' : ''}`}>
+              {su?.mine === 'in' ? '✓ Estás anotado' : su?.mine === 'waitlist' ? 'En lista de espera' : hero.status === 'closed' ? 'Ver partido' : 'Anotarme'}
+              <Chev />
+            </span>
+          </div>
+        </a>
+      )}
+      {!hero && (rows === null || (rows.length > 0 && !nxLoaded)) && !err && <div class="nx skeleton" aria-hidden="true" />}
+      {!hero && nxLoaded && rows && rows.length > 0 && (
+        <div class="nx none">
+          <b>Sin partidos a la vista</b>
+          <span class="muted">Cuando tu grupo convoque uno, lo ves acá con la cuenta regresiva.</span>
+          {adminOf && <a class="btn sm primary" href={`#/c/${adminOf.community.slug}`}>Convocar un partido</a>}
+        </div>
+      )}
+
       <div class="home-grid">
       <section class="me-card">
         <FutCard p={me} stats={stats} size="sm" />
         <div class="me-copy">
-          <span class="kicker">Tu ficha</span>
+          <span class="kicker">Tu carta</span>
           <h2 class="ellipsis">Hola, {me.nickname?.trim() || me.name.split(' ')[0]}</h2>
-          <p class="muted">Esta es tu autoevaluación. En cada comunidad tu OVR sale de los votos de tus compañeros.</p>
+          <div class="me-chips">
+            <span class={`ovr ${tierOf(o)}`}>OVR {o ?? '—'}</span>
+            <span>{me.pos}</span>
+            {me.shirt_number ? <span>#{me.shirt_number}</span> : null}
+            {me.fav_team && <span class="me-club"><Crest team={me.fav_team} size={14} /></span>}
+          </div>
+          <p class="muted">Tu autoevaluación. En cada comunidad el OVR sale de los votos de tus compañeros.</p>
           <a class="btn sm" href="#/perfil">Editar ficha</a>
         </div>
       </section>
 
       <div class="home-main">
+      {quick.length > 0 && (
+        <nav class="qa" style={`--n:${quick.length}`} aria-label="Accesos rápidos">
+          {quick.map(q => (
+            <a href={q.href} class={q.main ? 'main' : ''}>
+              <QIco d={q.d} />
+              <b>{q.label}</b>
+              <small>{q.sub}</small>
+            </a>
+          ))}
+        </nav>
+      )}
+      <a class="fut-entry" href="#/futbol">
+        <span class="fut-entry-ico" aria-hidden="true">⚽</span>
+        <span class="fut-entry-copy"><b>Fútbol argentino</b><span class="muted">Tabla, partidos y noticias de la Liga</span></span>
+        {me.fav_team && <Crest team={me.fav_team} size={30} />}
+        <Chev />
+      </a>
       <div class="section-head">
         <h3>Tus comunidades</h3>
         {rows && rows.length > 0 && <span class="muted">{rows.length}</span>}
@@ -169,7 +286,7 @@ export function Home({ me }: { me: Profile }) {
                 ? <span class="comm-next">⚽ {when(n.starts_at)} · <span class="ellipsis">{n.title}</span></span>
                 : <span class="muted comm-meta">Sin partidos programados</span>}
             </div>
-            <svg class="chev" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+            <Chev />
           </a>
         );
       })}

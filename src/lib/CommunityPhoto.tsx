@@ -1,9 +1,15 @@
 import { useState } from 'preact/hooks';
+import type { ComponentChildren } from 'preact';
 import { sb, uploadCommunityPhoto } from './supabase';
 
-/** Foto grupal de la comunidad (portada). Owner y admins la cambian o la quitan. */
-export function CommunityPhoto({ id, name, url, isAdmin, changed }: {
+/**
+ * Portada de la comunidad: la foto del grupo a todo el ancho, con el escudo y el nombre encima (children).
+ * Sin foto, una portada por defecto (cancha). Owner y admins la cambian o la quitan.
+ * `compact`: más baja, para pestañas donde importa el espacio (chat, ranking, votar).
+ */
+export function CommunityPhoto({ id, name, url, isAdmin, changed, compact = false, children }: {
   id: string; name: string; url: string | null; isAdmin: boolean; changed: () => void;
+  compact?: boolean; children?: ComponentChildren;
 }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -25,31 +31,31 @@ export function CommunityPhoto({ id, name, url, isAdmin, changed }: {
     setBusy(false);
   };
   const remove = async () => {
-    if (!confirm('¿Quitar la foto de la comunidad?')) return;
+    if (!confirm('¿Quitar la portada de la comunidad?')) return;
     setBusy(true); setErr('');
     try { await save(null); } catch (x: any) { setErr(x.message); }
     setBusy(false);
   };
 
-  if (!url && !isAdmin) return null;
   return (
-    <div class="cphoto-wrap">
-      {url
-        ? <a class={`cphoto${busy ? ' busy' : ''}`} href={url} target="_blank" rel="noopener">
-            <img src={url} alt={`Foto del grupo ${name}`} loading="lazy" />
-          </a>
-        : <label class={`cphoto empty${busy ? ' busy' : ''}`}>
-            <span>📷</span><b>Agregá una foto de todos</b><span class="muted">La ven todos los miembros</span>
-            <input type="file" accept="image/*" hidden disabled={busy} onChange={onFile} />
-          </label>}
-      {url && isAdmin && (
-        <div class="cphoto-actions">
-          <label class="btn sm">{busy ? 'Subiendo…' : 'Cambiar foto'}<input type="file" accept="image/*" hidden disabled={busy} onChange={onFile} /></label>
-          <button class="btn sm" disabled={busy} onClick={remove}>Quitar</button>
-        </div>
-      )}
-      {!url && busy && <p class="muted" style="margin-top:6px">Subiendo…</p>}
-      {err && <p class="err">{err}</p>}
-    </div>
+    <>
+      <header class={`cover${url ? ' has-photo' : ''}${compact ? ' compact' : ''}${busy ? ' busy' : ''}`}>
+        {url
+          ? <img class="cover-img" src={url} alt={`Foto del grupo ${name}`} />
+          : <div class="cover-default" aria-hidden="true" />}
+        <div class="cover-shade" aria-hidden="true" />
+        <div class="cover-body">{children}</div>
+        {isAdmin && !compact && (
+          <div class="cover-actions">
+            <label class="cover-btn">
+              {busy ? 'Subiendo…' : url ? '📷 Cambiar portada' : '📷 Agregar portada'}
+              <input type="file" accept="image/*" hidden disabled={busy} onChange={onFile} />
+            </label>
+            {url && <button type="button" class="cover-btn" disabled={busy} onClick={remove}>Quitar</button>}
+          </div>
+        )}
+      </header>
+      {err && <p class="err" style="margin:-4px 0 12px">{err}</p>}
+    </>
   );
 }
