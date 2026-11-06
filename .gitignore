@@ -1,5 +1,26 @@
-.vercel
-.env*
+# Dependencias y build
 node_modules
 dist
+coverage
+*.tsbuildinfo
+
+# Variables de entorno y Vercel
+.env*
 !.env.example
+.vercel
+
+# Supabase local
+supabase/.temp
+supabase/.branches
+
+# Editor y sistema
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+*.log
+npm-debug.log*
+
+# Docs locales (no se suben)
+CLAUDE.md
+README.md
