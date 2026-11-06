@@ -1,45 +1,18 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { Tip } from '../../shared/ui/Tip';
-import { displayName, hue, ovr, posLine, sb, type Profile, type Stats } from '../../shared/supabase';
-import { go, slugify } from '../../app/router';
+import { displayName, hue, ovr, posLine, type Profile } from '../../shared/supabase';
+import { go } from '../../app/router';
 import { Avatar } from '../../shared/ui/Avatar';
 import { FutCard } from '../../shared/ui/FutCard';
 import { useInstall } from '../../app/install';
-import { pushOff } from '../push/push';
 import { PushPanel } from '../push/PushPanel';
 import { Crest } from '../../shared/ui/Crest';
 import { countdown, slotsLine } from './nextMatch';
-import { initials } from '../../shared/text';
-
-interface Comm { id: string; name: string; slug: string; photo_url?: string | null }
-interface Row { role: string; community: Comm }
-interface Next { id: string; community_id: string; title: string; starts_at: string; location: string | null; slots: number; status: string }
-/** Anotados del próximo partido y si estoy adentro. */
-interface Su { taken: number; waiting: number; mine: 'in' | 'waitlist' | null }
-
-/** ¿Es del equipo de la app? Se pregunta una sola vez por sesión (por usuario); ante cualquier error, no (el link queda oculto). */
-let appAdmin: { uid: string; ok: Promise<boolean> } | null = null;
-const isAppAdmin = (uid: string) => {
-  if (appAdmin?.uid !== uid) {
-    const entry: { uid: string; ok: Promise<boolean> } = { uid, ok: Promise.resolve(sb.rpc('is_app_admin')).then(({ data, error }) => {
-      if (error) throw error;
-      return data === true;
-    }).catch(() => {
-      // un error pasajero no se cachea: la próxima vez se vuelve a preguntar
-      if (appAdmin === entry) appAdmin = null;
-      return false;
-    }) };
-    appAdmin = entry;
-  }
-  return appAdmin.ok;
-};
-
-const ROLE: Record<string, string> = { owner: 'Owner', admin: 'Admin', member: 'Miembro' };
-const tierOf = (o: number | null) => o == null ? 'none' : o >= 75 ? 'gold' : o >= 65 ? 'silver' : 'bronze';
-const when = (iso: string) => new Date(iso).toLocaleString('es-AR',
-  { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-/** Acepta el link completo (…/#/join/abc123) o solo el código. */
-const inviteCode = (s: string) => s.trim().match(/join\/([a-z0-9]+)/i)?.[1] ?? (/^[a-z0-9]{6,}$/i.test(s.trim()) ? s.trim() : null);
+import { fmtDate as when, initials } from '../../shared/text';
+import { signOut } from '../auth/api';
+import { createCommunity } from './api';
+import { ROLE, inviteCode, quickActions, tierOf } from './model';
+import { useHome } from './useHome';
 
 const Chev = () => <svg class="chev" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>;
 const QIco = ({ d }: { d: string }) => (
@@ -47,71 +20,16 @@ const QIco = ({ d }: { d: string }) => (
 );
 
 export function Home({ me }: { me: Profile }) {
-  const [rows, setRows] = useState<Row[] | null>(null);
-  const [counts, setCounts] = useState<Record<string, number>>({});
-  const [next, setNext] = useState<Record<string, Next>>({});
-  const [hero, setHero] = useState<Next | null>(null); // el partido más cercano de todas mis comunidades
-  const [su, setSu] = useState<Su | null>(null);
-  const [nxLoaded, setNxLoaded] = useState(false);
+  const { comms: rows, counts, next, hero, su, nxLoaded, stats, staff, err, setErr } = useHome(me);
   const [now, setNow] = useState(() => new Date());
-  const [stats, setStats] = useState<Stats | null>(null);
   const [mode, setMode] = useState<'' | 'create' | 'join'>('');
   const [name, setName] = useState('');
   const [link, setLink] = useState('');
   const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState('');
   const menu = useRef<HTMLDetailsElement>(null);
   const install = useInstall();
   const [tip, setTip] = useState('');
   const [alerts, setAlerts] = useState(false);
-  const [staff, setStaff] = useState(false);
-
-  useEffect(() => {
-    sb.from('base_stats').select('rit,tir,pas,reg,def,fis').eq('profile_id', me.id).maybeSingle()
-      .then(({ data }) => setStats((data as Stats) ?? null));
-
-    sb.from('memberships').select('role, community:communities(id,name,slug,photo_url)').eq('profile_id', me.id)
-      .then(async ({ data, error }) => {
-        if (error) return setErr(error.message);
-        const list = ((data ?? []) as any[]).filter(r => r.community) as Row[];
-        list.sort((a, b) => a.community.name.localeCompare(b.community.name));
-        setRows(list);
-        const ids = list.map(r => r.community.id);
-        if (!ids.length) return;
-        const [m, x] = await Promise.all([
-          sb.from('memberships').select('community_id').in('community_id', ids),
-          sb.from('matches').select('id,community_id,title,starts_at,location,slots,status').in('community_id', ids)
-            .in('status', ['open', 'closed']).gte('starts_at', new Date().toISOString()).order('starts_at'),
-        ]);
-        const c: Record<string, number> = {};
-        for (const r of m.data ?? []) c[r.community_id] = (c[r.community_id] ?? 0) + 1;
-        setCounts(c);
-        const upcoming = (x.data ?? []) as Next[];
-        const n: Record<string, Next> = {};
-        for (const r of upcoming) n[r.community_id] ??= r;
-        setNext(n);
-        const first = upcoming[0] ?? null; // viene ordenado: el más próximo de todas las comunidades
-        setHero(first);
-        setNxLoaded(true);
-        if (first) {
-          // Una sola consulta más, solo del partido destacado (sin N+1).
-          const s = await sb.from('match_signups').select('profile_id,status').eq('match_id', first.id);
-          const l = (s.data ?? []) as { profile_id: string; status: string }[];
-          const mine = l.find(r => r.profile_id === me.id)?.status;
-          setSu({
-            taken: l.filter(r => r.status === 'in').length,
-            waiting: l.filter(r => r.status === 'waitlist').length,
-            mine: mine === 'in' || mine === 'waitlist' ? mine : null,
-          });
-        }
-      });
-  }, [me.id]);
-
-  useEffect(() => {
-    let live = true;
-    if (me.user_id) isAppAdmin(me.user_id).then(ok => { if (live) setStaff(ok); });
-    return () => { live = false; };
-  }, [me.user_id]);
 
   // La cuenta regresiva se actualiza sola
   useEffect(() => {
@@ -130,15 +48,9 @@ export function Home({ me }: { me: Profile }) {
     e.preventDefault();
     if (!name.trim()) return;
     setBusy(true); setErr('');
-    const base = slugify(name) || 'comunidad';
-    let slug = base.length >= 3 ? base : base + '-fc';
-    let res = await sb.rpc('create_community', { p_name: name.trim(), p_slug: slug });
-    if (res.error?.code === '23505') { // slug ocupado
-      slug = `${slug}-${Math.random().toString(36).slice(2, 6)}`;
-      res = await sb.rpc('create_community', { p_name: name.trim(), p_slug: slug });
-    }
+    try { go(`c/${await createCommunity(name)}/setup`); }
+    catch (x: any) { setErr(x?.message ?? 'Error de red'); }
     setBusy(false);
-    if (res.error) setErr(res.error.message); else go(`c/${slug}/setup`);
   };
 
   const join = (e: Event) => {
@@ -152,18 +64,9 @@ export function Home({ me }: { me: Profile }) {
   const o = stats ? ovr(stats) : null;
   const heroComm = hero ? rows?.find(r => r.community.id === hero.community_id) : undefined;
   const cd = hero ? countdown(hero.starts_at, now) : null;
-  // Accesos rápidos: apuntan a la comunidad del próximo partido (o a la primera) y solo a pantallas que existen.
-  const target = heroComm ?? rows?.[0];
   const adminOf = heroComm && heroComm.role !== 'member' ? heroComm : rows?.find(r => r.role !== 'member');
   const heroHref = hero && heroComm ? `#/c/${heroComm.community.slug}/m/${hero.id}` : '';
-  const quick: { href: string; label: string; sub: string; d: string; main?: boolean }[] = [];
-  if (hero && heroComm) quick.push({
-    href: heroHref, label: su?.mine ? 'Ver lista' : hero.status !== 'open' ? 'Ver partido' : 'Anotarme', sub: heroComm.community.name,
-    main: !su?.mine && hero.status === 'open',
-    d: 'M5 12.5l4.5 4.5L19 7.5',
-  });
-  if (adminOf) quick.push({ href: `#/c/${adminOf.community.slug}`, label: 'Crear partido', sub: adminOf.community.name, d: 'M4 6h16v14H4zM4 10h16M8 3v4M16 3v4M12 13v5M9.5 15.5h5' });
-  if (target) quick.push({ href: `#/c/${target.community.slug}/ranking`, label: 'Ranking', sub: target.community.name, d: 'M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0zM7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3' });
+  const quick = quickActions(hero, su, rows);
 
   return (
     <div class="wrap home">
@@ -186,7 +89,7 @@ export function Home({ me }: { me: Profile }) {
             {staff && <a href="#/admin">📊 Panel de la app</a>}
             <a href="/terminos.html">Términos</a>
             <a href="/privacidad.html">Privacidad</a>
-            <button onClick={async () => { await pushOff().catch(() => {}); sb.auth.signOut(); }}>Cerrar sesión</button>
+            <button onClick={signOut}>Cerrar sesión</button>
           </div>
         </details>
       </header>

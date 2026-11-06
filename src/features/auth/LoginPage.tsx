@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
 import type { ComponentChildren } from 'preact';
-import { sb } from '../../shared/supabase';
+import { signInWithGoogle, signInWithPassword, signUp } from './api';
 import { CardFan, ArtChat, ArtFixed, ArtFut, ArtMatch, ArtNotifs, ArtRank, ArtStats, ArtTeams } from './LandingArt';
 
 /** Ruta a la que volver después del login con Google (ver main.tsx). */
@@ -127,18 +127,15 @@ function EmailAuth() {
     if (mode === 'up' && pass.length < 6) { setErr('La contraseña tiene que tener al menos 6 caracteres.'); return; }
     setBusy(true);
     if (mode === 'in') {
-      const { error } = await sb.auth.signInWithPassword({ email: email.trim(), password: pass });
-      if (error) setErr(AUTH_ERRORS[error.message] ?? error.message);
+      try { await signInWithPassword(email.trim(), pass); }
+      catch (e: any) { setErr(AUTH_ERRORS[e.message] ?? e.message); }
     } else {
       saveNext(); // si hay que confirmar el correo, el link vuelve a la app y retomamos la invitación
-      const { data, error } = await sb.auth.signUp({
-        email: email.trim(), password: pass,
-        options: { data: { full_name: name.trim() }, emailRedirectTo: location.origin + location.pathname },
-      });
-      if (error) setErr(AUTH_ERRORS[error.message] ?? error.message);
-      // Supabase no avisa si el correo ya existía (devuelve un usuario sin identidades)
-      else if (data.user && !data.user.identities?.length) setErr(AUTH_ERRORS['User already registered']);
-      else if (!data.session) setMsg(`Te mandamos un correo a ${email.trim()}. Abrí el link para confirmar la cuenta.`);
+      try {
+        const r = await signUp(email.trim(), pass, name.trim());
+        if (r.existed) setErr(AUTH_ERRORS['User already registered']);
+        else if (r.confirm) setMsg(`Te mandamos un correo a ${email.trim()}. Abrí el link para confirmar la cuenta.`);
+      } catch (e: any) { setErr(AUTH_ERRORS[e.message] ?? e.message); }
     }
     setBusy(false);
   };
@@ -188,11 +185,7 @@ export function Login() {
     // "#/join/…#access_token=…" y supabase-js no lo detecta. Guardamos la ruta y la restauramos en main.tsx.
     saveNext();
     setBusy(true); setErr('');
-    const { error } = await sb.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: location.origin + location.pathname },
-    });
-    if (error) { setErr(error.message); setBusy(false); }
+    try { await signInWithGoogle(); } catch (e: any) { setErr(e.message); setBusy(false); }
   };
 
   const cta = (label = 'Entrar con Google — es gratis') => (

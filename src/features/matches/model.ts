@@ -20,8 +20,7 @@ export interface Suspension { id: string; profile_id: string }
 export interface Score { avg: number; n: number }
 export interface Mvp { mine: string | null; tally: Map<string, number> }
 
-export const fmtDate = (iso: string) => new Date(iso).toLocaleString('es-AR',
-  { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+export { fmtDate } from '../../shared/text';
 
 export const STATUS: Record<Match['status'], string> =
   { open: 'Inscripción abierta', closed: 'Lista cerrada', played: 'Jugado', cancelled: 'Cancelado' };

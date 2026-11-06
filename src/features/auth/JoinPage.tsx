@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
-import { sb } from '../../shared/supabase';
+import { inviteInfo, joinCommunity } from './api';
 import { go } from '../../app/router';
 
 /** Errores de invite_info / join_community en castellano; 'expired' y 'invalid_code' vienen del servidor. */
@@ -18,19 +18,24 @@ export function Join({ code }: { code: string }) {
   const [expired, setExpired] = useState(false);
 
   useEffect(() => {
-    sb.rpc('invite_info', { p_code: code }).then(({ data, error }) => {
-      if (error) {
-        if (error.message.includes('expired')) setExpired(true); else setErr(friendly(error.message));
-      } else setInfo(data?.[0] ?? null);
+    inviteInfo(code).then(setInfo, (e: any) => {
+      const m: string = e?.message ?? '';
+      if (m.includes('expired')) setExpired(true); else setErr(friendly(m));
     });
   }, [code]);
 
   const join = async () => {
     setBusy(true); setErr('');
-    const { data, error } = await sb.rpc('join_community', { p_code: code });
+    let slug: string;
+    try { slug = await joinCommunity(code); }
+    catch (e: any) {
+      setBusy(false);
+      const m: string = e?.message ?? '';
+      if (m.includes('expired')) { setExpired(true); setInfo(null); } else setErr(friendly(m));
+      return;
+    }
     setBusy(false);
-    if (!error) return go(`c/${data.slug}`);
-    if (error.message.includes('expired')) { setExpired(true); setInfo(null); } else setErr(friendly(error.message));
+    go(`c/${slug}`);
   };
 
   return (

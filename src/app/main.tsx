@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import './styles/styles.css';
 import './install'; // registra el service worker y escucha "instalar app" desde el arranque
 import { loadMe, sb, type Profile } from '../shared/supabase';
-import { pushForget, pushOff, pushSync } from '../features/push/push';
+import { pushForget, pushSync } from '../features/push/push';
+import { onAuthChange, signOut } from '../features/auth/api';
 import { startTracking, trackNow } from './track';
 import { Loading, page, prefetch } from './lazy';
 const Login = page(() => import('../features/auth/LoginPage'), m => m.Login);
@@ -74,21 +75,20 @@ function App() {
   useEffect(() => {
     refresh();
     // supabase-js emite SIGNED_IN también al volver a la pestaña: solo recargamos si cambió el usuario.
-    const { data } = sb.auth.onAuthStateChange((ev, session) => {
-      if (ev === 'SIGNED_OUT') { pushForget(); setMe(null); setState('out'); }
-      else if (ev === 'SIGNED_IN') {
+    return onAuthChange((ev, uid) => {
+      if (ev === 'out') { pushForget(); setMe(null); setState('out'); }
+      else {
         setTimeout(trackNow, 0); // asocia la visita al usuario (con tope de 1 cada 30 s)
-        if (session?.user.id !== userId.current) refresh();
+        if (uid !== userId.current) refresh();
       }
     });
-    return () => data.subscription.unsubscribe();
   }, []);
 
   if (err) return (
     <div class="center">
       <p class="err">{err}</p>
       <button class="btn" onClick={() => location.reload()}>Reintentar</button>
-      <button class="btn" onClick={async () => { await pushOff().catch(() => {}); sb.auth.signOut(); }}>Salir</button>
+      <button class="btn" onClick={signOut}>Salir</button>
     </div>
   );
   if (state === 'loading') return <div class="center"><p class="muted">Cargando…</p></div>;

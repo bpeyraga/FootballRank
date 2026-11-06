@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
-import { ATTRS, POS, ovr, sb, uploadPhoto, type Pos, type Profile, type Stats } from '../../shared/supabase';
+import { ATTRS, POS, ovr, uploadPhoto, type Pos, type Profile, type Stats } from '../../shared/supabase';
+import { loadAccount, loadBaseStats, saveMyProfile, type Account } from './api';
 import { Radar } from '../../shared/ui/Radar';
 import { TEAMS_ASCENSO, TEAMS_PRIMERA } from '../../shared/teams';
 import { Crest } from '../../shared/ui/Crest';
@@ -17,23 +18,16 @@ export function Onboarding({ me, done, cancel }: { me: Profile; done: () => void
   const [err, setErr] = useState('');
 
   // Datos de la cuenta (de la sesión local, sin pedir nada al servidor)
-  const [acct, setAcct] = useState<{ email: string; via: string; created: string; last: string | null } | null>(null);
-  useEffect(() => {
-    sb.auth.getSession().then(({ data }) => {
-      const u = data.session?.user;
-      if (!u) return;
-      const provs: string[] = (u.app_metadata?.providers as string[] | undefined) ?? [u.app_metadata?.provider ?? 'email'];
-      const via = provs.map(p => (p === 'google' ? 'Google' : p === 'email' ? 'Email y contraseña' : p)).join(' · ');
-      setAcct({ email: u.email || '—', via, created: u.created_at, last: u.last_sign_in_at ?? null });
-    });
-  }, []);
+  const [acct, setAcct] = useState<Account | null>(null);
+  useEffect(() => { loadAccount().then(setAcct, () => {}); }, []);
   const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' });
 
   useEffect(() => {
     if (!cancel) return;
     setBusy(true);
-    sb.from('base_stats').select('rit,tir,pas,reg,def,fis').eq('profile_id', me.id).maybeSingle()
-      .then(({ data, error }) => { if (error) setErr(error.message); else if (data) setStats(data as Stats); setBusy(false); });
+    loadBaseStats(me.id)
+      .then(s => { if (s) setStats(s); }, (e: any) => setErr(e?.message ?? 'Error de red'))
+      .then(() => setBusy(false));
   }, [me.id]);
 
   const shirtNum = shirt === '' ? null : +shirt;
@@ -50,11 +44,11 @@ export function Onboarding({ me, done, cancel }: { me: Profile; done: () => void
 
   const save = async () => {
     setBusy(true); setErr('');
-    const s = await sb.from('base_stats').upsert({ profile_id: me.id, ...stats, updated_at: new Date().toISOString() });
-    const p = s.error ? s : await sb.from('profiles')
-      .update({ name: name.trim(), nickname: nickname.trim() || null, shirt_number: shirtNum, fav_team: team || null, pos, photo_url: photo, onboarded: true }).eq('id', me.id);
+    try {
+      await saveMyProfile(me.id, stats, { name: name.trim(), nickname: nickname.trim() || null, shirt_number: shirtNum, fav_team: team || null, pos, photo_url: photo });
+    } catch (e: any) { setBusy(false); return setErr(e?.message ?? 'Error de red'); }
     setBusy(false);
-    if (p.error) setErr(p.error.message); else done();
+    done();
   };
 
   return (
