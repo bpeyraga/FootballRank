@@ -3,6 +3,7 @@ import type { ComponentChildren } from 'preact';
 import { sb, type Profile } from '../lib/supabase';
 import { Crest } from '../lib/Crest';
 import { KITS } from '../lib/teams';
+import { initials } from '../lib/text';
 import {
   clubForTeam, clubNews, clubOf, crestUrl, dayLabel, groupByDay, newsSources, prettyName, qualifies, relTime, resultFor, sameClub,
   shortDay, SOURCES, teamMatches, timeAR,
@@ -40,7 +41,6 @@ function useFut<T>(kind: 'table' | 'fixtures' | 'news' | 'team', team: string | 
 }
 
 // ---------- Piezas chicas ----------
-const initials = (s: string) => s.replace(/\(.*?\)/g, '').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?';
 
 /** Modo oscuro efectivo: el elegido en la app (Tema) o, en automático, el del sistema. */
 const appIsDark = () => {
@@ -272,8 +272,10 @@ function MyClub({ me, club, table, fx, mine, news, now }: {
   const next = tm?.next[0] ?? null, last = tm?.last[0] ?? null;
   const row = table.r?.data.groups.flatMap(g => g.rows.map(r => ({ r, zone: g.name }))).find(x => sameClub(club, x.r.team));
   const top = news.slice(0, 3);
-  const waiting = !fx.r && !fx.err;
-  const failed = !fx.r && fx.err;
+  // Si la lista general de partidos no llegó pero sí los del club (endpoint 'team'), se usan esos.
+  // Falló solo si fallaron las dos fuentes; mientras alguna siga cargando, se espera.
+  const failed = !tm && !!fx.err && !!mine.err;
+  const waiting = !tm && !failed;
   const notInLeague = !!fx.r && !!table.r && !row && !id;
 
   const sideOf = (m: Match) => (m.h.id === id ? m.a : m.h);

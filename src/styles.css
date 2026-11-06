@@ -282,14 +282,6 @@ a{color:var(--accent)}
 .install-tip button{flex:none}
 
 /* Foto grupal de la comunidad */
-.cphoto-wrap{margin-bottom:12px}
-.cphoto{display:block;border-radius:14px;overflow:hidden;aspect-ratio:16/9;background:var(--line)}
-.cphoto img{width:100%;height:100%;object-fit:cover;display:block}
-.cphoto.busy{opacity:.5}
-.cphoto.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;aspect-ratio:16/6;cursor:pointer;
-  background:var(--surface);border:2px dashed var(--line);color:inherit;text-align:center;padding:12px}
-.cphoto.empty>span:first-child{font-size:1.6rem}
-.cphoto-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:6px}
 .comm-crest.photo{background-size:cover;background-position:center;color:transparent}
 /* Panel de avisos */
 .push-panel{margin:0 0 14px}

@@ -9,6 +9,7 @@ import { pushOff } from '../lib/push';
 import { PushPanel } from '../lib/PushPanel';
 import { Crest } from '../lib/Crest';
 import { countdown, slotsLine } from '../lib/nextMatch';
+import { initials } from '../lib/text';
 
 interface Comm { id: string; name: string; slug: string; photo_url?: string | null }
 interface Row { role: string; community: Comm }
@@ -35,7 +36,6 @@ const isAppAdmin = (uid: string) => {
 
 const ROLE: Record<string, string> = { owner: 'Owner', admin: 'Admin', member: 'Miembro' };
 const tierOf = (o: number | null) => o == null ? 'none' : o >= 75 ? 'gold' : o >= 65 ? 'silver' : 'bronze';
-const initials = (s: string) => s.trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?';
 const when = (iso: string) => new Date(iso).toLocaleString('es-AR',
   { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 /** Acepta el link completo (…/#/join/abc123) o solo el código. */
@@ -158,7 +158,8 @@ export function Home({ me }: { me: Profile }) {
   const heroHref = hero && heroComm ? `#/c/${heroComm.community.slug}/m/${hero.id}` : '';
   const quick: { href: string; label: string; sub: string; d: string; main?: boolean }[] = [];
   if (hero && heroComm) quick.push({
-    href: heroHref, label: su?.mine ? 'Ver lista' : 'Anotarme', sub: heroComm.community.name, main: !su?.mine,
+    href: heroHref, label: su?.mine ? 'Ver lista' : hero.status !== 'open' ? 'Ver partido' : 'Anotarme', sub: heroComm.community.name,
+    main: !su?.mine && hero.status === 'open',
     d: 'M5 12.5l4.5 4.5L19 7.5',
   });
   if (adminOf) quick.push({ href: `#/c/${adminOf.community.slug}`, label: 'Crear partido', sub: adminOf.community.name, d: 'M4 6h16v14H4zM4 10h16M8 3v4M16 3v4M12 13v5M9.5 15.5h5' });

@@ -6,7 +6,8 @@ export const NICK_MAX = 20;
 export const BULK_MAX = 60; // tope de add_players por llamada
 
 /** Minúsculas, sin acentos y con espacios normalizados: para comparar nombres ("José  Pérez" = "jose perez"). */
-export const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+import { norm } from './futbolCore';
+export { norm };
 
 // ---------- Posición ----------
 const POS_ALIAS: Record<string, Pos> = {

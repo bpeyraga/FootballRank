@@ -12,6 +12,7 @@ import { ClaimsCard } from '../lib/ClaimsCard';
 import { VenuesCard } from '../lib/VenuesManager';
 import { nPlayers, stepFromRoute } from '../lib/players';
 import '../admin.css';
+import { initials } from '../lib/text';
 
 // Clave del "último visto" del chat (misma que usa Chat.tsx), acá para no traer todo el chat al cargar la comunidad.
 const seenKey = (communityId: string) => `futrank-seen-${communityId}`;
@@ -36,7 +37,6 @@ const TAB_ICONS: Record<string, any> = {
   votar: <path d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z" />,
   miembros: <><circle cx="9" cy="8" r="3.2" /><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5" /><circle cx="17" cy="9" r="2.5" /><path d="M17 14.5c2.5 0 4.2 1.7 4.2 4" /></>,
 };
-const initials = (s: string) => s.trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?';
 
 /** sub: [] (partidos) | ['m', id] | ['chat'] | ['ranking'] | ['votar', pid?] | ['miembros'] | ['p', pid] | ['setup', paso?] (asistente de armado, solo admins) */
 export function Community({ slug, sub, me }: { slug: string; sub: string[]; me: Profile }) {
@@ -126,7 +126,10 @@ export function Community({ slug, sub, me }: { slug: string; sub: string[]; me: 
     if (!confirm(noAccount
       ? `¿Sacar a ${name} del grupo? Se libera su lugar en los partidos abiertos.`
       : `¿Sacar a ${name} de la comunidad? Se libera su lugar en los partidos abiertos. Si no querés que vuelva a entrar, después regenerá el link de invitación.`)) return;
-    const { error } = await sb.from('memberships').delete().eq('community_id', c.id).eq('profile_id', pid);
+    // Sin cuenta: se borra también el perfil (si no está en otra comunidad), para no dejarlo huérfano.
+    const { error } = noAccount
+      ? await sb.rpc('remove_placeholder', { p_community: c.id, p_profile: pid })
+      : await sb.from('memberships').delete().eq('community_id', c.id).eq('profile_id', pid);
     if (error) setActErr(error.message); else { setActErr(''); loadRows(c.id); }
   };
 

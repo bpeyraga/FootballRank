@@ -10,7 +10,7 @@
   :root{--tabbar-h:calc(58px + env(safe-area-inset-bottom,0px))}
 
   /* Elementos que solo existen para escritorio (no ocupan lugar en el celular) */
-  .desk-only,.desk-crest{display:none}
+  .desk-only{display:none}
 
   .tabs{position:fixed;left:0;right:0;bottom:0;top:auto;z-index:6;height:var(--tabbar-h);margin:0;
     padding:0 0 env(safe-area-inset-bottom,0px);overflow:visible;gap:0;

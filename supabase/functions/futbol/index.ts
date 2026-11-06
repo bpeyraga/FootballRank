@@ -455,14 +455,14 @@ async function get(url: string, as: 'json' | 'text', ms = 6000): Promise<any> {
 // ---------- Caché ----------
 interface Reply<T> { data: T; fetched_at: string; stale: boolean }
 
-async function cached<T>(key: string, ttl: (d: T | null) => number, build: () => Promise<T>, force = false): Promise<Reply<T>> {
+async function cached<T>(key: string, ttl: (d: T | null) => number, build: (old: T | null) => Promise<T>, force = false): Promise<Reply<T>> {
   const { data: row } = await db.from('futbol_cache').select('data,fetched_at').eq('key', key).maybeSingle();
   const old = row ? (row.data as T) : null;
   const age = row ? Date.now() - Date.parse(row.fetched_at) : Infinity;
   const limit = force ? Math.min(ttl(old), FORCE_MS) : ttl(old);
   if (row && age < limit) return { data: old as T, fetched_at: row.fetched_at, stale: false };
   try {
-    const data = await build();
+    const data = await build(old);
     const fetched_at = new Date().toISOString();
     const { error } = await db.from('futbol_cache').upsert({ key, data, fetched_at });
     if (error) console.error('cache write', key, error.message);
@@ -505,9 +505,15 @@ async function buildNews(): Promise<News> {
 const fixturesTtlFn = (d: Fixtures | null) => fixturesTtl(d, Date.now());
 const getFixtures = (force = false) => cached<Fixtures>('fixtures', fixturesTtlFn, buildFixtures, force);
 
-/** Próximos y últimos partidos de un club (salen de los partidos en caché) + las notas de su feed propio de Olé. */
-async function buildTeam(c: Club, force: boolean): Promise<TeamData> {
-  const fx = await getFixtures(force).catch(() => null);
+/**
+ * Próximos y últimos partidos de un club (salen de los partidos en caché) + las notas de su feed propio de Olé.
+ * Usa los partidos ya cacheados (sin forzar): "Actualizar" ya pide 'fixtures' aparte, así no se le pega dos veces a ESPN.
+ * Si los partidos no están disponibles y había datos del club, falla para que `cached` devuelva lo viejo (stale)
+ * en vez de guardar como fresco un club sin partidos.
+ */
+async function buildTeam(c: Club, old: TeamData | null): Promise<TeamData> {
+  const fx = await getFixtures(false).catch(() => null);
+  if (!fx && old && (old.next.length || old.last.length)) throw new Error('partidos no disponibles');
   let own: NewsItem[] = [];
   let newsOk = !c.ole;
   if (c.ole) {
@@ -541,7 +547,7 @@ Deno.serve(async req => {
     else if (kind === 'team') {
       const c = clubOf(typeof p.team === 'string' ? p.team.slice(0, 80) : null);
       if (!c) return json({ ok: true, kind, data: { name: '', id: null, next: [], last: [], news: [] }, fetched_at: new Date().toISOString(), stale: false });
-      r = await cached<TeamData>(teamKey(c), ttl, () => buildTeam(c, force), force);
+      r = await cached<TeamData>(teamKey(c), ttl, old => buildTeam(c, old), force);
     } else return json({ error: 'bad_kind' }, 400);
     return json({ ok: true, kind, ...r });
   } catch (e) {
