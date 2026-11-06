@@ -26,3 +26,8 @@
 .pc-name{display:flex;align-items:center;gap:3px}
 .crest{flex:none;vertical-align:middle}
 .pc-name .ellipsis{min-width:0}
+/* Brazalete de capitán */
+.pc-cap,.cap{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:4px;
+  background:#f6c400;color:#1d1d1d;font:700 .68rem/1 var(--f-display);box-shadow:0 0 0 1px rgba(0,0,0,.35)}
+.pc-cap{position:absolute;left:4px;bottom:6px}
+.cap{margin-left:6px;vertical-align:middle}

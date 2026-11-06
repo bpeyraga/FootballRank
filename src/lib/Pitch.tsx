@@ -8,8 +8,8 @@ import '../pitch.css';
 export interface PitchPlayer { id: string; pos: Profile['pos']; ovr: number | null; profile: Profile }
 
 /** Cancha de fútbol 5 con los jugadores ubicados como cartas de formación estilo FIFA. */
-export function Pitch({ placed, href, showAlts = false }: {
-  placed: Placed<PitchPlayer>[]; href?: (id: string) => string; showAlts?: boolean;
+export function Pitch({ placed, href, showAlts = false, captainId }: {
+  placed: Placed<PitchPlayer>[]; href?: (id: string) => string; showAlts?: boolean; captainId?: string | null;
 }) {
   return (
     <div class="pitch" role="img" aria-label={'Formación: ' + placed.map(s => `${s.slot.pos} ${s.p ? displayName(s.p.profile) : 'vacío'}`).join(', ')}>
@@ -31,6 +31,7 @@ export function Pitch({ placed, href, showAlts = false }: {
               <span class="pc-top"><b>{p.ovr ?? '—'}</b><i>{s.slot.pos}</i></span>
               <Avatar p={p.profile} size={34} />
               {p.profile.shirt_number && <span class="pc-num">#{p.profile.shirt_number}</span>}
+              {p.id === captainId && <span class="pc-cap" title="Capitán">C</span>}
             </span>
             <span class="pc-name"><Crest team={p.profile.fav_team} size={8} /><span class="ellipsis">{displayName(p.profile)}</span></span>
           </>

@@ -14,7 +14,7 @@ import { downloadIcs, gcalUrl, matchUrl, shareText, whatsappUrl } from '../lib/s
 import '../stats.css';
 import '../admin.css';
 
-interface Signup { profile_id: string; status: 'in' | 'waitlist' | 'out'; team: 'A' | 'B' | null; created_at: string; absent: boolean }
+interface Signup { profile_id: string; status: 'in' | 'waitlist' | 'out'; team: 'A' | 'B' | null; created_at: string; absent: boolean; captain: boolean }
 interface Susp { id: string; profile_id: string }
 type BP = BPlayer & { r: Ranked };
 const NEUTRAL: Stats = { rit: 50, tir: 50, pas: 50, reg: 50, def: 50, fis: 50 };
@@ -156,7 +156,7 @@ export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: str
     const ups = [...s.A.map(p => [p.id, 'A']), ...s.B.map(p => [p.id, 'B'])] as const;
     setBusy(true); setErr('');
     const results = await Promise.all(ups.map(([pid, team]) =>
-      sb.from('match_signups').update({ team }).eq('match_id', id).eq('profile_id', pid)));
+      sb.from('match_signups').update({ team, captain: false }).eq('match_id', id).eq('profile_id', pid)));
     setBusy(false);
     const e = results.find(r => r.error)?.error;
     if (e) return setErr(e.message);
@@ -171,7 +171,7 @@ export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: str
     return (
       <div class="row rank-row">
         <Avatar p={p} size={32} />
-        <span style="flex:1" class="ellipsis">{displayName(p)} <span class="muted">· {posLine(p)}</span></span>
+        <span style="flex:1" class="ellipsis">{displayName(p)}{su.find(s => s.profile_id === pid && s.status === 'in' && s.team && s.captain) && <span class="cap" title="Capitán">C</span>} <span class="muted">· {posLine(p)}</span></span>
         {su.find(s => s.profile_id === pid && s.status === 'in')?.absent && <span class="pill bad">Ausente</span>}
         {sc && <span class="pill" title={`${sc.n} ${sc.n === 1 ? 'calificación' : 'calificaciones'}`}>★ {sc.avg}</span>}
         {right}
@@ -193,6 +193,15 @@ export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: str
           `${displayName(prof(pid))} queda suspendido para el próximo partido`)}>Suspender</button>}
     </>;
   };
+  // Capitán: lo elige un admin o cualquiera del mismo equipo
+  const captainBtn = (pid: string) => {
+    const s = su.find(x => x.profile_id === pid && x.status === 'in');
+    if (!s?.team || m.status === 'cancelled' || s.absent) return null;
+    if (!isAdmin && myTeam !== s.team) return null;
+    return <button class="btn sm" disabled={busy}
+      onClick={() => run(() => sb.rpc('set_captain', { p_match: id, p_profile: pid, p_on: !s.captain }),
+        s.captain ? 'Capitán quitado' : `${displayName(prof(pid))} es el capitán`)}>{s.captain ? 'Quitar C' : 'Capitán'}</button>;
+  };
   const actions = (pid: string) => <>{kick(pid)}{absence(pid)}</>;
 
   const Team = ({ t, label }: { t: 'A' | 'B'; label: string }) => {
@@ -204,9 +213,9 @@ export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: str
           <h3>{label}</h3>
           <span class="muted">OVR {avgOvr(ps.map(s => toBP(s.profile_id)))}</span>
         </div>
-        {ps.length > 0 && <div style="margin:10px 0 6px"><Pitch placed={lu.placed} /></div>}
+        {ps.length > 0 && <div style="margin:10px 0 6px"><Pitch placed={lu.placed} captainId={ps.find(s => s.captain)?.profile_id} /></div>}
         {lu.bench.length > 0 && <p class="muted pitch-bench">Suplentes: {lu.bench.map(b => displayName(b.profile)).join(', ')}</p>}
-        {ps.map(s => <PlayerRow pid={s.profile_id} right={actions(s.profile_id)} />)}
+        {ps.map(s => <PlayerRow pid={s.profile_id} right={<>{captainBtn(s.profile_id)}{actions(s.profile_id)}</>} />)}
       </div>
     );
   };
