@@ -16,6 +16,23 @@ interface Next { id: string; community_id: string; title: string; starts_at: str
 /** Anotados del próximo partido y si estoy adentro. */
 interface Su { taken: number; waiting: number; mine: 'in' | 'waitlist' | null }
 
+/** ¿Es del equipo de la app? Se pregunta una sola vez por sesión (por usuario); ante cualquier error, no (el link queda oculto). */
+let appAdmin: { uid: string; ok: Promise<boolean> } | null = null;
+const isAppAdmin = (uid: string) => {
+  if (appAdmin?.uid !== uid) {
+    const entry: { uid: string; ok: Promise<boolean> } = { uid, ok: Promise.resolve(sb.rpc('is_app_admin')).then(({ data, error }) => {
+      if (error) throw error;
+      return data === true;
+    }).catch(() => {
+      // un error pasajero no se cachea: la próxima vez se vuelve a preguntar
+      if (appAdmin === entry) appAdmin = null;
+      return false;
+    }) };
+    appAdmin = entry;
+  }
+  return appAdmin.ok;
+};
+
 const ROLE: Record<string, string> = { owner: 'Owner', admin: 'Admin', member: 'Miembro' };
 const tierOf = (o: number | null) => o == null ? 'none' : o >= 75 ? 'gold' : o >= 65 ? 'silver' : 'bronze';
 const initials = (s: string) => s.trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?';
@@ -47,6 +64,7 @@ export function Home({ me }: { me: Profile }) {
   const install = useInstall();
   const [tip, setTip] = useState('');
   const [alerts, setAlerts] = useState(false);
+  const [staff, setStaff] = useState(false);
 
   useEffect(() => {
     sb.from('base_stats').select('rit,tir,pas,reg,def,fis').eq('profile_id', me.id).maybeSingle()
@@ -88,6 +106,12 @@ export function Home({ me }: { me: Profile }) {
         }
       });
   }, [me.id]);
+
+  useEffect(() => {
+    let live = true;
+    if (me.user_id) isAppAdmin(me.user_id).then(ok => { if (live) setStaff(ok); });
+    return () => { live = false; };
+  }, [me.user_id]);
 
   // La cuenta regresiva se actualiza sola
   useEffect(() => {
@@ -158,6 +182,7 @@ export function Home({ me }: { me: Profile }) {
               }}>📲 Instalar app</a>
             )}
             <a href="#" onClick={e => { e.preventDefault(); setAlerts(a => !a); menu.current && (menu.current.open = false); }}>🔔 Avisos</a>
+            {staff && <a href="#/admin">📊 Panel de la app</a>}
             <a href="/terminos.html">Términos</a>
             <a href="/privacidad.html">Privacidad</a>
             <button onClick={async () => { await pushOff().catch(() => {}); sb.auth.signOut(); }}>Cerrar sesión</button>

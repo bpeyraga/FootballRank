@@ -16,6 +16,19 @@ export function Onboarding({ me, done, cancel }: { me: Profile; done: () => void
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
+  // Datos de la cuenta (de la sesión local, sin pedir nada al servidor)
+  const [acct, setAcct] = useState<{ email: string; via: string; created: string; last: string | null } | null>(null);
+  useEffect(() => {
+    sb.auth.getSession().then(({ data }) => {
+      const u = data.session?.user;
+      if (!u) return;
+      const provs: string[] = (u.app_metadata?.providers as string[] | undefined) ?? [u.app_metadata?.provider ?? 'email'];
+      const via = provs.map(p => (p === 'google' ? 'Google' : p === 'email' ? 'Email y contraseña' : p)).join(' · ');
+      setAcct({ email: u.email || '—', via, created: u.created_at, last: u.last_sign_in_at ?? null });
+    });
+  }, []);
+  const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' });
+
   useEffect(() => {
     if (!cancel) return;
     setBusy(true);
@@ -92,6 +105,18 @@ export function Onboarding({ me, done, cancel }: { me: Profile; done: () => void
           </label>
         ))}
       </div>
+      {cancel && acct && (
+        <div class="card acct">
+          <h3 style="margin-bottom:10px">Tu cuenta</h3>
+          <dl>
+            <dt>Email</dt><dd>{acct.email}</dd>
+            <dt>Entrás con</dt><dd>{acct.via}</dd>
+            <dt>Cuenta creada</dt><dd>{fmtDate(acct.created)}</dd>
+            {acct.last && <><dt>Sesión iniciada</dt><dd>{fmtDate(acct.last)}</dd></>}
+          </dl>
+          <p class="muted" style="margin-top:10px;font-size:.82rem">Tu email solo lo ves vos: no se muestra a los demás jugadores.</p>
+        </div>
+      )}
       <button class="btn primary block" disabled={busy || !name.trim() || !shirtOk} onClick={save}>
         {busy ? 'Guardando…' : cancel ? 'Guardar' : 'Listo'}
       </button>

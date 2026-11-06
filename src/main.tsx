@@ -4,6 +4,7 @@ import './styles.css';
 import './lib/install'; // registra el service worker y escucha "instalar app" desde el arranque
 import { loadMe, sb, type Profile } from './lib/supabase';
 import { pushForget, pushOff, pushSync } from './lib/push';
+import { startTracking, trackNow } from './lib/track';
 import { Loading, page, prefetch } from './lib/lazy';
 const Login = page(() => import('./pages/Login'), m => m.Login);
 const Onboarding = page(() => import('./pages/Onboarding'), m => m.Onboarding);
@@ -18,6 +19,7 @@ import { KEY as THEME_KEY, applyTheme, clubVars, loadTheme, saveTheme } from './
 addEventListener('storage', e => { if (e.key === THEME_KEY) applyTheme(loadTheme()); });
 const Community = page(() => import('./pages/Community'), m => m.Community);
 const Futbol = page(() => import('./pages/Futbol'), m => m.Futbol);
+const Admin = page(() => import('./pages/Admin'), m => m.Admin);
 import { go, NEXT_KEY, useRoute } from './lib/router';
 // Todos los estilos en la carga inicial (son chicos) y desktop.css al final: las pantallas se bajan aparte
 // y, si sus CSS llegaran después, le ganarían a las reglas de PC.
@@ -32,6 +34,7 @@ import './landing.css';
 import './home.css';
 import './players.css';
 import './cover.css';
+import './superadmin.css';
 import './desktop.css';
 import './themes.css';
 
@@ -73,7 +76,10 @@ function App() {
     // supabase-js emite SIGNED_IN también al volver a la pestaña: solo recargamos si cambió el usuario.
     const { data } = sb.auth.onAuthStateChange((ev, session) => {
       if (ev === 'SIGNED_OUT') { pushForget(); setMe(null); setState('out'); }
-      else if (ev === 'SIGNED_IN' && session?.user.id !== userId.current) refresh();
+      else if (ev === 'SIGNED_IN') {
+        setTimeout(trackNow, 0); // asocia la visita al usuario (con tope de 1 cada 30 s)
+        if (session?.user.id !== userId.current) refresh();
+      }
     });
     return () => data.subscription.unsubscribe();
   }, []);
@@ -92,8 +98,10 @@ function App() {
   if (route[0] === 'perfil') return <Onboarding me={me} done={async () => { await refresh(); go(''); }} cancel={() => go('')} />;
   if (route[0] === 'join' && route[1]) return <Join code={route[1]} />;
   if (route[0] === 'futbol') return <Futbol me={me} />;
+  if (route[0] === 'admin') return <Admin />;
   if (route[0] === 'c' && route[1]) return <Community slug={route[1]} sub={route.slice(2)} me={me} />;
   return <Home me={me} />;
 }
 
+startTracking(sb); // visitas, en vivo e instalaciones (también en la landing, sin sesión)
 render(<Loading><App /></Loading>, document.getElementById('app')!);

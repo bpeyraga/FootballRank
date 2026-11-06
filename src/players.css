@@ -112,3 +112,8 @@
   .pl-chips button:not(.on):not(:disabled):hover{border-color:var(--accent);background:var(--accent-soft)}
   .bulk-pos:hover{border-color:var(--accent)}
 }
+
+/* Perfil: datos de la cuenta */
+.acct dl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px 14px;margin:0}
+.acct dt{color:var(--muted);font-size:.88rem}
+.acct dd{margin:0;font-weight:600;overflow-wrap:anywhere}
