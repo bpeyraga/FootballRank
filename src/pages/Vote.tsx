@@ -1,5 +1,5 @@
 import { useState } from 'preact/hooks';
-import { ATTRS, ovr, sb, type Stats } from '../lib/supabase';
+import { ATTRS, displayName, ovr, posLine, sb, type Stats } from '../lib/supabase';
 import { Radar } from '../lib/Radar';
 import { Avatar } from '../lib/Avatar';
 import type { Ranked } from '../lib/ranking';
@@ -10,7 +10,7 @@ export function Vote({ rows, communityId, slug, meId, startId, saved }:
   { rows: Ranked[]; communityId: string; slug: string; meId: string; startId?: string; saved: () => Promise<void> }) {
   // Orden fijo al entrar (sin votar primero); no se reordena al recargar después de guardar.
   const [order] = useState(() => rows.filter(r => r.profile.id !== meId)
-    .sort((a, b) => Number(!!a.mine) - Number(!!b.mine) || a.profile.name.localeCompare(b.profile.name))
+    .sort((a, b) => Number(!!a.mine) - Number(!!b.mine) || displayName(a.profile).localeCompare(displayName(b.profile)))
     .map(r => r.profile.id));
   const others = order.map(id => rows.find(r => r.profile.id === id)).filter((r): r is Ranked => !!r);
   const [idx, setIdx] = useState(() => Math.max(0, others.findIndex(r => r.profile.id === startId)));
@@ -40,8 +40,8 @@ export function Vote({ rows, communityId, slug, meId, startId, saved }:
       <div class="row" style="margin-bottom:12px">
         <Avatar p={cur.profile} size={56} />
         <div style="flex:1">
-          <h3>{cur.profile.name}</h3>
-          <div class="muted">{cur.profile.pos} · {cur.mine ? 'ya lo votaste, podés cambiarlo' : 'sin tu voto'}</div>
+          <h3>{displayName(cur.profile)}</h3>
+          <div class="muted">{posLine(cur.profile)} · {cur.mine ? 'ya lo votaste, podés cambiarlo' : 'sin tu voto'}</div>
         </div>
         <h3>OVR {ovr(stats)}</h3>
       </div>

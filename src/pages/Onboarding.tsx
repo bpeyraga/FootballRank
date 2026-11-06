@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'preact/hooks';
 import { ATTRS, POS, ovr, sb, uploadPhoto, type Pos, type Profile, type Stats } from '../lib/supabase';
 import { Radar } from '../lib/Radar';
+import { TEAMS_ASCENSO, TEAMS_PRIMERA } from '../lib/teams';
 
 /** Ficha inicial y edición de perfil (con `cancel` es modo edición). */
 export function Onboarding({ me, done, cancel }: { me: Profile; done: () => void; cancel?: () => void }) {
   const [name, setName] = useState(me.name);
+  const [nickname, setNickname] = useState(me.nickname ?? '');
+  const [shirt, setShirt] = useState(me.shirt_number ? String(me.shirt_number) : '');
+  const [team, setTeam] = useState(me.fav_team ?? '');
   const [pos, setPos] = useState<Pos>(me.pos);
   const [photo, setPhoto] = useState(me.photo_url);
   const [stats, setStats] = useState<Stats>({ rit: 50, tir: 50, pas: 50, reg: 50, def: 50, fis: 50 });
@@ -17,6 +21,9 @@ export function Onboarding({ me, done, cancel }: { me: Profile; done: () => void
     sb.from('base_stats').select('rit,tir,pas,reg,def,fis').eq('profile_id', me.id).maybeSingle()
       .then(({ data, error }) => { if (error) setErr(error.message); else if (data) setStats(data as Stats); setBusy(false); });
   }, [me.id]);
+
+  const shirtNum = shirt === '' ? null : +shirt;
+  const shirtOk = shirtNum === null || (Number.isInteger(shirtNum) && shirtNum >= 1 && shirtNum <= 99);
 
   const onPhoto = async (e: Event) => {
     const f = (e.target as HTMLInputElement).files?.[0];
@@ -31,7 +38,7 @@ export function Onboarding({ me, done, cancel }: { me: Profile; done: () => void
     setBusy(true); setErr('');
     const s = await sb.from('base_stats').upsert({ profile_id: me.id, ...stats, updated_at: new Date().toISOString() });
     const p = s.error ? s : await sb.from('profiles')
-      .update({ name: name.trim(), pos, photo_url: photo, onboarded: true }).eq('id', me.id);
+      .update({ name: name.trim(), nickname: nickname.trim() || null, shirt_number: shirtNum, fav_team: team || null, pos, photo_url: photo, onboarded: true }).eq('id', me.id);
     setBusy(false);
     if (p.error) setErr(p.error.message); else done();
   };
@@ -51,6 +58,20 @@ export function Onboarding({ me, done, cancel }: { me: Profile; done: () => void
           <select value={pos} onChange={e => setPos((e.target as HTMLSelectElement).value as Pos)}>
             {POS.map(p => <option value={p}>{p}</option>)}
           </select></label>
+        <label class="field"><span>Apodo <span class="muted">(opcional, es lo que ven los demás)</span></span>
+          <input value={nickname} maxLength={20} placeholder="El Chino"
+            onInput={e => setNickname((e.target as HTMLInputElement).value)} /></label>
+        <label class="field"><span>Número de camiseta favorito</span>
+          <input type="number" inputMode="numeric" min={1} max={99} value={shirt} placeholder="10"
+            onInput={e => setShirt((e.target as HTMLInputElement).value)} /></label>
+        {!shirtOk && <p class="err">El número tiene que ser entre 1 y 99.</p>}
+        <label class="field"><span>¿De qué equipo sos hincha?</span>
+          <select value={team} onChange={e => setTeam((e.target as HTMLSelectElement).value)}>
+            <option value="">— Ninguno —</option>
+            {team && !TEAMS_PRIMERA.includes(team) && !TEAMS_ASCENSO.includes(team) && <option value={team}>{team}</option>}
+            <optgroup label="Primera División">{TEAMS_PRIMERA.map(t => <option value={t}>{t}</option>)}</optgroup>
+            <optgroup label="Ascenso">{TEAMS_ASCENSO.map(t => <option value={t}>{t}</option>)}</optgroup>
+          </select></label>
       </div>
       <div class="card">
         <div class="row" style="justify-content:space-between;margin-bottom:8px">
@@ -67,7 +88,7 @@ export function Onboarding({ me, done, cancel }: { me: Profile; done: () => void
           </label>
         ))}
       </div>
-      <button class="btn primary block" disabled={busy || !name.trim()} onClick={save}>
+      <button class="btn primary block" disabled={busy || !name.trim() || !shirtOk} onClick={save}>
         {busy ? 'Guardando…' : cancel ? 'Guardar' : 'Listo'}
       </button>
       {cancel && <button class="btn block" style="margin-top:8px" disabled={busy} onClick={cancel}>Cancelar</button>}

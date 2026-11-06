@@ -11,7 +11,13 @@ export type Pos = typeof POS[number];
 export interface Profile {
   id: string; user_id: string | null; name: string; pos: Pos;
   photo_url: string | null; onboarded: boolean;
+  nickname: string | null; shirt_number: number | null; fav_team: string | null;
 }
+
+/** Nombre a mostrar: el apodo si tiene, si no el nombre. */
+export const displayName = (p: { name: string; nickname?: string | null }) => p.nickname?.trim() || p.name;
+/** "DEL · #10" (sin número si no eligió). */
+export const posLine = (p: Pick<Profile, 'pos' | 'shirt_number'>) => p.shirt_number ? `${p.pos} · #${p.shirt_number}` : p.pos;
 
 export const ovr = (s: Stats) => Math.round(ATTRS.reduce((t, [k]) => t + s[k], 0) / 6);
 

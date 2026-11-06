@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { hue, sb, type Profile, type Stats } from '../lib/supabase';
+import { displayName, hue, posLine, sb, type Profile, type Stats } from '../lib/supabase';
 import { go, slugify } from '../lib/router';
 import { Avatar } from '../lib/Avatar';
 import { FutCard } from '../lib/FutCard';
@@ -90,7 +90,7 @@ export function Home({ me }: { me: Profile }) {
         <details class="menu" ref={menu}>
           <summary aria-label="Menú de la cuenta"><Avatar p={me} size={36} /></summary>
           <div class="menu-pop">
-            <div class="menu-who"><b class="ellipsis">{me.name}</b><span class="muted">{me.pos}</span></div>
+            <div class="menu-who"><b class="ellipsis">{displayName(me)}</b><span class="muted">{posLine(me)}</span></div>
             <a href="#/perfil">Editar perfil</a>
             <a href="/terminos.html">Términos</a>
             <a href="/privacidad.html">Privacidad</a>
@@ -103,7 +103,7 @@ export function Home({ me }: { me: Profile }) {
         <FutCard p={me} stats={stats} size="sm" />
         <div class="me-copy">
           <span class="kicker">Tu ficha</span>
-          <h2 class="ellipsis">Hola, {me.name.split(' ')[0]}</h2>
+          <h2 class="ellipsis">Hola, {me.nickname?.trim() || me.name.split(' ')[0]}</h2>
           <p class="muted">Esta es tu autoevaluación. En cada comunidad tu OVR sale de los votos de tus compañeros.</p>
           <a class="btn sm" href="#/perfil">Editar ficha</a>
         </div>

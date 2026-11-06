@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
-import { ATTRS } from '../lib/supabase';
+import { ATTRS, displayName, posLine } from '../lib/supabase';
 import { Radar } from '../lib/Radar';
 import { Avatar } from '../lib/Avatar';
 import { tier, type Ranked } from '../lib/ranking';
@@ -28,8 +28,10 @@ export function Player({ r, slug, meId, communityId }: { r: Ranked; slug: string
         <div class="row">
           <Avatar p={r.profile} size={72} />
           <div style="flex:1">
-            <h2>{r.profile.name}</h2>
-            <div>{r.profile.pos} · {ROLE[r.role]}</div>
+            <h2>{displayName(r.profile)}</h2>
+            {r.profile.nickname && <div style="font-size:.85rem;opacity:.8">{r.profile.name}</div>}
+            <div>{posLine(r.profile)} · {ROLE[r.role]}</div>
+            {r.profile.fav_team && <div style="font-size:.85rem;opacity:.8">Hincha de {r.profile.fav_team}</div>}
           </div>
           <div style="text-align:center">
             <div class="big">{r.ovr ?? '—'}</div>

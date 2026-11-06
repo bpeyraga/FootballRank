@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
+import { displayName, posLine } from '../lib/supabase';
 import { tier, type Ranked } from '../lib/ranking';
 import { Avatar } from '../lib/Avatar';
 import { fmtAvg, leaderboard, loadCommunityStats, perMatch, type PlayerStats } from '../lib/stats';
@@ -28,7 +29,7 @@ export function Ranking({ rows, slug, meId, communityId }: { rows: Ranked[]; slu
 
   const byId = useMemo(() => new Map(rows.map(r => [r.profile.id, r])), [rows]);
   const board = useMemo(
-    () => stats && view !== 'ovr' ? leaderboard(rows.map(r => ({ id: r.profile.id, name: r.profile.name })), stats, view) : [],
+    () => stats && view !== 'ovr' ? leaderboard(rows.map(r => ({ id: r.profile.id, name: displayName(r.profile) })), stats, view) : [],
     [rows, stats, view]);
 
   return (
@@ -52,9 +53,9 @@ export function Ranking({ rows, slug, meId, communityId }: { rows: Ranked[]; slu
               <span class="muted" style="width:1.4em;text-align:right">{r.ovr == null ? '' : i + 1}</span>
               <Avatar p={r.profile} />
               <div style="flex:1;min-width:0">
-                <div class="ellipsis">{r.profile.name}{r.profile.id === meId && <span class="muted"> (vos)</span>}</div>
+                <div class="ellipsis">{displayName(r.profile)}{r.profile.id === meId && <span class="muted"> (vos)</span>}</div>
                 <div class="muted" style="font-size:.85rem">
-                  {r.profile.pos} · {r.nVotes ? `${r.nVotes} ${r.nVotes === 1 ? 'voto' : 'votos'}` : 'sin votos'}
+                  {posLine(r.profile)} · {r.nVotes ? `${r.nVotes} ${r.nVotes === 1 ? 'voto' : 'votos'}` : 'sin votos'}
                 </div>
               </div>
               <span class={`ovr ${tier(r.ovr)}`}>{r.ovr ?? '—'}</span>

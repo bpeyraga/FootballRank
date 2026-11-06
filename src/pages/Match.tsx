@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
-import { ovr, sb, type Profile, type Stats } from '../lib/supabase';
+import { displayName, ovr, posLine, sb, type Profile, type Stats } from '../lib/supabase';
 import { balance, type BPlayer } from '../lib/balance';
 import { Avatar } from '../lib/Avatar';
 import type { Ranked } from '../lib/ranking';
@@ -66,7 +66,7 @@ export function Match({ id, rows, meId, isAdmin }: { id: string; rows: Ranked[];
   const editable = m.status === 'open' || m.status === 'closed';
   const hasTeams = inList.some(s => s.team);
   const myTeam = mine?.status === 'in' ? mine.team : null;
-  const prof = (pid: string): Profile => byId.get(pid)?.profile ?? { id: pid, name: '?', pos: 'MED', photo_url: null, user_id: null, onboarded: true };
+  const prof = (pid: string): Profile => byId.get(pid)?.profile ?? { id: pid, name: '?', pos: 'MED', photo_url: null, user_id: null, onboarded: true, nickname: null, shirt_number: null, fav_team: null };
 
   const run = async (f: () => PromiseLike<{ error: any }>, ok?: string) => {
     setBusy(true); setErr(''); setMsg('');
@@ -123,7 +123,7 @@ export function Match({ id, rows, meId, isAdmin }: { id: string; rows: Ranked[];
     return (
       <div class="row rank-row">
         <Avatar p={p} size={32} />
-        <span style="flex:1" class="ellipsis">{p.name} <span class="muted">· {p.pos}</span></span>
+        <span style="flex:1" class="ellipsis">{displayName(p)} <span class="muted">· {posLine(p)}</span></span>
         {sc && <span class="pill" title={`${sc.n} ${sc.n === 1 ? 'calificación' : 'calificaciones'}`}>★ {sc.avg}</span>}
         {right}
       </div>
@@ -196,8 +196,8 @@ export function Match({ id, rows, meId, isAdmin }: { id: string; rows: Ranked[];
       {m.status === 'played' && (
         <MatchEvents events={events} err={evErr} busy={evBusy} meId={meId} isAdmin={isAdmin}
           canAdd={isAdmin || mine?.status === 'in'} hasTeams={hasTeams}
-          players={inList.map(s => ({ id: s.profile_id, name: prof(s.profile_id).name, team: s.team }))}
-          nameOf={pid => prof(pid).name} teamOf={pid => (hasTeams ? inList.find(s => s.profile_id === pid)?.team ?? null : null)}
+          players={inList.map(s => ({ id: s.profile_id, name: displayName(prof(s.profile_id)), team: s.team }))}
+          nameOf={pid => displayName(prof(pid))} teamOf={pid => (hasTeams ? inList.find(s => s.profile_id === pid)?.team ?? null : null)}
           onAdd={addEvent} onDel={delEvent} />
       )}
 
@@ -210,7 +210,7 @@ export function Match({ id, rows, meId, isAdmin }: { id: string; rows: Ranked[];
               <select style="flex:1;min-height:44px;border-radius:10px;padding:0 8px;background:var(--bg);border:1px solid var(--line)"
                 value={adding} onChange={e => setAdding((e.target as HTMLSelectElement).value)}>
                 <option value="">Anotar a un miembro…</option>
-                {notIn.map(r => <option value={r.profile.id}>{r.profile.name}</option>)}
+                {notIn.map(r => <option value={r.profile.id}>{displayName(r.profile)}</option>)}
               </select>
               <button class="btn" disabled={!adding || busy}
                 onClick={() => run(() => sb.rpc('add_to_match', { p_match: id, p_profile: adding })).then(ok => ok && setAdding(''))}>Anotar</button>
@@ -239,7 +239,7 @@ export function Match({ id, rows, meId, isAdmin }: { id: string; rows: Ranked[];
               {([['A', s.A], ['B', s.B]] as const).map(([t, ps]) => (
                 <div class={`team ${t}`}>
                   <b>Equipo {t} · OVR {avgOvr(ps as BP[])}</b>
-                  {(ps as BP[]).map(p => <div class="ellipsis">{p.r?.profile.name ?? '?'} <span class="muted">{p.pos} {p.ovr}</span></div>)}
+                  {(ps as BP[]).map(p => <div class="ellipsis">{p.r ? displayName(p.r.profile) : '?'} <span class="muted">{p.pos} {p.ovr}</span></div>)}
                 </div>
               ))}
             </div>
@@ -366,10 +366,10 @@ function RateTeammates({ mates, initial, busy, save }:
       <p class="muted" style="margin-bottom:8px">Del 1 al 10, ¿cómo jugó cada uno hoy?</p>
       {mates.map(p => (
         <div class="rank-row">
-          <div class="row"><Avatar p={p} size={32} /><span style="flex:1">{p.name}</span><b>{sc[p.id] ?? '—'}</b></div>
+          <div class="row"><Avatar p={p} size={32} /><span style="flex:1">{displayName(p)}</span><b>{sc[p.id] ?? '—'}</b></div>
           <div class="rate">
             {Array.from({ length: 10 }, (_, i) => i + 1).map(n => (
-              <button class={sc[p.id] === n ? 'on' : ''} onClick={() => setSc({ ...sc, [p.id]: n })} aria-label={`${p.name}: ${n}`}>{n}</button>
+              <button class={sc[p.id] === n ? 'on' : ''} onClick={() => setSc({ ...sc, [p.id]: n })} aria-label={`${displayName(p)}: ${n}`}>{n}</button>
             ))}
           </div>
         </div>

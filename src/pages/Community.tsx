@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
-import { sb, type Profile } from '../lib/supabase';
+import { displayName, posLine, sb, type Profile } from '../lib/supabase';
 import { go, inviteUrl } from '../lib/router';
 import { loadRanking, type Ranked } from '../lib/ranking';
 import { Avatar } from '../lib/Avatar';
@@ -101,7 +101,7 @@ export function Community({ slug, sub, me }: { slug: string; sub: string[]; me: 
     body = <Vote key={sub[1] ?? ''} rows={rows} communityId={c.id} slug={slug} meId={me.id}
       startId={sub[1]} saved={() => loadRows(c.id)} />;
   } else if (tab === 'miembros') {
-    const members = [...rows].sort((a, b) => ORDER[a.role] - ORDER[b.role] || a.profile.name.localeCompare(b.profile.name));
+    const members = [...rows].sort((a, b) => ORDER[a.role] - ORDER[b.role] || displayName(a.profile).localeCompare(displayName(b.profile)));
     body = <>
       <div class="card">
         <h3 style="margin-bottom:8px">Invitar</h3>
@@ -118,11 +118,11 @@ export function Community({ slug, sub, me }: { slug: string; sub: string[]; me: 
           <div class="row rank-row">
             <Avatar p={m.profile} />
             <a href={`#/c/${slug}/p/${m.profile.id}`} style="flex:1;min-width:0;color:inherit;text-decoration:none">
-              <div class="ellipsis">{m.profile.name}</div>
-              <div class="muted" style="font-size:.85rem">{m.profile.pos} · {ROLE[m.role]}</div>
+              <div class="ellipsis">{displayName(m.profile)}</div>
+              <div class="muted" style="font-size:.85rem">{posLine(m.profile)} · {ROLE[m.role]}</div>
             </a>
             {isOwner && m.role === 'member' && <button class="btn sm" onClick={() => setRole(m.profile.id, 'admin')}>Hacer admin</button>}
-            {isAdmin && m.role === 'member' && m.profile.id !== me.id && <button class="btn sm danger" onClick={() => kick(m.profile.id, m.profile.name)}>Sacar</button>}
+            {isAdmin && m.role === 'member' && m.profile.id !== me.id && <button class="btn sm danger" onClick={() => kick(m.profile.id, displayName(m.profile))}>Sacar</button>}
             {isOwner && m.role === 'admin' && <button class="btn sm" onClick={() => setRole(m.profile.id, 'member')}>Quitar admin</button>}
           </div>
         ))}

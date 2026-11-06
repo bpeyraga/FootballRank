@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
-import { hue, sb } from '../lib/supabase';
+import { displayName, hue, sb } from '../lib/supabase';
 import { Avatar } from '../lib/Avatar';
 import type { Ranked } from '../lib/ranking';
 
@@ -237,7 +237,7 @@ export function Chat({ communityId, rows, meId, isAdmin, onUnknown }: {
         <div class={`msg${mine ? ' mine' : ''}${first ? ' first' : ''}`}>
           {!mine && (first ? <Avatar p={p} size={28} /> : <span class="msg-gap" />)}
           <div class={`bubble${sel === m.id ? ' sel' : ''}`} onClick={() => real && setSel(sel === m.id ? null : m.id)}>
-            {!mine && first && <b class="ellipsis" style={`color:hsl(${hue(m.author_id)} 60% var(--name-l))`}>{p.name}</b>}
+            {!mine && first && <b class="ellipsis" style={`color:hsl(${hue(m.author_id)} 60% var(--name-l))`}>{displayName(p)}</b>}
             <span class="msg-body">{linkify(m.body)}<span class="msg-spacer" /></span>
             <span class="msg-meta">
               {hhmm(new Date(m.created_at))}
