@@ -99,6 +99,7 @@ export function Home({ me }: { me: Profile }) {
           <div class="menu-pop">
             <div class="menu-who"><b class="ellipsis">{displayName(me)}</b><span class="muted">{posLine(me)}</span></div>
             <a href="#/perfil">Editar perfil</a>
+            <a href="#/tema">🎨 Tema y colores</a>
             {install.kind !== 'installed' && (
               <a href="#" onClick={e => {
                 e.preventDefault();

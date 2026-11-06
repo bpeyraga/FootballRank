@@ -9,6 +9,8 @@ const Login = page(() => import('./pages/Login'), m => m.Login);
 const Onboarding = page(() => import('./pages/Onboarding'), m => m.Onboarding);
 import { Home } from './pages/Home';
 const Join = page(() => import('./pages/Join'), m => m.Join);
+const Theme = page(() => import('./pages/Theme'), m => m.Theme);
+import { clubVars, loadTheme, saveTheme } from './lib/theme';
 const Community = page(() => import('./pages/Community'), m => m.Community);
 import { go, NEXT_KEY, useRoute } from './lib/router';
 // Todos los estilos en la carga inicial (son chicos) y desktop.css al final: las pantallas se bajan aparte
@@ -20,6 +22,7 @@ import './history.css';
 import './quickmatch.css';
 import './batch2.css';
 import './desktop.css';
+import './themes.css';
 
 function App() {
   const route = useRoute();
@@ -46,6 +49,14 @@ function App() {
     } catch (e: any) { setErr(e.message); }
   };
 
+  // Tema: con "Mi club", seguir al equipo elegido en la ficha (index.html ya lo aplicó al arrancar)
+  useEffect(() => {
+    const t = loadTheme();
+    if (t.palette !== 'club' || !me) return;
+    const club = clubVars(me.fav_team);
+    if (JSON.stringify(club) !== JSON.stringify(t.club ?? null)) saveTheme({ ...t, club });
+  }, [me?.fav_team]);
+
   useEffect(() => {
     refresh();
     // supabase-js emite SIGNED_IN también al volver a la pestaña: solo recargamos si cambió el usuario.
@@ -66,6 +77,7 @@ function App() {
   if (state === 'loading') return <div class="center"><p class="muted">Cargando…</p></div>;
   if (state === 'out' || !me) return <Login />;
   if (!me.onboarded) return <Onboarding me={me} done={refresh} />;
+  if (route[0] === 'tema') return <Theme me={me} />;
   if (route[0] === 'perfil') return <Onboarding me={me} done={async () => { await refresh(); go(''); }} cancel={() => go('')} />;
   if (route[0] === 'join' && route[1]) return <Join code={route[1]} />;
   if (route[0] === 'c' && route[1]) return <Community slug={route[1]} sub={route.slice(2)} me={me} />;
