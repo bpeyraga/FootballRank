@@ -5,12 +5,14 @@ import { Avatar } from '../lib/Avatar';
 import { Crest } from '../lib/Crest';
 import { tier, type Ranked } from '../lib/ranking';
 import { fmtAvg, loadPlayerStats, perMatch, type PlayerStats } from '../lib/stats';
+import { CustomStats, MatchHistory, SuspensionNotice } from './PlayerExtras';
 import '../stats.css';
 
 const ROLE: Record<string, string> = { owner: 'Owner', admin: 'Admin', member: 'Miembro' };
 
 /** Perfil de un jugador dentro de la comunidad. */
-export function Player({ r, slug, meId, communityId }: { r: Ranked; slug: string; meId: string; communityId: string }) {
+export function Player({ r, rows, slug, meId, communityId, isAdmin }:
+  { r: Ranked; rows: Ranked[]; slug: string; meId: string; communityId: string; isAdmin: boolean }) {
   const main = r.votes ?? r.base;
   const [st, setSt] = useState<PlayerStats | null>(null);
   const [stErr, setStErr] = useState('');
@@ -82,6 +84,9 @@ export function Player({ r, slug, meId, communityId }: { r: Ranked; slug: string
           {st.pj === 0 && <p class="muted st-note">Todavía no jugó partidos en esta comunidad.</p>}
         </>}
       </div>
+      <SuspensionNotice pid={r.profile.id} communityId={communityId} isAdmin={isAdmin} />
+      <CustomStats pid={r.profile.id} rows={rows} meId={meId} communityId={communityId} isAdmin={isAdmin} />
+      <MatchHistory pid={r.profile.id} slug={slug} communityId={communityId} />
       {r.profile.id !== meId && (
         <a class="btn primary block" href={`#/c/${slug}/votar/${r.profile.id}`}>{r.mine ? 'Cambiar mi voto' : 'Votarlo'}</a>
       )}

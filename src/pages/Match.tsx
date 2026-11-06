@@ -12,13 +12,15 @@ import {
 } from '../lib/stats';
 import '../stats.css';
 
-interface Signup { profile_id: string; status: 'in' | 'waitlist' | 'out'; team: 'A' | 'B' | null; created_at: string }
+interface Signup { profile_id: string; status: 'in' | 'waitlist' | 'out'; team: 'A' | 'B' | null; created_at: string; absent: boolean }
+interface Susp { id: string; profile_id: string }
 type BP = BPlayer & { r: Ranked };
 const NEUTRAL: Stats = { rit: 50, tir: 50, pas: 50, reg: 50, def: 50, fis: 50 };
 
 export function Match({ id, rows, meId, isAdmin }: { id: string; rows: Ranked[]; meId: string; isAdmin: boolean }) {
   const [m, setM] = useState<M | null | undefined>(undefined);
   const [su, setSu] = useState<Signup[]>([]);
+  const [susp, setSusp] = useState<Susp[]>([]);
   const [scores, setScores] = useState<Map<string, { avg: number; n: number }>>(new Map());
   const [myRatings, setMyRatings] = useState<Record<string, number>>({});
   const [busy, setBusy] = useState(false);
@@ -39,15 +41,16 @@ export function Match({ id, rows, meId, isAdmin }: { id: string; rows: Ranked[];
   };
 
   const load = async () => {
-    const [a, b, c, d] = await Promise.all([
+    const [a, b, c, d, f] = await Promise.all([
       sb.from('matches').select('*').eq('id', id).maybeSingle(),
       sb.from('match_signups').select('*').eq('match_id', id).order('created_at'),
       sb.from('match_scores').select('*').eq('match_id', id),
       sb.from('match_ratings').select('target_id,score').eq('match_id', id).eq('rater_id', meId),
+      sb.from('suspensions').select('id,profile_id').eq('match_id', id),
     ]);
-    const e = a.error || b.error || c.error || d.error;
+    const e = a.error || b.error || c.error || d.error || f.error;
     if (e) return setErr(e.message);
-    setM(a.data); setSu(b.data ?? []);
+    setM(a.data); setSu(b.data ?? []); setSusp(f.data ?? []);
     setScores(new Map((c.data ?? []).map((x: any) => [x.profile_id, { avg: +x.avg_score, n: x.n }])));
     setMyRatings(Object.fromEntries((d.data ?? []).map((x: any) => [x.target_id, x.score])));
     if (a.data?.score_a != null) setRes({ a: String(a.data.score_a), b: String(a.data.score_b) });
@@ -67,7 +70,9 @@ export function Match({ id, rows, meId, isAdmin }: { id: string; rows: Ranked[];
   const started = new Date(m.starts_at) <= new Date();
   const editable = m.status === 'open' || m.status === 'closed';
   const hasTeams = inList.some(s => s.team);
-  const myTeam = mine?.status === 'in' ? mine.team : null;
+  const myTeam = mine?.status === 'in' && !mine.absent ? mine.team : null;
+  const suspended = (pid: string) => susp.some(x => x.profile_id === pid);
+  const canMarkAbsent = started && m.status !== 'cancelled';
   const prof = (pid: string): Profile => byId.get(pid)?.profile ?? { id: pid, name: '?', pos: 'MED', photo_url: null, user_id: null, onboarded: true, nickname: null, shirt_number: null, fav_team: null };
 
   const run = async (f: () => PromiseLike<{ error: any }>, ok?: string) => {
@@ -126,13 +131,28 @@ export function Match({ id, rows, meId, isAdmin }: { id: string; rows: Ranked[];
       <div class="row rank-row">
         <Avatar p={p} size={32} />
         <span style="flex:1" class="ellipsis">{displayName(p)} <span class="muted">· {posLine(p)}</span></span>
+        {su.find(s => s.profile_id === pid && s.status === 'in')?.absent && <span class="pill bad">Ausente</span>}
         {sc && <span class="pill" title={`${sc.n} ${sc.n === 1 ? 'calificación' : 'calificaciones'}`}>★ {sc.avg}</span>}
         {right}
       </div>
     );
   };
-  const kick = (pid: string) => isAdmin && editable && pid !== meId &&
+  const kick = (pid: string) => isAdmin && editable && pid !== meId && !canMarkAbsent &&
     <button class="btn sm" disabled={busy} onClick={() => run(() => sb.rpc('leave_match', { p_match: id, p_profile: pid }))}>Sacar</button>;
+  // Una vez empezado: cualquiera marca ausente/presente; un admin puede suspender al ausente 1 partido.
+  const absence = (pid: string) => {
+    if (!canMarkAbsent) return null;
+    const s = su.find(x => x.profile_id === pid && x.status === 'in');
+    if (!s) return null;
+    return <>
+      <button class="btn sm" disabled={busy} onClick={() => run(() => sb.rpc('set_absent', { p_match: id, p_profile: pid, p_absent: !s.absent }),
+        s.absent ? 'Marcado como presente' : 'Marcado como ausente')}>{s.absent ? 'Presente' : 'Ausente'}</button>
+      {s.absent && isAdmin && <button class="btn sm danger" disabled={busy}
+        onClick={() => run(() => sb.rpc('suspend', { p_community: m.community_id, p_profile: pid, p_reason: `Ausente en "${m.title}"` }),
+          `${displayName(prof(pid))} queda suspendido para el próximo partido`)}>Suspender</button>}
+    </>;
+  };
+  const actions = (pid: string) => <>{kick(pid)}{absence(pid)}</>;
 
   const Team = ({ t, label }: { t: 'A' | 'B'; label: string }) => {
     const ps = inList.filter(s => s.team === t);
@@ -145,7 +165,7 @@ export function Match({ id, rows, meId, isAdmin }: { id: string; rows: Ranked[];
         </div>
         {ps.length > 0 && <div style="margin:10px 0 6px"><Pitch placed={lu.placed} /></div>}
         {lu.bench.length > 0 && <p class="muted pitch-bench">Suplentes: {lu.bench.map(b => displayName(b.profile)).join(', ')}</p>}
-        {ps.map(s => <PlayerRow pid={s.profile_id} right={kick(s.profile_id)} />)}
+        {ps.map(s => <PlayerRow pid={s.profile_id} right={actions(s.profile_id)} />)}
       </div>
     );
   };
@@ -162,13 +182,15 @@ export function Match({ id, rows, meId, isAdmin }: { id: string; rows: Ranked[];
         {m.status === 'played' && m.score_a != null && (
           <div class="score"><span class="ta">Equipo A</span> <b>{m.score_a} – {m.score_b}</b> <span class="tb">Equipo B</span></div>
         )}
-        {m.status === 'open' && !mine &&
+        {suspended(meId) && editable &&
+          <p class="note" style="margin-top:12px;padding:10px 12px;border-radius:10px">Estás suspendido para este partido por ausencias.</p>}
+        {m.status === 'open' && !mine && !suspended(meId) &&
           <button class="btn primary block" style="margin-top:12px" disabled={busy}
             onClick={() => run(() => sb.rpc('signup', { p_match: id }),
               inList.length >= m.slots ? 'Quedaste en lista de espera' : '¡Anotado!')}>
             {inList.length >= m.slots ? 'Anotarme en lista de espera' : 'Anotarme'}
           </button>}
-        {editable && mine &&
+        {editable && mine && !started &&
           <div class="row" style="margin-top:12px">
             <span style="flex:1">{mine.status === 'in' ? '✓ Estás anotado' : `En espera (#${wait.findIndex(w => w.profile_id === meId) + 1})`}</span>
             <button class="btn" disabled={busy} onClick={() => run(() => sb.rpc('leave_match', { p_match: id }), 'Te bajaste')}>Bajarme</button>
@@ -182,12 +204,19 @@ export function Match({ id, rows, meId, isAdmin }: { id: string; rows: Ranked[];
         <Team t="A" label="Equipo A" />
         <Team t="B" label="Equipo B" />
         {inList.some(s => !s.team) && <div class="card"><h3>Sin equipo</h3>
-          {inList.filter(s => !s.team).map(s => <PlayerRow pid={s.profile_id} right={kick(s.profile_id)} />)}</div>}
+          {inList.filter(s => !s.team).map(s => <PlayerRow pid={s.profile_id} right={actions(s.profile_id)} />)}</div>}
       </> : (
         <div class="card">
           <h3 style="margin-bottom:4px">Anotados ({inList.length})</h3>
           {!inList.length && <p class="muted">Nadie todavía.</p>}
-          {inList.map((s, i) => <PlayerRow pid={s.profile_id} right={<>{kick(s.profile_id)}<span class="muted">{i + 1}</span></>} />)}
+          {inList.map((s, i) => <PlayerRow pid={s.profile_id} right={<>{actions(s.profile_id)}<span class="muted">{i + 1}</span></>} />)}
+        </div>
+      )}
+      {susp.length > 0 && (
+        <div class="card">
+          <h3 style="margin-bottom:4px">Suspendidos ({susp.length})</h3>
+          {susp.map(x => <PlayerRow pid={x.profile_id} right={isAdmin && editable &&
+            <button class="btn sm" disabled={busy} onClick={() => run(() => sb.from('suspensions').delete().eq('id', x.id), 'Suspensión levantada')}>Levantar</button>} />)}
         </div>
       )}
       {wait.length > 0 && editable && (
@@ -215,7 +244,7 @@ export function Match({ id, rows, meId, isAdmin }: { id: string; rows: Ranked[];
               <select style="flex:1;min-height:44px;border-radius:10px;padding:0 8px;background:var(--bg);border:1px solid var(--line)"
                 value={adding} onChange={e => setAdding((e.target as HTMLSelectElement).value)}>
                 <option value="">Anotar a un miembro…</option>
-                {notIn.map(r => <option value={r.profile.id}>{displayName(r.profile)}</option>)}
+                {notIn.map(r => <option value={r.profile.id} disabled={suspended(r.profile.id)}>{displayName(r.profile)}{suspended(r.profile.id) ? ' (suspendido)' : ''}</option>)}
               </select>
               <button class="btn" disabled={!adding || busy}
                 onClick={() => run(() => sb.rpc('add_to_match', { p_match: id, p_profile: adding })).then(ok => ok && setAdding(''))}>Anotar</button>
@@ -273,7 +302,7 @@ export function Match({ id, rows, meId, isAdmin }: { id: string; rows: Ranked[];
 
       {/* Calificar compañeros */}
       {m.status === 'played' && myTeam && (
-        <RateTeammates mates={inList.filter(s => s.team === myTeam && s.profile_id !== meId).map(s => prof(s.profile_id))}
+        <RateTeammates mates={inList.filter(s => s.team === myTeam && s.profile_id !== meId && !s.absent).map(s => prof(s.profile_id))}
           initial={myRatings} busy={busy}
           save={sc => run(() => sb.rpc('rate_teammates', { p_match: id, p_scores: sc }), '¡Gracias por calificar!')} />
       )}
@@ -387,6 +416,8 @@ function RateTeammates({ mates, initial, busy, save }:
 }
 
 function friendly(m: string) {
+  if (m.includes('already_suspended')) return 'Ya está suspendido para el próximo partido.';
+  if (m.includes('suspended')) return 'Está suspendido para este partido por ausencias.';
   if (m.includes('result_locked')) return 'El resultado ya está cargado: solo lo corrige quien lo cargó o un admin.';
   if (m.includes('bad_score')) return 'El resultado tiene que ser un número entre 0 y 99.';
   if (m.includes('not_played')) return 'Primero hay que cargar el resultado del partido.';

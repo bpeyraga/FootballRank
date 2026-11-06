@@ -29,7 +29,7 @@ export async function loadCommunityStats(communityId: string, profileId?: string
   const [signups, events] = await Promise.all([
     fetchAll<any>((a, b) => {
       let q = sb.from('match_signups').select('match_id,profile_id,team,matches!inner(score_a,score_b,community_id,status)')
-        .eq('status', 'in').eq('matches.status', 'played').eq('matches.community_id', communityId);
+        .eq('status', 'in').eq('absent', false).eq('matches.status', 'played').eq('matches.community_id', communityId);
       if (profileId) q = q.eq('profile_id', profileId);
       return q.order('match_id').order('profile_id').range(a, b);
     }),

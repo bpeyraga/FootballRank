@@ -97,7 +97,7 @@ export function Community({ slug, sub, me }: { slug: string; sub: string[]; me: 
     body = <Ranking rows={rows} slug={slug} meId={me.id} communityId={c.id} />;
   } else if (tab === 'p') {
     const r = rows.find(x => x.profile.id === sub[1]);
-    body = r ? <Player r={r} slug={slug} meId={me.id} communityId={c.id} /> : <p class="muted">Jugador no encontrado.</p>;
+    body = r ? <Player r={r} rows={rows} slug={slug} meId={me.id} communityId={c.id} isAdmin={isAdmin} /> : <p class="muted">Jugador no encontrado.</p>;
   } else if (tab === 'votar') {
     body = <Vote key={sub[1] ?? ''} rows={rows} communityId={c.id} slug={slug} meId={me.id}
       startId={sub[1]} saved={() => loadRows(c.id)} />;
