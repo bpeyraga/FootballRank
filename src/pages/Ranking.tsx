@@ -1,15 +1,16 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
-import { displayName, infoLine } from '../lib/supabase';
+import { ATTRS, displayName, infoLine } from '../lib/supabase';
 import { ovr, tier, type Ranked } from '../lib/ranking';
-import { lineup } from '../lib/formation';
-import { Pitch, type PitchPlayer } from '../lib/Pitch';
 import { Avatar } from '../lib/Avatar';
 import { Crest } from '../lib/Crest';
-import { fmtAvg, leaderboard, loadCommunityStats, perMatch, type PlayerStats } from '../lib/stats';
+import { emptyStats, fmtAvg, leaderboard, loadCommunityStats, perMatch, type PlayerStats } from '../lib/stats';
 import '../stats.css';
 
-type View = 'ovr' | 'goals' | 'assists';
-const VIEWS: [View, string][] = [['ovr', 'OVR'], ['goals', 'Goleadores'], ['assists', 'Asistencias']];
+type View = 'ovr' | 'goals' | 'assists' | 'cards';
+const VIEWS: [View, string][] = [['ovr', 'OVR'], ['goals', 'Goleadores'], ['assists', 'Asistencias'], ['cards', 'Tarjetas']];
+const EMPTY: Record<Exclude<View, 'ovr'>, string> = {
+  goals: 'Todavía no hay goles cargados.', assists: 'Todavía no hay asistencias cargadas.', cards: 'Nadie vio tarjetas todavía. 😇',
+};
 
 /** Tabla de la comunidad: por OVR (promedio de votos), goleadores o asistencias. */
 export function Ranking({ rows, slug, meId, communityId }: { rows: Ranked[]; slug: string; meId: string; communityId: string }) {
@@ -31,18 +32,14 @@ export function Ranking({ rows, slug, meId, communityId }: { rows: Ranked[]; slu
   }, [view, communityId, tries]);
 
   const byId = useMemo(() => new Map(rows.map(r => [r.profile.id, r])), [rows]);
+  const s = (id: string) => stats?.get(id) ?? emptyStats();
   const board = useMemo(
     () => stats && view !== 'ovr' ? leaderboard(rows.map(r => ({ id: r.profile.id, name: displayName(r.profile) })), stats, view) : [],
     [rows, stats, view]);
 
-  // Formación ideal: OVR de la comunidad, o la autoevaluación si todavía no lo votaron
-  const ideal = useMemo(() => lineup<PitchPlayer>(rows.map(r => ({
-    id: r.profile.id, pos: r.profile.pos, profile: r.profile, ovr: r.ovr ?? (r.base ? ovr(r.base) : null),
-  }))), [rows]);
-
   return (
     <>
-      <div class="st-seg c3 sm" role="group" aria-label="Ordenar ranking por">
+      <div class="st-seg c4 sm" role="group" aria-label="Ordenar ranking por">
         {VIEWS.map(([k, label]) => (
           <button type="button" class={view === k ? 'on' : ''} aria-pressed={view === k} onClick={() => setView(k)}>{label}</button>
         ))}
@@ -55,14 +52,7 @@ export function Ranking({ rows, slug, meId, communityId }: { rows: Ranked[]; slu
             <b>Votar →</b>
           </a>
         )}
-        <div class="card">
-          <div class="row" style="justify-content:space-between;margin-bottom:10px">
-            <h3>Formación ideal · Fútbol 5</h3><span class="muted">1-2-1</span>
-          </div>
-          <Pitch placed={ideal.placed} href={id => `#/c/${slug}/p/${id}`} showAlts />
-          <p class="muted st-note">El mejor OVR de cada puesto según la posición de su ficha. Debajo, otros que juegan de eso.</p>
-        </div>
-        <div class="card" style="padding:4px 12px">
+        <div class="card rk-list" style="padding:4px 12px">
           {rows.map((r, i) => (
             <a class="row rank-row" href={`#/c/${slug}/p/${r.profile.id}`}>
               <span class="muted" style="width:1.4em;text-align:right">{r.ovr == null ? '' : i + 1}</span>
@@ -73,6 +63,9 @@ export function Ranking({ rows, slug, meId, communityId }: { rows: Ranked[]; slu
                   {infoLine(r.profile)} · {r.nVotes ? `${r.nVotes} ${r.nVotes === 1 ? 'voto' : 'votos'}` : 'sin votos'}
                 </div>
               </div>
+              <span class="desk-only rk-attrs">
+                {(r.votes ?? r.base) && ATTRS.map(([k, l]) => <i><b>{(r.votes ?? r.base)![k]}</b>{l}</i>)}
+              </span>
               <span class={`ovr ${tier(r.ovr)}`}>{r.ovr ?? '—'}</span>
             </a>
           ))}
@@ -80,7 +73,7 @@ export function Ranking({ rows, slug, meId, communityId }: { rows: Ranked[]; slu
       </>}
 
       {view !== 'ovr' && (
-        <div class="card" style="padding:4px 12px">
+        <div class="card rk-board" style="padding:4px 12px">
           {statsErr && (
             <div class="st-empty">
               <p class="err" style="margin:0 0 12px">No pudimos cargar las estadísticas. {statsErr}</p>
@@ -90,7 +83,7 @@ export function Ranking({ rows, slug, meId, communityId }: { rows: Ranked[]; slu
           {!stats && !statsErr && <p class="muted st-empty">Cargando…</p>}
           {stats && !board.length && (
             <p class="muted st-empty">
-              {view === 'goals' ? 'Todavía no hay goles cargados.' : 'Todavía no hay asistencias cargadas.'}
+              {EMPTY[view]}
               {' '}Se cargan desde cada partido jugado.
             </p>
           )}
@@ -103,10 +96,16 @@ export function Ranking({ rows, slug, meId, communityId }: { rows: Ranked[]; slu
                 <div style="flex:1;min-width:0">
                   <div class="ellipsis">{b.name}{b.id === meId && <span class="muted"> (vos)</span>}</div>
                   <div class="muted" style="font-size:.85rem">
-                    {b.pj} {b.pj === 1 ? 'partido' : 'partidos'}{b.pj > 0 && <> · {fmtAvg(perMatch(b.value, b.pj))} por partido</>}
+                    {b.pj} {b.pj === 1 ? 'partido' : 'partidos'}
+                    {view !== 'cards' && b.pj > 0 && <> · {fmtAvg(perMatch(b.value, b.pj))} por partido</>}
                   </div>
                 </div>
-                <span class="st-val">{b.value}</span>
+                {view === 'cards'
+                  ? <span class="st-val rk-cards">
+                      {s(b.id).yellow > 0 && <span title="Amarillas">🟨 {s(b.id).yellow}</span>}
+                      {s(b.id).red > 0 && <span title="Rojas">🟥 {s(b.id).red}</span>}
+                    </span>
+                  : <span class="st-val">{b.value}</span>}
               </a>
             );
           })}

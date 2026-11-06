@@ -1,22 +1,35 @@
 import { useEffect, useState } from 'preact/hooks';
-import { displayName, infoLine, sb, teamTally, type Profile } from '../lib/supabase';
+import { displayName, hue, infoLine, sb, teamTally, type Profile } from '../lib/supabase';
 import { go, inviteUrl } from '../lib/router';
 import { loadRanking, type Ranked } from '../lib/ranking';
 import { Avatar } from '../lib/Avatar';
 import { Crest } from '../lib/Crest';
 import { CommunityPhoto } from '../lib/CommunityPhoto';
-import { Ranking } from './Ranking';
-import { Vote } from './Vote';
-import { Player } from './Player';
 import { Matches } from './Matches';
-import { Match } from './Match';
-import { Chat, seenKey } from './Chat';
-
+import { Loading, page } from '../lib/lazy';
 import '../admin.css';
+
+// Clave del "último visto" del chat (misma que usa Chat.tsx), acá para no traer todo el chat al cargar la comunidad.
+const seenKey = (communityId: string) => `futrank-seen-${communityId}`;
+const Ranking = page(() => import('./Ranking'), m => m.Ranking);
+const Vote = page(() => import('./Vote'), m => m.Vote);
+const Player = page(() => import('./Player'), m => m.Player);
+const Match = page(() => import('./Match'), m => m.Match);
+const Chat = page(() => import('./Chat'), m => m.Chat);
+
 
 interface Community { id: string; name: string; slug: string; invite_code: string; owner_id: string; invite_expires_at?: string | null; photo_url?: string | null }
 const ROLE: Record<string, string> = { owner: 'Owner', admin: 'Admin', member: 'Miembro' };
 const ORDER: Record<string, number> = { owner: 0, admin: 1, member: 2 };
+/** Íconos de las pestañas (barra inferior en el celular, navegación arriba en escritorio). */
+const TAB_ICONS: Record<string, any> = {
+  partidos: <path d="M5.5 5h13A2.5 2.5 0 0 1 21 7.5v11a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 18.5v-11A2.5 2.5 0 0 1 5.5 5zM3 10h18M8 3v4M16 3v4" />,
+  chat: <path d="M4 5h16v11H9l-5 4zM8 9h8M8 12h5" />,
+  ranking: <path d="M4 20h16M6 20v-7h4v7M10 20V5h4v15M14 20v-10h4v10" />,
+  votar: <path d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z" />,
+  miembros: <><circle cx="9" cy="8" r="3.2" /><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5" /><circle cx="17" cy="9" r="2.5" /><path d="M17 14.5c2.5 0 4.2 1.7 4.2 4" /></>,
+};
+const initials = (s: string) => s.trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?';
 
 /** sub: [] (partidos) | ['m', id] | ['chat'] | ['ranking'] | ['votar', pid?] | ['miembros'] | ['p', pid] */
 export function Community({ slug, sub, me }: { slug: string; sub: string[]; me: Profile }) {
@@ -119,32 +132,47 @@ export function Community({ slug, sub, me }: { slug: string; sub: string[]; me: 
     if (error) setActErr(error.message); else go('');
   };
 
-  const Tab = ({ id, label, badge }: { id: string; label: string; badge?: number }) =>
-    <a href={`#/c/${slug}${id === 'partidos' ? '' : '/' + id}`} class={tab === id || (id === 'partidos' && tab === 'm') ? 'on' : ''}>
-      {label}{!!badge && tab !== id && <span class="tab-badge" aria-label={`${badge} sin leer`}>{badge > 99 ? '99+' : badge}</span>}
-    </a>;
+  const Tab = ({ id, label, badge }: { id: string; label: string; badge?: number }) => {
+    const on = tab === id || (id === 'partidos' && tab === 'm');
+    return (
+      <a href={`#/c/${slug}${id === 'partidos' ? '' : '/' + id}`} class={on ? 'on' : ''} aria-current={on ? 'page' : undefined}>
+        <span class="tab-ico">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">{TAB_ICONS[id]}</svg>
+        </span>
+        <span class="tab-label">{label}</span>
+        {!!badge && tab !== id && <span class="tab-badge" aria-label={`${badge} sin leer`}>{badge > 99 ? '99+' : badge}</span>}
+      </a>
+    );
+  };
 
   let body;
+  let kind = 'partidos'; // qué pantalla se dibuja: solo sirve de clase (`tab-…`) para los estilos de escritorio
   if (tab === 'm' && sub[1]) {
+    kind = 'm';
     body = <Match key={sub[1]} id={sub[1]} slug={slug} rows={rows} meId={me.id} isAdmin={isAdmin} />;
   } else if (tab === 'chat') {
+    kind = 'chat';
     body = <Chat key={c.id} communityId={c.id} rows={rows} meId={me.id} isAdmin={isAdmin} onUnknown={() => loadRows(c.id)} />;
   } else if (tab === 'ranking') {
+    kind = 'ranking';
     body = <Ranking rows={rows} slug={slug} meId={me.id} communityId={c.id} />;
   } else if (tab === 'p') {
+    kind = 'p';
     const r = rows.find(x => x.profile.id === sub[1]);
     body = r ? <Player r={r} rows={rows} slug={slug} meId={me.id} communityId={c.id} isAdmin={isAdmin} /> : <p class="muted">Jugador no encontrado.</p>;
   } else if (tab === 'votar') {
+    kind = 'votar';
     body = <Vote key={sub[1] ?? ''} rows={rows} communityId={c.id} slug={slug} meId={me.id}
       startId={sub[1]} saved={() => loadRows(c.id)} />;
   } else if (tab === 'miembros') {
+    kind = 'miembros';
     const members = [...rows].sort((a, b) => ORDER[a.role] - ORDER[b.role] || displayName(a.profile).localeCompare(displayName(b.profile)));
     const fans = teamTally(rows.map(r => r.profile));
     const top = fans.teams[0]?.n ?? 1;
     body = <>
       <InviteCard link={link} expiresAt={c.invite_expires_at ?? null} isAdmin={isAdmin} msg={msg}
         onShare={share} onCopy={copy} onRegen={regen} />
-      <div class="card" style="padding:4px 12px">
+      <div class="card mem-list" style="padding:4px 12px">
         {members.map(m => (
           <div class="row rank-row">
             <Avatar p={m.profile} />
@@ -185,11 +213,16 @@ export function Community({ slug, sub, me }: { slug: string; sub: string[]; me: 
   }
 
   return (
-    <div class="wrap">
-      <a href="#/" class="muted">← Comunidades</a>
-      <h2 style="margin:8px 0 12px">{c.name}</h2>
-      {(tab === 'partidos' || tab === 'miembros') &&
-        <CommunityPhoto id={c.id} name={c.name} url={c.photo_url ?? null} isAdmin={isAdmin} changed={load} />}
+    <div class="wrap comm-page">
+      <div class="comm-head">
+        <a href="#/" class="muted comm-back">← Comunidades</a>
+        <h2 class="comm-title" style="margin:8px 0 12px">
+          <span class="desk-crest" aria-hidden="true" style={`--h:${hue(c.id)}`} data-i={initials(c.name)} />
+          {c.name}
+        </h2>
+        {(tab === 'partidos' || tab === 'miembros') &&
+          <CommunityPhoto id={c.id} name={c.name} url={c.photo_url ?? null} isAdmin={isAdmin} changed={load} />}
+      </div>
       <nav class="tabs">
         <Tab id="partidos" label="Partidos" />
         <Tab id="chat" label="Chat" badge={unread} />
@@ -197,7 +230,7 @@ export function Community({ slug, sub, me }: { slug: string; sub: string[]; me: 
         <Tab id="votar" label="Votar" />
         <Tab id="miembros" label="Miembros" />
       </nav>
-      {body}
+      <div class={`tab-body tab-${kind}`}><Loading>{body}</Loading></div>
     </div>
   );
 }

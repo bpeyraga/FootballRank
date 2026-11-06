@@ -3,7 +3,7 @@ import { sb } from '../lib/supabase';
 import { FutCard } from '../lib/FutCard';
 
 /** Ruta a la que volver después del login con Google (ver main.tsx). */
-export const NEXT_KEY = 'futrank-next';
+import { NEXT_KEY } from '../lib/router';
 
 const DEMO = { rit: 86, tir: 84, pas: 79, reg: 88, def: 45, fis: 76 };
 

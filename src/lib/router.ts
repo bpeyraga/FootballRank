@@ -19,3 +19,6 @@ export const slugify = (s: string) =>
     .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 34);
 
 export const inviteUrl = (code: string) => `${location.origin}/#/join/${code}`;
+
+/** Adónde volver después de iniciar sesión (lo guarda el login, lo usa main al entrar). */
+export const NEXT_KEY = 'futrank-next';

@@ -4,6 +4,8 @@ import { go, slugify } from '../lib/router';
 import { Avatar } from '../lib/Avatar';
 import { FutCard } from '../lib/FutCard';
 import { useInstall } from '../lib/install';
+import { pushOff } from '../lib/push';
+import { PushPanel } from '../lib/PushPanel';
 
 interface Comm { id: string; name: string; slug: string; photo_url?: string | null }
 interface Row { role: string; community: Comm }
@@ -29,6 +31,7 @@ export function Home({ me }: { me: Profile }) {
   const menu = useRef<HTMLDetailsElement>(null);
   const install = useInstall();
   const [tip, setTip] = useState('');
+  const [alerts, setAlerts] = useState(false);
 
   useEffect(() => {
     sb.from('base_stats').select('rit,tir,pas,reg,def,fis').eq('profile_id', me.id).maybeSingle()
@@ -102,9 +105,10 @@ export function Home({ me }: { me: Profile }) {
                 menu.current && (menu.current.open = false);
               }}>📲 Instalar app</a>
             )}
+            <a href="#" onClick={e => { e.preventDefault(); setAlerts(a => !a); menu.current && (menu.current.open = false); }}>🔔 Avisos</a>
             <a href="/terminos.html">Términos</a>
             <a href="/privacidad.html">Privacidad</a>
-            <button onClick={() => sb.auth.signOut()}>Cerrar sesión</button>
+            <button onClick={async () => { await pushOff().catch(() => {}); sb.auth.signOut(); }}>Cerrar sesión</button>
           </div>
         </details>
       </header>
@@ -114,7 +118,12 @@ export function Home({ me }: { me: Profile }) {
           <button class="btn sm" onClick={() => setTip('')} aria-label="Cerrar">✕</button>
         </div>
       )}
+      {alerts && <PushPanel onClose={() => setAlerts(false)} onInstall={() => {
+        setAlerts(false);
+        if (install.kind === 'prompt') install.run(); else if (install.kind === 'help') setTip(install.text);
+      }} />}
 
+      <div class="home-grid">
       <section class="me-card">
         <FutCard p={me} stats={stats} size="sm" />
         <div class="me-copy">
@@ -125,11 +134,13 @@ export function Home({ me }: { me: Profile }) {
         </div>
       </section>
 
+      <div class="home-main">
       <div class="section-head">
         <h3>Tus comunidades</h3>
         {rows && rows.length > 0 && <span class="muted">{rows.length}</span>}
       </div>
 
+      <div class="comm-grid">
       {rows === null && !err && [0, 1].map(() => <div class="comm skeleton" />)}
 
       {rows?.length === 0 && (
@@ -160,6 +171,7 @@ export function Home({ me }: { me: Profile }) {
           </a>
         );
       })}
+      </div>
 
       <div class="home-actions">
         <button class={`btn${mode === 'create' ? ' primary' : ''}`} onClick={() => pick('create')}>+ Crear comunidad</button>
@@ -183,6 +195,8 @@ export function Home({ me }: { me: Profile }) {
         </form>
       )}
       {err && <p class="err">{err}</p>}
+      </div>
+      </div>
     </div>
   );
 }

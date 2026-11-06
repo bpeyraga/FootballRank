@@ -61,16 +61,23 @@ export function aggregateStats(appearances: Appearance[], events: Pick<MatchEven
 /** Promedio por partido (2 decimales); 0 si no jugó. */
 export const perMatch = (n: number, pj: number) => pj > 0 ? Math.round((n / pj) * 100) / 100 : 0;
 
+export type BoardKey = 'goals' | 'assists' | 'cards';
+export const boardValue = (s: PlayerStats | undefined, key: BoardKey) =>
+  !s ? 0 : key === 'cards' ? s.yellow + s.red * 2 : s[key];
+
 export interface BoardRow { id: string; name: string; value: number; pj: number; pos: number }
 
-/** Tabla ordenada por goles o asistencias: oculta ceros, desempata por nombre y comparte posición en empates. */
+/**
+ * Tabla ordenada por goles, asistencias o tarjetas (roja pesa como 2 amarillas): oculta ceros, desempata por nombre
+ * y comparte posición en empates.
+ */
 export function leaderboard(
   players: { id: string; name: string }[],
   stats: Map<string, PlayerStats>,
-  key: 'goals' | 'assists',
+  key: BoardKey,
 ): BoardRow[] {
   const rows = players
-    .map(p => ({ id: p.id, name: p.name, value: stats.get(p.id)?.[key] ?? 0, pj: stats.get(p.id)?.pj ?? 0 }))
+    .map(p => ({ id: p.id, name: p.name, value: boardValue(stats.get(p.id), key), pj: stats.get(p.id)?.pj ?? 0 }))
     .filter(r => r.value > 0)
     .sort((a, b) => b.value - a.value || a.name.localeCompare(b.name));
   let pos = 0;

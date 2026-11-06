@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  aggregateStats, fmtAvg, groupMatchEvents, leaderboard, outcome, perMatch,
+  aggregateStats, emptyStats, fmtAvg, groupMatchEvents, leaderboard, outcome, perMatch,
   type Appearance, type MatchEvent, type PlayerStats, type Team,
 } from './statsCore';
 
@@ -104,5 +104,18 @@ describe('fmtAvg', () => {
   it('usa coma decimal', () => {
     expect(fmtAvg(1.5)).toBe('1,5');
     expect(fmtAvg(2)).toBe('2');
+  });
+});
+
+describe('leaderboard de tarjetas', () => {
+  it('ordena por tarjetas con la roja pesando como 2 amarillas', () => {
+    const st = new Map([
+      ['a', { ...emptyStats(), yellow: 1 }],
+      ['b', { ...emptyStats(), red: 1 }],
+      ['c', { ...emptyStats(), yellow: 1, red: 1 }],
+      ['d', emptyStats()],
+    ]);
+    const rows = leaderboard([{ id: 'a', name: 'Ana' }, { id: 'b', name: 'Beto' }, { id: 'c', name: 'Caro' }, { id: 'd', name: 'Dani' }], st, 'cards');
+    expect(rows.map(r => [r.id, r.value, r.pos])).toEqual([['c', 3, 1], ['b', 2, 2], ['a', 1, 3]]);
   });
 });

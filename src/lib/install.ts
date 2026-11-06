@@ -39,3 +39,8 @@ export function useInstall(): InstallState {
   if (ios) return { kind: 'help', text: 'En Safari: tocá Compartir (el cuadrado con la flecha ↑) → "Agregar a inicio".' };
   return { kind: 'help', text: 'En Chrome: menú ⋮ → "Instalar app" o "Agregar a la pantalla principal".' };
 }
+
+// Al tocar un aviso con la app abierta, el service worker puede pedir que naveguemos acá.
+if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', e => { if (e.data?.goto) location.href = e.data.goto; });
+}

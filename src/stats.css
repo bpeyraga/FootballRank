@@ -72,3 +72,4 @@
 .seg button.on{background:var(--accent);color:var(--accent-fg)}
 .radar-key{display:flex;flex-wrap:wrap;justify-content:center;gap:4px 12px;margin:2px 0 6px;font-size:.8rem;color:var(--muted)}
 .radar-key b{font-family:var(--f-display);font-style:italic;color:var(--fg)}
+.rk-cards{display:flex;gap:8px;font-size:.95rem;white-space:nowrap}

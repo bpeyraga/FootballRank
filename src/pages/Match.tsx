@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'preact/hooks';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { displayName, ovr, posLine, sb, type Profile, type Stats } from '../lib/supabase';
 import { balance, type BPlayer } from '../lib/balance';
 import { Avatar } from '../lib/Avatar';
@@ -6,11 +6,14 @@ import { lineup } from '../lib/formation';
 import { Pitch, type PitchPlayer } from '../lib/Pitch';
 import type { Ranked } from '../lib/ranking';
 import { fmtDate, statusLabel, type Match as M } from './Matches';
-import {
-  EVENT_KINDS, KIND_ICON, KIND_LABEL, groupMatchEvents, loadMatchEvents,
-  type EventKind, type MatchEvent, type Team,
-} from '../lib/stats';
+import { loadMatchEvents, type EventKind, type MatchEvent } from '../lib/stats';
+import { EventRows, EventSummary, type EvPlayer } from '../lib/EventSteppers';
+import { MemberChecklist } from '../lib/MemberChecklist';
+import { eventCounts, lastEvent } from '../lib/quickMatch';
 import { downloadIcs, gcalUrl, matchUrl, shareText, whatsappUrl } from '../lib/share';
+import { directionsUrl, embedUrl, type Venue } from '../lib/maps';
+import { NEW_VENUE, VENUE_COLS, draftValid, emptyDraft, loadVenues, pickVenue } from '../lib/venues';
+import { VenueField } from '../lib/VenueField';
 import '../stats.css';
 import '../admin.css';
 
@@ -30,13 +33,18 @@ export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: str
   const [msg, setMsg] = useState('');
   const [splits, setSplits] = useState<ReturnType<typeof balance<BP>> | null>(null);
   const [opt, setOpt] = useState(0);
-  const [adding, setAdding] = useState('');
+  const [picked, setPicked] = useState<string[]>([]); // miembros tildados para anotar de una
   const [res, setRes] = useState({ a: '', b: '' });
   const [events, setEvents] = useState<MatchEvent[] | null>(null);
   const [evErr, setEvErr] = useState('');
-  const [evBusy, setEvBusy] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [venues, setVenues] = useState<Venue[] | null>(null); // canchas de la comunidad: solo se cargan al editar (admins)
   const [, tick] = useState(0);
+  // Goles y tarjetas: se actualizan al toque y se guardan en orden, uno detrás de otro.
+  const evRef = useRef<MatchEvent[] | null>(null);          // siempre la lista más nueva (el estado llega con un render de atraso)
+  const evQueue = useRef<Promise<void>>(Promise.resolve());
+  const evPending = useRef(0), evFailed = useRef(false), evSeq = useRef(0);
+  const evReal = useRef(new Map<number, number | null>());  // id provisorio -> id real (null: no se pudo guardar)
 
   // La lista se cierra sola a la hora del partido: re-render justo cuando arranca.
   useEffect(() => {
@@ -48,14 +56,15 @@ export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: str
   }, [m?.starts_at]);
 
   // Goles y tarjetas se cargan aparte: si la tabla no existe todavía, el resto de la pantalla sigue andando.
+  const setEv = (es: MatchEvent[] | null) => { evRef.current = es; setEvents(es); };
   const loadEvents = async () => {
-    try { setEvents(await loadMatchEvents(id)); setEvErr(''); }
+    try { setEv(await loadMatchEvents(id)); setEvErr(''); }
     catch (e: any) { setEvErr('No pudimos cargar los goles y tarjetas. ' + (e?.message ?? '')); }
   };
 
   const load = async () => {
     const [a, b, c, d, f] = await Promise.all([
-      sb.from('matches').select('*').eq('id', id).maybeSingle(),
+      sb.from('matches').select(`*, venue:venues(${VENUE_COLS})`).eq('id', id).maybeSingle(),
       sb.from('match_signups').select('*').eq('match_id', id).order('created_at'),
       sb.from('match_scores').select('*').eq('match_id', id),
       sb.from('match_ratings').select('target_id,score').eq('match_id', id).eq('rater_id', meId),
@@ -70,6 +79,14 @@ export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: str
     if (a.data?.status === 'played') loadEvents();
   };
   useEffect(() => { load(); }, [id]);
+
+  const communityId = m?.community_id;
+  useEffect(() => {
+    if (!editing || !communityId) return;
+    loadVenues(communityId).then(setVenues).catch((e: any) => {
+      setErr('No pudimos cargar las canchas. ' + (e?.message ?? '')); setEditing(false);
+    });
+  }, [editing, communityId]);
 
   const byId = useMemo(() => new Map(rows.map(r => [r.profile.id, r])), [rows]);
 
@@ -100,38 +117,74 @@ export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: str
     return true;
   };
 
-  const evRun = async (f: () => PromiseLike<{ error: any }>) => {
-    setEvBusy(true); setEvErr('');
-    try {
-      const { error } = await f();
-      if (error) { setEvErr(friendly(error.message)); return false; }
-      await loadEvents();
-      return true;
-    } catch (e: any) {
-      setEvErr(friendly(e?.message ?? 'Error de red'));
-      return false;
-    } finally { setEvBusy(false); }
+  const enqueueEv = (job: () => Promise<boolean>) => {
+    evPending.current++;
+    evQueue.current = evQueue.current.then(async () => {
+      let ok = false;
+      try { ok = await job(); } catch (e: any) { setEvErr(friendly(e?.message ?? 'Error de red')); }
+      if (!ok) evFailed.current = true;
+      // Al terminar todo lo pendiente, si algo falló se vuelve a leer del servidor (sin borrar el aviso de error).
+      if (--evPending.current === 0 && evFailed.current) {
+        evFailed.current = false;
+        try {
+          const fresh = await loadMatchEvents(id);
+          // Si mientras se leía tocaron "+", esas filas temporales (id < 0) siguen en cola: no perderlas.
+          setEv([...fresh, ...(evRef.current ?? []).filter(e => e.id < 0)]);
+        } catch { /* queda lo que se ve */ }
+      }
+    });
   };
-  const addEvent = (pid: string, kind: EventKind) => evRun(() =>
-    sb.from('match_events').insert({ match_id: id, community_id: m.community_id, profile_id: pid, kind, created_by: meId }));
-  const delEvent = (eid: number) => evRun(async () => {
-    const r = await sb.from('match_events').delete().eq('id', eid).select('id');
-    return { error: r.error ?? (r.data?.length ? null : { message: 'No se pudo borrar (puede que ya lo hayan sacado).' }) };
-  });
+  // "+" agrega un evento y "−" borra el más reciente de ese jugador y tipo. Se ve al instante; si falla, se deshace.
+  const stepEvent = (pid: string, kind: EventKind, dir: 1 | -1) => {
+    const cur = evRef.current;
+    if (!cur) return;
+    setEvErr('');
+    if (dir > 0) {
+      const tmp = -(++evSeq.current);
+      setEv([...cur, { id: tmp, match_id: id, community_id: m.community_id, profile_id: pid, kind, created_by: meId, created_at: new Date().toISOString() }]);
+      enqueueEv(async () => {
+        const r = await sb.from('match_events').insert({ match_id: id, community_id: m.community_id, profile_id: pid, kind, created_by: meId }).select('id').single();
+        if (r.error || !r.data) {
+          evReal.current.set(tmp, null);
+          setEv((evRef.current ?? []).filter(e => e.id !== tmp));
+          setEvErr(friendly(r.error?.message ?? 'No se pudo guardar.'));
+          return false;
+        }
+        evReal.current.set(tmp, r.data.id);
+        setEv((evRef.current ?? []).map(e => e.id === tmp ? { ...e, id: r.data.id } : e));
+        return true;
+      });
+    } else {
+      const ev = lastEvent(cur, pid, kind);
+      if (!ev) return;
+      setEv(cur.filter(e => e !== ev));
+      enqueueEv(async () => {
+        const eid = ev.id < 0 ? evReal.current.get(ev.id) : ev.id;
+        if (eid == null) return true; // nunca llegó a guardarse: no hay nada que borrar
+        const r = await sb.from('match_events').delete().eq('id', eid).select('id');
+        if (r.error || !r.data?.length) {
+          if (r.error) setEv([...(evRef.current ?? []), { ...ev, id: eid }]);
+          setEvErr(friendly(r.error?.message ?? 'No se pudo borrar (puede que ya lo hayan sacado).'));
+          return false;
+        }
+        return true;
+      });
+    }
+  };
 
   const shareWhatsApp = () => {
-    const text = shareText(m, inList.length, link);
+    const text = shareText(m, inList.length, link, m.venue?.maps_url);
     if (navigator.share) navigator.share({ text }).catch(() => {});
     else open(whatsappUrl(text), '_blank', 'noopener');
   };
 
   // Devuelve el error (en español) o '' si salió bien; el formulario lo muestra junto a los campos.
-  const saveEdit = async (v: { title: string; startsAt: string; location: string; slots: number }): Promise<string> => {
+  const saveEdit = async (v: { title: string; startsAt: string; location: string; slots: number; venueId: string | null }): Promise<string> => {
     const over = inList.length - v.slots, free = v.slots - inList.length;
     if (over > 0 && !confirm(`Hay ${over} ${over === 1 ? 'anotado' : 'anotados'} de más: ${over === 1 ? 'el último en anotarse pasa' : `los últimos ${over} en anotarse pasan`} a la lista de espera. ¿Seguís?`)) return '';
     setBusy(true); setErr(''); setMsg('');
     const { error } = await sb.rpc('update_match', {
-      p_match: id, p_title: v.title, p_starts_at: new Date(v.startsAt).toISOString(), p_location: v.location, p_slots: v.slots,
+      p_match: id, p_title: v.title, p_starts_at: new Date(v.startsAt).toISOString(), p_location: v.location, p_slots: v.slots, p_venue: v.venueId,
     });
     setBusy(false);
     if (error) return friendly(error.message);
@@ -164,7 +217,17 @@ export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: str
   };
 
   const avgOvr = (ps: BP[]) => ps.length ? Math.round(ps.reduce((t, p) => t + p.ovr, 0) / ps.length) : 0;
+  const evHas = (pid: string) => (events ?? []).some(e => e.profile_id === pid); // un ausente con goles cargados sigue apareciendo
   const notIn = rows.filter(r => !su.some(s => s.profile_id === r.profile.id && s.status !== 'out'));
+  // Tildados que siguen pudiéndose anotar (alguien pudo anotarse solo o ser suspendido mientras tanto).
+  const pickedIds = picked.filter(pid => !suspended(pid) && notIn.some(r => r.profile.id === pid));
+  const addPicked = async () => {
+    if (!pickedIds.length) return;
+    const waiting = Math.max(pickedIds.length - Math.max(m.slots - inList.length, 0), 0);
+    const ok = await run(() => sb.rpc('add_many_to_match', { p_match: id, p_profiles: pickedIds }),
+      `${pickedIds.length === 1 ? '1 jugador anotado' : `${pickedIds.length} jugadores anotados`}${waiting ? ` (${waiting} en lista de espera)` : ''}`);
+    if (ok) setPicked([]);
+  };
 
   const PlayerRow = ({ pid, right }: { pid: string; right?: any }) => {
     const p = prof(pid), sc = scores.get(pid);
@@ -215,7 +278,7 @@ export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: str
         </div>
         {ps.length > 0 && <div style="margin:10px 0 6px"><Pitch placed={lu.placed} captainId={ps.find(s => s.captain)?.profile_id} /></div>}
         {lu.bench.length > 0 && <p class="muted pitch-bench">Suplentes: {lu.bench.map(b => displayName(b.profile)).join(', ')}</p>}
-        {ps.map(s => <PlayerRow pid={s.profile_id} right={<>{captainBtn(s.profile_id)}{actions(s.profile_id)}</>} />)}
+        {ps.map(s => PlayerRow({ pid: s.profile_id, right: <>{captainBtn(s.profile_id)}{actions(s.profile_id)}</> }))}
       </div>
     );
   };
@@ -224,7 +287,7 @@ export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: str
     <>
       <div class="card">
         <h2>{m.title}</h2>
-        <p>{fmtDate(m.starts_at)}{m.location && <> · {m.location}</>}</p>
+        <p>{fmtDate(m.starts_at)}{!m.venue && m.location && <> · {m.location}</>}</p>
         <div class="row" style="justify-content:space-between;margin-top:8px">
           <span class="muted">{statusLabel(m)}</span>
           {editable && <span class={`slots ${inList.length >= m.slots ? 'full' : ''}`}>{inList.length}/{m.slots}</span>}
@@ -259,40 +322,55 @@ export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: str
         {err && <p class="err">{err}</p>}
       </div>
 
+      {/* Cancha: mapa embebido y cómo llegar */}
+      {m.venue && (
+        <div class="card venue-card">
+          <h3>📍 {m.venue.name}</h3>
+          {m.venue.address && <p class="muted">{m.venue.address}</p>}
+          <div class="venue-map">
+            <iframe src={embedUrl(m.venue)} title={`Mapa de ${m.venue.name}`} loading="lazy" referrerpolicy="no-referrer-when-downgrade" />
+          </div>
+          <div class="venue-actions">
+            <a class="btn sm primary" href={directionsUrl(m.venue)} target="_blank" rel="noopener">Cómo llegar</a>
+            {m.venue.maps_url && <a class="btn sm" href={m.venue.maps_url} target="_blank" rel="noopener">Abrir en Google Maps</a>}
+          </div>
+        </div>
+      )}
+
       {/* Lista / equipos */}
       {hasTeams ? <>
-        <Team t="A" label="Equipo A" />
-        <Team t="B" label="Equipo B" />
+        {Team({ t: 'A', label: 'Equipo A' })}
+        {Team({ t: 'B', label: 'Equipo B' })}
         {inList.some(s => !s.team) && <div class="card"><h3>Sin equipo</h3>
-          {inList.filter(s => !s.team).map(s => <PlayerRow pid={s.profile_id} right={actions(s.profile_id)} />)}</div>}
+          {inList.filter(s => !s.team).map(s => PlayerRow({ pid: s.profile_id, right: actions(s.profile_id) }))}</div>}
       </> : (
         <div class="card">
           <h3 style="margin-bottom:4px">Anotados ({inList.length})</h3>
           {!inList.length && <p class="muted">Nadie todavía.</p>}
-          {inList.map((s, i) => <PlayerRow pid={s.profile_id} right={<>{actions(s.profile_id)}<span class="muted">{i + 1}</span></>} />)}
+          {inList.map((s, i) => PlayerRow({ pid: s.profile_id, right: <>{actions(s.profile_id)}<span class="muted">{i + 1}</span></> }))}
         </div>
       )}
       {susp.length > 0 && (
         <div class="card">
           <h3 style="margin-bottom:4px">Suspendidos ({susp.length})</h3>
-          {susp.map(x => <PlayerRow pid={x.profile_id} right={isAdmin && editable &&
-            <button class="btn sm" disabled={busy} onClick={() => run(() => sb.from('suspensions').delete().eq('id', x.id), 'Suspensión levantada')}>Levantar</button>} />)}
+          {susp.map(x => PlayerRow({ pid: x.profile_id, right: isAdmin && editable &&
+            <button class="btn sm" disabled={busy} onClick={() => run(() => sb.from('suspensions').delete().eq('id', x.id), 'Suspensión levantada')}>Levantar</button> }))}
         </div>
       )}
       {wait.length > 0 && editable && (
         <div class="card">
           <h3 style="margin-bottom:4px">Lista de espera ({wait.length})</h3>
-          {wait.map((s, i) => <PlayerRow pid={s.profile_id} right={<>{kick(s.profile_id)}<span class="muted">#{i + 1}</span></>} />)}
+          {wait.map((s, i) => PlayerRow({ pid: s.profile_id, right: <>{kick(s.profile_id)}<span class="muted">#{i + 1}</span></> }))}
         </div>
       )}
 
-      {/* Goles y tarjetas: partido jugado; los cargan solo los admins */}
+      {/* Goles y tarjetas: partido jugado; los cargan solo los admins con − / +, el resto lo ve de solo lectura */}
       {m.status === 'played' && (
-        <MatchEvents events={events} err={evErr} busy={evBusy} meId={meId} isAdmin={isAdmin}
-          canAdd={isAdmin} hasTeams={hasTeams}
-          players={inList.map(s => ({ id: s.profile_id, name: displayName(prof(s.profile_id)), team: s.team }))}
-          nameOf={pid => displayName(prof(pid))} teamOf={pid => (hasTeams ? inList.find(s => s.profile_id === pid)?.team ?? null : null)}
-          onAdd={addEvent} onDel={delEvent} />
+        <MatchEvents events={events} err={evErr} isAdmin={isAdmin} onStep={stepEvent}
+          players={inList.filter(s => !s.absent || evHas(s.profile_id)).map(s => ({
+            id: s.profile_id, name: displayName(prof(s.profile_id)), profile: prof(s.profile_id), team: hasTeams ? s.team : null,
+          }))}
+          nameOf={pid => displayName(prof(pid))} teamOf={pid => (hasTeams ? inList.find(s => s.profile_id === pid)?.team ?? null : null)} />
       )}
 
       {/* Admin */}
@@ -300,15 +378,11 @@ export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: str
         <div class="card">
           <h3 style="margin-bottom:12px">Administrar</h3>
           {notIn.length > 0 && m.status === 'open' && (
-            <div class="row" style="margin-bottom:12px">
-              <select style="flex:1;min-height:44px;border-radius:10px;padding:0 8px;background:var(--bg);border:1px solid var(--line)"
-                value={adding} onChange={e => setAdding((e.target as HTMLSelectElement).value)}>
-                <option value="">Anotar a un miembro…</option>
-                {notIn.map(r => <option value={r.profile.id} disabled={suspended(r.profile.id)}>{displayName(r.profile)}{suspended(r.profile.id) ? ' (suspendido)' : ''}</option>)}
-              </select>
-              <button class="btn" disabled={!adding || busy}
-                onClick={() => run(() => sb.rpc('add_to_match', { p_match: id, p_profile: adding })).then(ok => ok && setAdding(''))}>Anotar</button>
-            </div>
+            <MemberChecklist busy={busy} picked={pickedIds} onChange={setPicked} onSubmit={addPicked}
+              members={notIn.map(r => ({
+                id: r.profile.id, name: displayName(r.profile), profile: r.profile, sub: r.profile.pos,
+                blocked: suspended(r.profile.id) ? 'suspendido' : undefined,
+              }))} />
           )}
           <div class="row" style="flex-wrap:wrap">
             {inList.length >= 2 && <button class="btn primary" disabled={busy} onClick={doBalance}>{hasTeams ? 'Rearmar equipos' : 'Armar equipos'}</button>}
@@ -320,7 +394,10 @@ export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: str
           </div>
         </div>
       )}
-      {isAdmin && editable && editing && <EditMatch m={m} busy={busy} onSave={saveEdit} onCancel={() => setEditing(false)} />}
+      {isAdmin && editable && editing && !venues && <p class="muted">Cargando…</p>}
+      {isAdmin && editable && editing && venues &&
+        <EditMatch m={m} meId={meId} venues={venues} addVenue={v => setVenues(x => [...(x ?? []).filter(y => y.id !== v.id), v])}
+          busy={busy} onSave={saveEdit} onCancel={() => setEditing(false)} />}
 
       {splits && splits.length > 0 && (() => {
         const s = splits[opt];
@@ -378,111 +455,69 @@ const toLocalInput = (iso: string) => {
   return new Date(d.getTime() - d.getTimezoneOffset() * 60e3).toISOString().slice(0, 16);
 };
 
-/** Edición de título, fecha, lugar y cupos (admins). Si bajan los cupos, el servidor manda a los últimos a la lista de espera. */
-function EditMatch({ m, busy, onSave, onCancel }: {
-  m: M; busy: boolean; onCancel: () => void;
-  onSave: (v: { title: string; startsAt: string; location: string; slots: number }) => Promise<string>;
+/** Edición de título, fecha, cancha/lugar y cupos (admins). Si bajan los cupos, el servidor manda a los últimos a la lista de espera. */
+function EditMatch({ m, meId, venues, addVenue, busy, onSave, onCancel }: {
+  m: M; meId: string; venues: Venue[]; addVenue: (v: Venue) => void; busy: boolean; onCancel: () => void;
+  onSave: (v: { title: string; startsAt: string; location: string; slots: number; venueId: string | null }) => Promise<string>;
 }) {
   const [f, setF] = useState({ title: m.title, when: toLocalInput(m.starts_at), location: m.location ?? '', slots: String(m.slots) });
+  const [venue, setVenue] = useState(m.venue_id && venues.some(v => v.id === m.venue_id) ? m.venue_id : '');
+  const [draft, setDraft] = useState(emptyDraft);
+  const [picking, setPicking] = useState(false);
   const [err, setErr] = useState('');
   const set = (k: keyof typeof f) => (e: Event) => setF({ ...f, [k]: (e.target as HTMLInputElement).value });
   const slots = Math.round(+f.slots);
-  const valid = f.title.trim().length > 0 && !isNaN(+new Date(f.when)) && f.when !== '' && slots >= 2 && slots <= 40;
+  const valid = f.title.trim().length > 0 && !isNaN(+new Date(f.when)) && f.when !== '' && slots >= 2 && slots <= 40
+    && (venue !== NEW_VENUE || draftValid(draft));
   const save = async () => {
-    setErr('');
-    setErr(await onSave({ title: f.title.trim(), startsAt: f.when, location: f.location.trim(), slots }));
+    setErr(''); setPicking(true);
+    // Cancha nueva: se guarda primero; si después falla el partido, queda elegida y un reintento no la duplica.
+    const p = await pickVenue(venue, draft, venues, m.community_id, meId);
+    setPicking(false);
+    if ('error' in p) return setErr(p.error);
+    if (p.created) { addVenue(p.created); setVenue(p.created.id); }
+    // location lleva el nombre de la cancha: los avisos y el texto de compartir lo usan
+    setErr(await onSave({ title: f.title.trim(), startsAt: f.when, location: p.name ?? f.location.trim(), slots, venueId: p.id }));
   };
   return (
     <div class="card adm-card">
       <h3 style="margin-bottom:12px">Editar partido</h3>
       <label class="field"><span>Título</span><input value={f.title} maxLength={80} onInput={set('title')} /></label>
       <label class="field"><span>Fecha y hora</span><input type="datetime-local" value={f.when} onInput={set('when')} /></label>
-      <label class="field"><span>Lugar</span><input value={f.location} maxLength={200} placeholder="Cancha, dirección…" onInput={set('location')} /></label>
+      <VenueField venues={venues} value={venue} onChange={setVenue} draft={draft} onDraft={setDraft} />
+      {!venue && <label class="field"><span>Lugar</span><input value={f.location} maxLength={200} placeholder="Cancha, dirección…" onInput={set('location')} /></label>}
       <label class="field"><span>Cupos</span><input type="number" min={2} max={40} inputMode="numeric" value={f.slots} onInput={set('slots')} /></label>
       <p class="muted adm-note">Si subís los cupos, entran los primeros de la lista de espera. Si los bajás, los últimos en anotarse pasan a la lista de espera.</p>
       <div class="row">
-        <button class="btn primary" disabled={busy || !valid} onClick={save}>{busy ? 'Guardando…' : 'Guardar cambios'}</button>
-        <button class="btn" disabled={busy} onClick={onCancel}>Cancelar</button>
+        <button class="btn primary" disabled={busy || picking || !valid} onClick={save}>{busy || picking ? 'Guardando…' : 'Guardar cambios'}</button>
+        <button class="btn" disabled={busy || picking} onClick={onCancel}>Cancelar</button>
       </div>
       {err && <p class="err">{err}</p>}
     </div>
   );
 }
 
-const SHORT: Record<EventKind, string> = { goal: 'Gol', assist: 'Asist.', yellow: 'Amarilla', red: 'Roja' };
-
-/** Goles, asistencias y tarjetas del partido, agrupados por equipo, con alta y baja para quienes pueden. */
-function MatchEvents({ events, err, busy, meId, isAdmin, canAdd, hasTeams, players, nameOf, teamOf, onAdd, onDel }: {
-  events: MatchEvent[] | null; err: string; busy: boolean; meId: string; isAdmin: boolean; canAdd: boolean; hasTeams: boolean;
-  players: { id: string; name: string; team: Team | null }[];
-  nameOf: (pid: string) => string; teamOf: (pid: string) => Team | null;
-  onAdd: (pid: string, kind: EventKind) => Promise<boolean>; onDel: (id: number) => void;
+/** Goles, asistencias y tarjetas: los admins los cargan con − / + por jugador; los demás ven un resumen. */
+function MatchEvents({ events, err, isAdmin, players, nameOf, teamOf, onStep }: {
+  events: MatchEvent[] | null; err: string; isAdmin: boolean;
+  players: EvPlayer[]; nameOf: (pid: string) => string; teamOf: (pid: string) => 'A' | 'B' | null;
+  onStep: (pid: string, kind: EventKind, dir: 1 | -1) => void;
 }) {
-  const [pid, setPid] = useState('');
-  const [kind, setKind] = useState<EventKind>('goal');
-  const groups = groupMatchEvents(events ?? [], teamOf);
-  const canDel = (_e: MatchEvent) => isAdmin;
-  const opt = (ps: typeof players) => ps.map(p => <option value={p.id}>{p.name}</option>);
-  const sin = players.filter(p => !p.team);
-
+  const counts = eventCounts(events ?? []);
   return (
     <div class="card">
       <h3>Goles y tarjetas</h3>
       {events == null && !err && <p class="muted" style="margin-top:8px">Cargando…</p>}
       {err && <p class="err">{err}</p>}
-      {events != null && !events.length && <p class="muted" style="margin-top:8px">Todavía no hay goles ni tarjetas cargados.</p>}
-      {groups.map(t => (
-        <div class={`ev-team ${t.team === 'none' ? '' : `team ${t.team}`}`}>
-          {hasTeams && (
-            <div class="ev-head">
-              <b class={t.team === 'A' ? 'ta' : t.team === 'B' ? 'tb' : 'muted'}>{t.team === 'none' ? 'Sin equipo' : `Equipo ${t.team}`}</b>
-              {t.goals > 0 && <span class="muted">{KIND_ICON.goal} {t.goals}</span>}
-            </div>
-          )}
-          {t.groups.map(g => {
-            const del = [...g.events].reverse().find(canDel);
-            const n = g.events.length, who = nameOf(g.profile_id);
-            return (
-              <div class="ev-row">
-                <span class="ev-ico" title={KIND_LABEL[g.kind]}>{KIND_ICON[g.kind]}</span>
-                <span class="ev-name ellipsis">{who}</span>
-                {n > 1 && <b class="ev-n">×{n}</b>}
-                {del && (
-                  <button class="btn sm ev-del" disabled={busy} onClick={() => onDel(del.id)}
-                    aria-label={`Quitar ${n > 1 ? 'una ' : 'la '}${KIND_LABEL[g.kind].toLowerCase()} de ${who}`}>{n > 1 ? '−' : '✕'}</button>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      ))}
-
-      {canAdd && (
-        <div class="ev-add">
-          {!players.length ? <p class="muted">No hay jugadores anotados.</p> : <>
-            <select class="ev-select" aria-label="Jugador" value={pid} onChange={e => setPid((e.target as HTMLSelectElement).value)}>
-              <option value="">¿Quién?</option>
-              {hasTeams
-                ? <>
-                    <optgroup label="Equipo A">{opt(players.filter(p => p.team === 'A'))}</optgroup>
-                    <optgroup label="Equipo B">{opt(players.filter(p => p.team === 'B'))}</optgroup>
-                    {sin.length > 0 && <optgroup label="Sin equipo">{opt(sin)}</optgroup>}
-                  </>
-                : opt(players)}
-            </select>
-            <div class="st-seg c4" role="group" aria-label="Tipo de evento" style="margin-bottom:8px">
-              {EVENT_KINDS.map(k => (
-                <button type="button" class={kind === k ? 'on' : ''} aria-pressed={kind === k} onClick={() => setKind(k)}>
-                  <span aria-hidden="true">{KIND_ICON[k]}</span><small>{SHORT[k]}</small>
-                </button>
-              ))}
-            </div>
-            <button class="btn primary block" disabled={busy || !pid} onClick={() => onAdd(pid, kind)}>
-              {busy ? 'Guardando…' : `Agregar ${KIND_LABEL[kind].toLowerCase()}`}
-            </button>
-          </>}
-        </div>
-      )}
+      {events != null && isAdmin && (players.length
+        ? <>
+            <p class="muted" style="margin:6px 0 8px;font-size:.85rem">Tocá + o − para sumar o sacar. ⚽ goles · 👟 asistencias · 🟨 amarilla · 🟥 roja</p>
+            <EventRows players={players} counts={counts} onStep={onStep} />
+          </>
+        : <p class="muted" style="margin-top:8px">No hay jugadores anotados.</p>)}
+      {events != null && !isAdmin && (events.length
+        ? <EventSummary events={events} nameOf={nameOf} teamOf={teamOf} />
+        : <p class="muted" style="margin-top:8px">Todavía no hay goles ni tarjetas cargados.</p>)}
     </div>
   );
 }
@@ -527,6 +562,7 @@ function friendly(m: string) {
   if (m.includes('bad_date')) return 'Elegí una fecha y hora válidas.';
   if (m.includes('bad_location')) return 'El lugar es demasiado largo (máximo 200 caracteres).';
   if (m.includes('bad_slots')) return 'Los cupos tienen que ser entre 2 y 40.';
+  if (m.includes('bad_venue')) return 'Esa cancha no es de esta comunidad. Elegí otra.';
   if (m.includes('cancelled')) return 'El partido está cancelado.';
   if (m.includes('closed')) return 'La lista está cerrada.';
   if (m.includes('not_started')) return 'El partido todavía no empezó.';

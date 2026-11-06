@@ -1,0 +1,124 @@
+/* Carga rápida de partidos, goles y tarjetas con − / + y anotar varios a la vez.
+   Solo usa las variables de styles.css (claro y oscuro). */
+
+.qm{max-width:720px;margin:0 auto}
+.qm-top{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.qm-top h2{flex:1;min-width:0;font-size:1.5rem}
+.qm .card h3{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.qm .card h3 small{font:500 .85rem var(--f-body)}
+.qm-nn{flex:none;width:26px;height:26px;border-radius:50%;background:var(--accent);color:var(--accent-fg);display:grid;place-items:center;font:700 1rem var(--f-display)}
+.qm-help{margin:0 0 8px;font-size:.85rem}
+.qm-err{text-align:center}
+
+/* Título (escondido hasta que lo quieras cambiar) */
+.qm-title{margin:-4px 0 0}
+.qm-title summary{display:flex;align-items:center;gap:6px;min-height:44px;cursor:pointer;list-style:none;min-width:0}
+.qm-title summary::-webkit-details-marker{display:none}
+.qm-title summary b{min-width:0;font-weight:600}
+.qm-title summary .linkbtn{margin-left:auto;flex:none}
+.qm-title[open] summary .linkbtn{visibility:hidden}
+.qm-title input{width:100%;min-height:44px;padding:0 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);margin-bottom:4px}
+
+/* Quiénes jugaron */
+.qm-quick{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:10px}
+.qm-quick .btn{min-width:0;min-height:44px;padding:0 6px;line-height:1.1;text-align:center}
+.qm-count{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:8px}
+.qm-count span{padding:3px 12px;border-radius:99px;background:var(--accent-soft);font:700 1.05rem var(--f-display)}
+.qm-count .a{background:var(--accent-soft);color:var(--ta)}
+.qm-count .b{background:var(--accent-soft);color:var(--tb)}
+.qm-count .qm-total{margin-left:auto;padding:0;background:none;font:600 .9rem var(--f-body)}
+@supports (background:color-mix(in srgb,red,blue)){
+  .qm-count .a{background:color-mix(in srgb,var(--ta) 16%,var(--surface))}
+  .qm-count .b{background:color-mix(in srgb,var(--tb) 16%,var(--surface))}
+}
+.qm-search{display:block;width:100%;min-height:44px;margin:4px 0 6px;padding:0 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg)}
+.qm-players{display:grid}
+.qm-pl{display:flex;align-items:center;gap:6px;min-height:56px;padding:4px 4px 4px 10px;margin:0 -4px;border-radius:10px}
+.qm-pl+.qm-pl{box-shadow:0 -1px 0 var(--line)}
+.qm-pl.on{background:var(--accent-soft)}
+.qm-pl.on.s-A{box-shadow:inset 4px 0 0 var(--ta)}
+.qm-pl.on.s-B{box-shadow:inset 4px 0 0 var(--tb)}
+.qm-pl.on.s-X{box-shadow:inset 4px 0 0 var(--accent)}
+.qm-who{flex:1;min-width:0;display:flex;align-items:center;gap:8px;min-height:52px;padding:0;border:0;background:none;color:inherit;text-align:left;cursor:pointer}
+.qm-who .avatar{opacity:.5}
+.qm-pl.on .qm-who .avatar{opacity:1}
+.qm-name{display:grid;min-width:0}
+.qm-name b{font-weight:500;color:var(--muted)}
+.qm-pl.on .qm-name b{font-weight:700;color:var(--fg)}
+.qm-name small{font-size:.78rem}
+.qm-seg{flex:none;display:grid;grid-template-columns:repeat(3,40px);gap:4px}
+.qm-seg button{height:44px;padding:0;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--muted);font:700 1.2rem var(--f-display);cursor:pointer}
+.qm-seg button.on{background:var(--none-2);color:var(--fg)}
+.qm-seg button.a.on{background:var(--ta);border-color:var(--ta);color:var(--on-t)}
+.qm-seg button.b.on{background:var(--tb);border-color:var(--tb);color:var(--on-t)}
+
+/* Resultado */
+.qm-score{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:end;gap:6px}
+.qm-side{display:grid;justify-items:center;gap:6px;min-width:0}
+.qm-side>span{font:700 1.2rem var(--f-display);letter-spacing:.02em}
+.qm-vs{padding-bottom:10px;font:700 2rem var(--f-display);color:var(--muted)}
+.qm-big{display:grid;grid-template-columns:40px minmax(30px,auto) 40px;align-items:center;gap:2px}
+.qm-big button{width:40px;height:56px;padding:0;border:1px solid var(--line);border-radius:12px;background:var(--bg);font:700 1.9rem/1 var(--f-display);cursor:pointer}
+.qm-big button:active{background:var(--accent-soft)}
+.qm-big button:disabled{opacity:.3;cursor:default}
+.qm-big b{min-width:1.2ch;text-align:center;font:700 3.2rem/1 var(--f-display)}
+.qm-warn{margin-top:8px;padding:8px 12px;border-radius:10px;font-size:.88rem}
+
+/* Goles y tarjetas: una fila por jugador */
+.qm-evlist{container-type:inline-size}
+.qm-grp{margin-top:12px;padding-left:10px;border-left:4px solid var(--line);min-width:0}
+.qm-grp:first-child{margin-top:0}
+.qm-grp.A{border-color:var(--ta)}
+.qm-grp.B{border-color:var(--tb)}
+.qm-gh{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:2px}
+.qm-gh b{font:700 1.15rem var(--f-display)}
+.qm-ev{display:grid;gap:6px;padding:8px 0;border-top:1px solid var(--line)}
+.qm-gh+.qm-ev,.qm-grp>.qm-ev:first-child{border-top:0}
+.qm-evwho{display:flex;align-items:center;gap:8px;min-width:0;font-weight:600}
+.qm-evctl{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.qm-step{flex:1 1 0;max-width:136px;min-width:0;display:grid;grid-template-columns:34px minmax(0,1fr) 34px;align-items:center;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--bg)}
+.qm-b{height:42px;padding:0;border:0;background:none;color:var(--fg);font:700 1.5rem/1 var(--f-display);cursor:pointer}
+.qm-b:active{background:var(--accent-soft)}
+.qm-b:disabled{opacity:.3;cursor:default}
+.qm-n{display:flex;align-items:center;justify-content:center;gap:3px;min-width:0}
+.qm-n i{font-style:normal;font-size:.95rem}
+.qm-n b{font:700 1.25rem var(--f-display)}
+.qm-n.z i{opacity:.45;filter:grayscale(1)}
+.qm-n.z b{color:var(--muted)}
+.qm-card{position:relative;flex:none;width:42px;height:42px;padding:0;border:1px solid var(--line);border-radius:10px;background:var(--bg);font-size:1.2rem;line-height:1;cursor:pointer}
+.qm-card>span{filter:grayscale(1);opacity:.45}
+.qm-card.on{border-color:var(--accent);background:var(--accent-soft)}
+.qm-card.on>span{filter:none;opacity:1}
+.qm-card sup{position:absolute;top:-6px;right:-5px;min-width:18px;height:18px;padding:0 4px;border-radius:9px;background:var(--fg);color:var(--bg);font:700 .72rem/18px var(--f-body);text-align:center}
+@container (min-width:480px){
+  .qm-ev{grid-template-columns:minmax(0,1fr) auto;align-items:center}
+  .qm-evctl{justify-content:flex-end;gap:8px}
+  .qm-step{flex:none;width:120px}
+}
+
+/* Resumen de solo lectura */
+.qm-sum{display:flex;align-items:center;flex-wrap:wrap;gap:6px;min-height:44px;padding:4px 0;border-top:1px solid var(--line)}
+.qm-gh+.qm-sum,.qm-grp>.qm-sum:first-child{border-top:0}
+.qm-sum-name{flex:1 1 8em;min-width:0;font-weight:600}
+.qm-chip{flex:none;padding:2px 10px;border-radius:99px;background:var(--accent-soft);font-weight:700;font-size:.92rem;white-space:nowrap}
+
+/* Guardar: barra pegada abajo */
+.qm-bar{position:sticky;bottom:0;z-index:7;margin:12px -16px 0;padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));background:var(--bg);box-shadow:0 -1px var(--line)}
+.qm-bar .btn{min-height:52px;font-size:1.05rem}
+.qm-hint{margin-bottom:6px;font-size:.85rem;text-align:center}
+
+/* Anotar a varios en una convocatoria abierta */
+.qm-picklist{margin-bottom:14px}
+.qm-pick-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:2px}
+.qm-pick-head .linkbtn{min-height:36px}
+.qm-pick{display:flex;align-items:center;gap:10px;min-height:48px;padding:2px 0;border-top:1px solid var(--line);cursor:pointer}
+.qm-pick input{flex:none;width:22px;height:22px;margin:0;accent-color:var(--accent)}
+.qm-pick-name{flex:1;min-width:0}
+.qm-pick.off{opacity:.55;cursor:default}
+.qm-pick-sub{flex:none;font-size:.8rem}
+
+/* Botones de la lista de partidos (admins) */
+.qm-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:12px}
+.qm-actions .btn{min-width:0;padding:0 10px;text-align:center;line-height:1.15}
+.card>h3+.qm-evlist{margin-top:8px}
+.qm-score{max-width:420px;margin:0 auto}

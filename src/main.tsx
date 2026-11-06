@@ -3,12 +3,22 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import './styles.css';
 import './lib/install'; // registra el service worker y escucha "instalar app" desde el arranque
 import { loadMe, sb, type Profile } from './lib/supabase';
-import { Login, NEXT_KEY } from './pages/Login';
-import { Onboarding } from './pages/Onboarding';
+import { pushForget, pushOff, pushSync } from './lib/push';
+import { Loading, page, prefetch } from './lib/lazy';
+const Login = page(() => import('./pages/Login'), m => m.Login);
+const Onboarding = page(() => import('./pages/Onboarding'), m => m.Onboarding);
 import { Home } from './pages/Home';
-import { Join } from './pages/Join';
-import { Community } from './pages/Community';
-import { go, useRoute } from './lib/router';
+const Join = page(() => import('./pages/Join'), m => m.Join);
+const Community = page(() => import('./pages/Community'), m => m.Community);
+import { go, NEXT_KEY, useRoute } from './lib/router';
+// Todos los estilos en la carga inicial (son chicos) y desktop.css al final: las pantallas se bajan aparte
+// y, si sus CSS llegaran después, le ganarían a las reglas de PC.
+import './stats.css';
+import './pitch.css';
+import './admin.css';
+import './history.css';
+import './quickmatch.css';
+import './desktop.css';
 
 function App() {
   const route = useRoute();
@@ -26,6 +36,10 @@ function App() {
           if (next) { localStorage.removeItem(NEXT_KEY); location.hash = next; }
         } catch { /* sin storage */ }
       }
+      if (p) {
+        pushSync();
+        prefetch([() => import('./pages/Community'), () => import('./pages/Match'), () => import('./pages/Chat'), () => import('./pages/Ranking')]);
+      }
       userId.current = p?.user_id ?? null;
       setErr(''); setMe(p); setState(p ? 'in' : 'out');
     } catch (e: any) { setErr(e.message); }
@@ -35,7 +49,7 @@ function App() {
     refresh();
     // supabase-js emite SIGNED_IN también al volver a la pestaña: solo recargamos si cambió el usuario.
     const { data } = sb.auth.onAuthStateChange((ev, session) => {
-      if (ev === 'SIGNED_OUT') { setMe(null); setState('out'); }
+      if (ev === 'SIGNED_OUT') { pushForget(); setMe(null); setState('out'); }
       else if (ev === 'SIGNED_IN' && session?.user.id !== userId.current) refresh();
     });
     return () => data.subscription.unsubscribe();
@@ -45,7 +59,7 @@ function App() {
     <div class="center">
       <p class="err">{err}</p>
       <button class="btn" onClick={() => location.reload()}>Reintentar</button>
-      <button class="btn" onClick={() => sb.auth.signOut()}>Salir</button>
+      <button class="btn" onClick={async () => { await pushOff().catch(() => {}); sb.auth.signOut(); }}>Salir</button>
     </div>
   );
   if (state === 'loading') return <div class="center"><p class="muted">Cargando…</p></div>;
@@ -57,4 +71,4 @@ function App() {
   return <Home me={me} />;
 }
 
-render(<App />, document.getElementById('app')!);
+render(<Loading><App /></Loading>, document.getElementById('app')!);

@@ -64,6 +64,7 @@ export function Player({ r, rows, slug, meId, communityId, isAdmin }:
           </div>
         </div>
       </div>
+      <div class="pl-grid"><div class="pl-main">
       <div class="card">
         {main ? <>
           {inRadar.length > 0 && (
@@ -123,6 +124,7 @@ export function Player({ r, rows, slug, meId, communityId, isAdmin }:
           {st.pj === 0 && <p class="muted st-note">Todavía no jugó partidos en esta comunidad.</p>}
         </>}
       </div>
+      </div><div class="pl-side">
       <SuspensionNotice pid={r.profile.id} communityId={communityId} isAdmin={isAdmin} />
       <CustomStats pid={r.profile.id} rows={rows} meId={meId} communityId={communityId} isAdmin={isAdmin} onChange={reloadCustom} />
       <MatchHistory pid={r.profile.id} slug={slug} communityId={communityId} />
@@ -144,6 +146,7 @@ export function Player({ r, rows, slug, meId, communityId, isAdmin }:
       {r.profile.id !== meId && (
         <a class="btn primary block" href={`#/c/${slug}/votar/${r.profile.id}`}>{r.mine ? 'Cambiar mi voto' : 'Votarlo'}</a>
       )}
+      </div></div>
     </>
   );
 }

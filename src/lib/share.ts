@@ -15,13 +15,15 @@ export function longDate(iso: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1) + ' hs';
 }
 
-/** Texto de la convocatoria para pegar en el grupo. */
-export function shareText(m: ShareMatch, taken: number, url: string): string {
+/** Texto de la convocatoria para pegar en el grupo. Si la cancha tiene link de Google Maps (mapsUrl), va debajo del lugar. */
+export function shareText(m: ShareMatch, taken: number, url: string, mapsUrl?: string | null): string {
   const where = m.location?.trim();
+  const map = mapsUrl?.trim();
   return [
     `⚽ ${m.title}`,
     `📅 ${longDate(m.starts_at)}`,
     where ? `📍 ${where}` : null,
+    map ? `🗺️ Cómo llegar: ${map}` : null,
     `👥 ${taken}/${m.slots} anotados`,
     `Anotate acá: ${url}`,
   ].filter(Boolean).join('\n');

@@ -25,6 +25,16 @@ describe('shareText', () => {
     expect(lines).toHaveLength(4);
     expect(lines.some(l => l.startsWith('📍'))).toBe(false);
   });
+  it('con link de Google Maps lo agrega debajo del lugar', () => {
+    const maps = 'https://maps.app.goo.gl/mZcAvCZdY8APXmVz9';
+    const lines = shareText(m, 7, url, maps).split('\n');
+    expect(lines).toHaveLength(6);
+    expect(lines[2]).toBe('📍 Cancha 5; Palermo');
+    expect(lines[3]).toBe(`🗺️ Cómo llegar: ${maps}`);
+    expect(lines[5]).toBe(`Anotate acá: ${url}`);
+    expect(shareText(m, 7, url, null)).toBe(shareText(m, 7, url));
+    expect(shareText(m, 7, url, ' ')).toBe(shareText(m, 7, url));
+  });
   it('el link de WhatsApp lleva el texto codificado', () => {
     expect(whatsappUrl('a b\nc')).toBe('https://wa.me/?text=a%20b%0Ac');
   });

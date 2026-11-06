@@ -332,3 +332,23 @@ a{color:var(--accent)}
 .cphoto.empty>span:first-child{font-size:1.6rem}
 .cphoto-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:6px}
 .comm-crest.photo{background-size:cover;background-position:center;color:transparent}
+/* Panel de avisos */
+.push-panel{margin:0 0 14px}
+.push-kind{display:flex;align-items:center;gap:10px;padding:10px 2px;border-top:1px solid var(--line);cursor:pointer}
+.push-kind:first-of-type{border-top:0}
+.push-kind input{width:20px;height:20px;accent-color:var(--accent)}
+
+/* Canchas */
+.venue-new{margin:-2px 0 14px;padding:12px 12px 0;border:1px dashed var(--line);border-radius:12px}
+.venue-hint{margin:-8px 0 12px;font-size:.8rem}
+.venue-card h3{margin-bottom:2px}
+.venue-map{position:relative;aspect-ratio:16/10;margin:12px 0;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--accent-soft)}
+.venue-map iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.venue-actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
+.venue-actions .btn{min-width:0;padding:0 10px;text-align:center;line-height:1.15}
+.venue-actions a.btn{color:inherit;text-decoration:none}
+.venue-actions a.btn.primary{color:var(--accent-fg)}
+.venues-card{padding-block:4px}
+.venues-card summary{display:flex;align-items:center;min-height:44px;cursor:pointer;font:700 1.15rem var(--f-display);letter-spacing:.01em}
+.venues-card[open] summary{margin-bottom:4px}
+.venue-row{padding:8px 0;border-top:1px solid var(--line)}

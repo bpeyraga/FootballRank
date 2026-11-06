@@ -1,0 +1,4 @@
+# Config de Supabase CLI (solo lo que difiere del default).
+# `push` la llama la base (pg_net) con el header x-push-secret, sin JWT de usuario.
+[functions.push]
+verify_jwt = false
