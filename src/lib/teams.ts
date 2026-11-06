@@ -59,3 +59,59 @@ export const KITS: Record<string, Kit> = {
 
 export const TEAMS_PRIMERA = Object.keys(KITS).slice(0, 32);
 export const TEAMS_ASCENSO = Object.keys(KITS).slice(32);
+
+// ---------- Detalles del escudito (forma, borde e iniciales) ----------
+// Siguen siendo dibujos propios: solo se acercan a la forma y los colores del escudo de cada club.
+/** shield: escudo clásico · pointed: con punta arriba · french: base redondeada · oval · round: redondo */
+export type Shape = 'shield' | 'pointed' | 'french' | 'oval' | 'round';
+export interface CrestDetail { f?: Shape; b?: string; l?: string } // forma, color del borde, iniciales
+
+const GOLD = '#d4a017', DB = '#16295c';
+
+export const CREST: Record<string, CrestDetail> = {
+  'Aldosivi': { f: 'french', b: G, l: 'CAA' },
+  'Argentinos Juniors': { f: 'round', b: W, l: 'AAAJ' },
+  'Atlético Tucumán': { f: 'shield', b: B, l: 'CAT' },
+  'Banfield': { f: 'shield', b: G, l: 'CAB' },
+  'Barracas Central': { f: 'french', b: R, l: 'CABC' },
+  'Belgrano': { f: 'round', b: B, l: 'CAB' },
+  'Boca Juniors': { f: 'oval', b: GOLD, l: 'CABJ' },
+  'Central Córdoba (SdE)': { f: 'shield', b: R, l: 'CACC' },
+  'Defensa y Justicia': { f: 'french', b: G, l: 'DYJ' },
+  'Deportivo Riestra': { f: 'shield', b: W, l: 'CDR' },
+  'Estudiantes de La Plata': { f: 'pointed', b: R, l: 'EDLP' },
+  'Estudiantes de Río Cuarto': { f: 'shield', b: B, l: 'ERC' },
+  'Gimnasia de La Plata': { f: 'french', b: B, l: 'GELP' },
+  'Gimnasia de Mendoza': { f: 'french', b: N, l: 'GEM' },
+  'Godoy Cruz': { f: 'shield', b: B, l: 'GCAT' },
+  'Huracán': { f: 'round', b: R, l: 'CAH' },
+  'Independiente': { f: 'oval', b: W, l: 'CAI' },
+  'Independiente Rivadavia': { f: 'shield', b: W, l: 'CSIR' },
+  'Instituto': { f: 'shield', b: R, l: 'IACC' },
+  'Lanús': { f: 'pointed', b: W, l: 'CAL' },
+  "Newell's Old Boys": { f: 'pointed', b: N, l: 'CANOB' },
+  'Platense': { f: 'french', b: '#6b3e1f', l: 'CAP' },
+  'Racing Club': { f: 'french', b: B, l: 'RC' },
+  'River Plate': { f: 'shield', b: N, l: 'CARP' },
+  'Rosario Central': { f: 'pointed', b: B, l: 'CARC' },
+  'San Lorenzo': { f: 'pointed', b: B, l: 'CASLA' },
+  'San Martín de San Juan': { f: 'shield', b: G, l: 'CASM' },
+  'Sarmiento': { f: 'round', b: W, l: 'CAS' },
+  'Talleres': { f: 'french', b: DB, l: 'CAT' },
+  'Tigre': { f: 'round', b: R, l: 'CAT' },
+  'Unión': { f: 'shield', b: R, l: 'CAU' },
+  'Vélez Sarsfield': { f: 'pointed', b: B, l: 'CAVS' },
+  'All Boys': { f: 'shield', b: N, l: 'CAAB' },
+  'Almagro': { f: 'shield', b: W, l: 'CA' },
+  'Arsenal de Sarandí': { f: 'french', b: R, l: 'ADS' },
+  'Atlanta': { f: 'round', b: B, l: 'CAA' },
+  'Chacarita': { f: 'shield', b: N, l: 'CAChJ' },
+  'Chicago': { f: 'shield', b: N, l: 'NCH' },
+  'Colón': { f: 'pointed', b: N, l: 'CAC' },
+  'Ferro Carril Oeste': { f: 'round', b: W, l: 'FCO' },
+  'Los Andes': { f: 'french', b: R, l: 'CSLA' },
+  'Morón': { f: 'shield', b: R, l: 'CDM' },
+  'Quilmes': { f: 'shield', b: B, l: 'QAC' },
+  'San Martín de Tucumán': { f: 'shield', b: R, l: 'CASM' },
+  'Temperley': { f: 'round', b: W, l: 'CAT' },
+};

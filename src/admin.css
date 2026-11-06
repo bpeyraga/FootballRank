@@ -1,0 +1,24 @@
+/* Herramientas de admin y comodidades del partido. Solo usa las variables de styles.css (claro y oscuro). */
+
+/* Compartir y agendar la convocatoria */
+.share-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}
+.share-row .wide{grid-column:1/-1}
+.share-row .btn{min-width:0;padding:0 8px;text-align:center;line-height:1.15}
+.share-row a.btn{color:inherit;text-decoration:none}
+.share-hint{margin-top:6px;font-size:.8rem}
+
+/* Selector segmentado (vencimiento del link) */
+.adm-seg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:6px 0 12px}
+.adm-seg button{min-width:0;min-height:40px;padding:4px 2px;border:1px solid var(--line);border-radius:10px;background:var(--surface);
+  font-weight:600;line-height:1.15;cursor:pointer}
+.adm-seg button.on{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.adm-label{display:block;font-size:.85rem;color:var(--muted);font-weight:600}
+
+/* Vencimiento del link de invitación */
+.invite-exp{margin:-4px 0 12px;font-size:.9rem}
+.invite-exp.off{color:var(--danger);font-weight:600}
+
+/* Formulario y selector en tarjetas de admin */
+.adm-card .field:last-of-type{margin-bottom:12px}
+.adm-select{width:100%;min-height:44px;border-radius:10px;padding:0 8px;background:var(--bg);border:1px solid var(--line);margin-bottom:10px}
+.adm-note{margin:0 0 10px;font-size:.85rem}

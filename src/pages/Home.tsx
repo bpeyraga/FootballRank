@@ -130,7 +130,7 @@ export function Home({ me }: { me: Profile }) {
         const c = r.community, n = next[c.id], h = hue(c.id);
         return (
           <a class="comm" href={`#/c/${c.slug}`}>
-            <span class="crest" style={`--h:${h}`}>{initials(c.name)}</span>
+            <span class="comm-crest" style={`--h:${h}`}>{initials(c.name)}</span>
             <div class="comm-body">
               <b class="ellipsis">{c.name}</b>
               <span class="muted comm-meta">

@@ -7,7 +7,10 @@ import { tier, type Ranked } from '../lib/ranking';
 import { fmtAvg, loadPlayerStats, perMatch, type PlayerStats } from '../lib/stats';
 import { CustomStats, MatchHistory, SuspensionNotice } from './PlayerExtras';
 import { aggregateCustom, loadCustom, type CustomRow } from '../lib/customStats';
+import { fmtDay, loadOvrHistory, type OvrHistory } from '../lib/history';
+import { OvrChart } from '../lib/OvrChart';
 import '../stats.css';
+import '../history.css';
 
 const ROLE: Record<string, string> = { owner: 'Owner', admin: 'Admin', member: 'Miembro' };
 
@@ -30,6 +33,16 @@ export function Player({ r, rows, slug, meId, communityId, isAdmin }:
   useEffect(() => { setCustom([]); reloadCustom(); }, [communityId, r.profile.id]);
   const house = aggregateCustom(custom, r.profile.id, meId);
   const showMine = !!r.mine || house.some(h => h.mine != null);
+  const [hist, setHist] = useState<OvrHistory | null>(null);
+  const [histErr, setHistErr] = useState('');
+  useEffect(() => {
+    let alive = true;
+    setHist(null); setHistErr('');
+    loadOvrHistory(communityId, r.profile.id)
+      .then(h => alive && setHist(h))
+      .catch(e => alive && setHistErr(e?.message ?? 'Error desconocido'));
+    return () => { alive = false; };
+  }, [communityId, r.profile.id]);
   const decided = st ? st.won + st.drawn + st.lost : 0;
   return (
     <>
@@ -101,6 +114,21 @@ export function Player({ r, rows, slug, meId, communityId, isAdmin }:
       <SuspensionNotice pid={r.profile.id} communityId={communityId} isAdmin={isAdmin} />
       <CustomStats pid={r.profile.id} rows={rows} meId={meId} communityId={communityId} isAdmin={isAdmin} onChange={reloadCustom} />
       <MatchHistory pid={r.profile.id} slug={slug} communityId={communityId} />
+      <div class="card">
+        <h3 style="margin-bottom:12px">Evolución</h3>
+        {histErr && <p class="err" style="margin:0">No pudimos cargar la evolución. {histErr}</p>}
+        {!hist && !histErr && <p class="muted">Cargando…</p>}
+        {hist && !hist.available && <p class="muted">El historial de OVR todavía no está disponible.</p>}
+        {hist?.available && hist.points.length === 0 && (
+          <p class="muted">Todavía no hay evolución para mostrar: se arma a medida que lo votan.</p>
+        )}
+        {hist?.available && hist.points.length === 1 && (
+          <p class="muted">
+            Arrancó con OVR <b>{hist.points[0].ovr}</b> el {fmtDay(hist.points[0].day)}. Con un solo día todavía no hay línea: aparece cuando cambie su OVR.
+          </p>
+        )}
+        {hist?.available && hist.points.length > 1 && <OvrChart points={hist.points} />}
+      </div>
       {r.profile.id !== meId && (
         <a class="btn primary block" href={`#/c/${slug}/votar/${r.profile.id}`}>{r.mine ? 'Cambiar mi voto' : 'Votarlo'}</a>
       )}

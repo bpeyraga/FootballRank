@@ -11,7 +11,15 @@ export function FutCard({ p, stats, size = 'md' }:
   return (
     <div class={`futcard ${tierOf(o)} ${size}`} role="img"
       aria-label={`${displayName(p)}, ${p.pos}, OVR ${o ?? 'sin datos'}`}>
-      <div class="fc-top"><b>{o ?? '—'}</b><span>{p.pos}</span>{p.shirt_number && <span>#{p.shirt_number}</span>}<Crest team={p.fav_team} size={size === 'sm' ? 10 : 14} /></div>
+      <div class="fc-top">
+        <b>{o ?? '—'}</b><span>{p.pos}</span>
+        {(p.shirt_number || p.fav_team) && (
+          <div class="fc-badges">
+            <Crest team={p.fav_team} size={size === 'sm' ? 11 : 16} />
+            {p.shirt_number && <span>{p.shirt_number}</span>}
+          </div>
+        )}
+      </div>
       <div class="fc-photo"><Avatar p={p} size={size === 'sm' ? 52 : 84} /></div>
       <div class="fc-name ellipsis">{displayName(p)}</div>
       <div class="fc-stats">

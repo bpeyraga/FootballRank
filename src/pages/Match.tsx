@@ -5,19 +5,21 @@ import { Avatar } from '../lib/Avatar';
 import { lineup } from '../lib/formation';
 import { Pitch, type PitchPlayer } from '../lib/Pitch';
 import type { Ranked } from '../lib/ranking';
-import { fmtDate, STATUS, type Match as M } from './Matches';
+import { fmtDate, statusLabel, type Match as M } from './Matches';
 import {
   EVENT_KINDS, KIND_ICON, KIND_LABEL, groupMatchEvents, loadMatchEvents,
   type EventKind, type MatchEvent, type Team,
 } from '../lib/stats';
+import { downloadIcs, gcalUrl, matchUrl, shareText, whatsappUrl } from '../lib/share';
 import '../stats.css';
+import '../admin.css';
 
 interface Signup { profile_id: string; status: 'in' | 'waitlist' | 'out'; team: 'A' | 'B' | null; created_at: string; absent: boolean }
 interface Susp { id: string; profile_id: string }
 type BP = BPlayer & { r: Ranked };
 const NEUTRAL: Stats = { rit: 50, tir: 50, pas: 50, reg: 50, def: 50, fis: 50 };
 
-export function Match({ id, rows, meId, isAdmin }: { id: string; rows: Ranked[]; meId: string; isAdmin: boolean }) {
+export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: string; rows: Ranked[]; meId: string; isAdmin: boolean }) {
   const [m, setM] = useState<M | null | undefined>(undefined);
   const [su, setSu] = useState<Signup[]>([]);
   const [susp, setSusp] = useState<Susp[]>([]);
@@ -33,6 +35,17 @@ export function Match({ id, rows, meId, isAdmin }: { id: string; rows: Ranked[];
   const [events, setEvents] = useState<MatchEvent[] | null>(null);
   const [evErr, setEvErr] = useState('');
   const [evBusy, setEvBusy] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [, tick] = useState(0);
+
+  // La lista se cierra sola a la hora del partido: re-render justo cuando arranca.
+  useEffect(() => {
+    if (!m) return;
+    const ms = +new Date(m.starts_at) - Date.now();
+    if (ms <= 0 || ms > 2 ** 31 - 1) return;
+    const t = setTimeout(() => tick(n => n + 1), ms + 500);
+    return () => clearTimeout(t);
+  }, [m?.starts_at]);
 
   // Goles y tarjetas se cargan aparte: si la tabla no existe todavía, el resto de la pantalla sigue andando.
   const loadEvents = async () => {
@@ -69,6 +82,8 @@ export function Match({ id, rows, meId, isAdmin }: { id: string; rows: Ranked[];
   const mine = su.find(s => s.profile_id === meId && s.status !== 'out');
   const started = new Date(m.starts_at) <= new Date();
   const editable = m.status === 'open' || m.status === 'closed';
+  const canSignup = m.status === 'open' && !started; // pasada la hora, la lista queda cerrada sola
+  const link = matchUrl(location.origin, slug, id);
   const hasTeams = inList.some(s => s.team);
   const myTeam = mine?.status === 'in' && !mine.absent ? mine.team : null;
   const suspended = (pid: string) => susp.some(x => x.profile_id === pid);
@@ -103,6 +118,32 @@ export function Match({ id, rows, meId, isAdmin }: { id: string; rows: Ranked[];
     const r = await sb.from('match_events').delete().eq('id', eid).select('id');
     return { error: r.error ?? (r.data?.length ? null : { message: 'No se pudo borrar (puede que ya lo hayan sacado).' }) };
   });
+
+  const shareWhatsApp = () => {
+    const text = shareText(m, inList.length, link);
+    if (navigator.share) navigator.share({ text }).catch(() => {});
+    else open(whatsappUrl(text), '_blank', 'noopener');
+  };
+
+  // Devuelve el error (en español) o '' si salió bien; el formulario lo muestra junto a los campos.
+  const saveEdit = async (v: { title: string; startsAt: string; location: string; slots: number }): Promise<string> => {
+    const over = inList.length - v.slots, free = v.slots - inList.length;
+    if (over > 0 && !confirm(`Hay ${over} ${over === 1 ? 'anotado' : 'anotados'} de más: ${over === 1 ? 'el último en anotarse pasa' : `los últimos ${over} en anotarse pasan`} a la lista de espera. ¿Seguís?`)) return '';
+    setBusy(true); setErr(''); setMsg('');
+    const { error } = await sb.rpc('update_match', {
+      p_match: id, p_title: v.title, p_starts_at: new Date(v.startsAt).toISOString(), p_location: v.location, p_slots: v.slots,
+    });
+    setBusy(false);
+    if (error) return friendly(error.message);
+    const promoted = Math.min(wait.length, Math.max(free, 0));
+    setMsg(over > 0 ? `Partido actualizado: ${over} pasaron a la lista de espera.`
+      : promoted > 0 ? `Partido actualizado: ${promoted} ${promoted === 1 ? 'subió' : 'subieron'} de la lista de espera.`
+      : 'Partido actualizado.');
+    setEditing(false);
+    await load();
+    scrollTo({ top: 0, behavior: 'smooth' });
+    return '';
+  };
 
   const toBP = (pid: string): BP => {
     const r = byId.get(pid)!;
@@ -176,7 +217,7 @@ export function Match({ id, rows, meId, isAdmin }: { id: string; rows: Ranked[];
         <h2>{m.title}</h2>
         <p>{fmtDate(m.starts_at)}{m.location && <> · {m.location}</>}</p>
         <div class="row" style="justify-content:space-between;margin-top:8px">
-          <span class="muted">{STATUS[m.status]}</span>
+          <span class="muted">{statusLabel(m)}</span>
           {editable && <span class={`slots ${inList.length >= m.slots ? 'full' : ''}`}>{inList.length}/{m.slots}</span>}
         </div>
         {m.status === 'played' && m.score_a != null && (
@@ -184,7 +225,7 @@ export function Match({ id, rows, meId, isAdmin }: { id: string; rows: Ranked[];
         )}
         {suspended(meId) && editable &&
           <p class="note" style="margin-top:12px;padding:10px 12px;border-radius:10px">Estás suspendido para este partido por ausencias.</p>}
-        {m.status === 'open' && !mine && !suspended(meId) &&
+        {canSignup && !mine && !suspended(meId) &&
           <button class="btn primary block" style="margin-top:12px" disabled={busy}
             onClick={() => run(() => sb.rpc('signup', { p_match: id }),
               inList.length >= m.slots ? 'Quedaste en lista de espera' : '¡Anotado!')}>
@@ -193,8 +234,18 @@ export function Match({ id, rows, meId, isAdmin }: { id: string; rows: Ranked[];
         {editable && mine && !started &&
           <div class="row" style="margin-top:12px">
             <span style="flex:1">{mine.status === 'in' ? '✓ Estás anotado' : `En espera (#${wait.findIndex(w => w.profile_id === meId) + 1})`}</span>
-            <button class="btn" disabled={busy} onClick={() => run(() => sb.rpc('leave_match', { p_match: id }), 'Te bajaste')}>Bajarme</button>
+            {!started
+              ? <button class="btn" disabled={busy} onClick={() => run(() => sb.rpc('leave_match', { p_match: id }), 'Te bajaste')}>Bajarme</button>
+              : <span class="muted">Ya empezó</span>}
           </div>}
+        {editable && !started && (
+          <div class="share-row">
+            <button class="btn sm primary wide" onClick={shareWhatsApp}>Compartir por WhatsApp</button>
+            <a class="btn sm" href={gcalUrl(m, link)} target="_blank" rel="noopener">Agendar (Google)</a>
+            <button class="btn sm" onClick={() => downloadIcs(m, link)}>Agendar (.ics)</button>
+          </div>
+        )}
+        {editable && !started && <p class="muted share-hint">El .ics te avisa 1 hora antes del partido.</p>}
         {msg && <p class="muted" style="margin-top:8px">{msg}</p>}
         {err && <p class="err">{err}</p>}
       </div>
@@ -226,10 +277,10 @@ export function Match({ id, rows, meId, isAdmin }: { id: string; rows: Ranked[];
         </div>
       )}
 
-      {/* Goles y tarjetas: partido jugado; cargan admins y quienes jugaron */}
+      {/* Goles y tarjetas: partido jugado; los cargan solo los admins */}
       {m.status === 'played' && (
         <MatchEvents events={events} err={evErr} busy={evBusy} meId={meId} isAdmin={isAdmin}
-          canAdd={isAdmin || mine?.status === 'in'} hasTeams={hasTeams}
+          canAdd={isAdmin} hasTeams={hasTeams}
           players={inList.map(s => ({ id: s.profile_id, name: displayName(prof(s.profile_id)), team: s.team }))}
           nameOf={pid => displayName(prof(pid))} teamOf={pid => (hasTeams ? inList.find(s => s.profile_id === pid)?.team ?? null : null)}
           onAdd={addEvent} onDel={delEvent} />
@@ -252,13 +303,15 @@ export function Match({ id, rows, meId, isAdmin }: { id: string; rows: Ranked[];
           )}
           <div class="row" style="flex-wrap:wrap">
             {inList.length >= 2 && <button class="btn primary" disabled={busy} onClick={doBalance}>{hasTeams ? 'Rearmar equipos' : 'Armar equipos'}</button>}
-            {m.status === 'open'
+            <button class="btn" disabled={busy} onClick={() => setEditing(e => !e)}>{editing ? 'Cerrar edición' : 'Editar partido'}</button>
+            {!started && (m.status === 'open'
               ? <button class="btn" disabled={busy} onClick={() => run(() => sb.from('matches').update({ status: 'closed' }).eq('id', id), 'Lista cerrada')}>Cerrar lista</button>
-              : <button class="btn" disabled={busy} onClick={() => run(() => sb.from('matches').update({ status: 'open' }).eq('id', id), 'Lista reabierta')}>Reabrir lista</button>}
+              : <button class="btn" disabled={busy} onClick={() => run(() => sb.from('matches').update({ status: 'open' }).eq('id', id), 'Lista reabierta')}>Reabrir lista</button>)}
             <button class="btn danger" disabled={busy} onClick={() => confirm('¿Cancelar el partido? No se puede deshacer.') && run(() => sb.from('matches').update({ status: 'cancelled' }).eq('id', id), 'Partido cancelado')}>Cancelar partido</button>
           </div>
         </div>
       )}
+      {isAdmin && editable && editing && <EditMatch m={m} busy={busy} onSave={saveEdit} onCancel={() => setEditing(false)} />}
 
       {splits && splits.length > 0 && (() => {
         const s = splits[opt];
@@ -286,7 +339,7 @@ export function Match({ id, rows, meId, isAdmin }: { id: string; rows: Ranked[];
       })()}
 
       {/* Resultado: cualquier miembro, una vez empezado */}
-      {started && m.status !== 'cancelled' && (
+      {isAdmin && started && m.status !== 'cancelled' && (
         <div class="card">
           <h3 style="margin-bottom:12px">{m.status === 'played' ? 'Corregir resultado' : 'Cargar resultado'}</h3>
           <div class="row">
@@ -310,6 +363,43 @@ export function Match({ id, rows, meId, isAdmin }: { id: string; rows: Ranked[];
   );
 }
 
+/** valor para <input type="datetime-local"> (hora local) a partir de un instante ISO */
+const toLocalInput = (iso: string) => {
+  const d = new Date(iso);
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60e3).toISOString().slice(0, 16);
+};
+
+/** Edición de título, fecha, lugar y cupos (admins). Si bajan los cupos, el servidor manda a los últimos a la lista de espera. */
+function EditMatch({ m, busy, onSave, onCancel }: {
+  m: M; busy: boolean; onCancel: () => void;
+  onSave: (v: { title: string; startsAt: string; location: string; slots: number }) => Promise<string>;
+}) {
+  const [f, setF] = useState({ title: m.title, when: toLocalInput(m.starts_at), location: m.location ?? '', slots: String(m.slots) });
+  const [err, setErr] = useState('');
+  const set = (k: keyof typeof f) => (e: Event) => setF({ ...f, [k]: (e.target as HTMLInputElement).value });
+  const slots = Math.round(+f.slots);
+  const valid = f.title.trim().length > 0 && !isNaN(+new Date(f.when)) && f.when !== '' && slots >= 2 && slots <= 40;
+  const save = async () => {
+    setErr('');
+    setErr(await onSave({ title: f.title.trim(), startsAt: f.when, location: f.location.trim(), slots }));
+  };
+  return (
+    <div class="card adm-card">
+      <h3 style="margin-bottom:12px">Editar partido</h3>
+      <label class="field"><span>Título</span><input value={f.title} maxLength={80} onInput={set('title')} /></label>
+      <label class="field"><span>Fecha y hora</span><input type="datetime-local" value={f.when} onInput={set('when')} /></label>
+      <label class="field"><span>Lugar</span><input value={f.location} maxLength={200} placeholder="Cancha, dirección…" onInput={set('location')} /></label>
+      <label class="field"><span>Cupos</span><input type="number" min={2} max={40} inputMode="numeric" value={f.slots} onInput={set('slots')} /></label>
+      <p class="muted adm-note">Si subís los cupos, entran los primeros de la lista de espera. Si los bajás, los últimos en anotarse pasan a la lista de espera.</p>
+      <div class="row">
+        <button class="btn primary" disabled={busy || !valid} onClick={save}>{busy ? 'Guardando…' : 'Guardar cambios'}</button>
+        <button class="btn" disabled={busy} onClick={onCancel}>Cancelar</button>
+      </div>
+      {err && <p class="err">{err}</p>}
+    </div>
+  );
+}
+
 const SHORT: Record<EventKind, string> = { goal: 'Gol', assist: 'Asist.', yellow: 'Amarilla', red: 'Roja' };
 
 /** Goles, asistencias y tarjetas del partido, agrupados por equipo, con alta y baja para quienes pueden. */
@@ -322,7 +412,7 @@ function MatchEvents({ events, err, busy, meId, isAdmin, canAdd, hasTeams, playe
   const [pid, setPid] = useState('');
   const [kind, setKind] = useState<EventKind>('goal');
   const groups = groupMatchEvents(events ?? [], teamOf);
-  const canDel = (e: MatchEvent) => isAdmin || e.created_by === meId;
+  const canDel = (_e: MatchEvent) => isAdmin;
   const opt = (ps: typeof players) => ps.map(p => <option value={p.id}>{p.name}</option>);
   const sin = players.filter(p => !p.team);
 
@@ -422,6 +512,12 @@ function friendly(m: string) {
   if (m.includes('bad_score')) return 'El resultado tiene que ser un número entre 0 y 99.';
   if (m.includes('not_played')) return 'Primero hay que cargar el resultado del partido.';
   if (m.includes('not_member')) return 'Esa persona ya no es miembro de la comunidad.';
+  if (m.includes('already_started')) return 'El partido ya empezó: no podés bajarte. Avisale a un admin.';
+  if (m.includes('not_editable')) return 'Solo se puede editar un partido con la lista abierta o cerrada.';
+  if (m.includes('bad_title')) return 'El título tiene que tener entre 1 y 80 caracteres.';
+  if (m.includes('bad_date')) return 'Elegí una fecha y hora válidas.';
+  if (m.includes('bad_location')) return 'El lugar es demasiado largo (máximo 200 caracteres).';
+  if (m.includes('bad_slots')) return 'Los cupos tienen que ser entre 2 y 40.';
   if (m.includes('cancelled')) return 'El partido está cancelado.';
   if (m.includes('closed')) return 'La lista está cerrada.';
   if (m.includes('not_started')) return 'El partido todavía no empezó.';

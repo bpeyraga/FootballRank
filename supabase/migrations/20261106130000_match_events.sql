@@ -16,12 +16,12 @@ alter table match_events enable row level security;
 drop policy if exists ev_read on match_events;
 create policy ev_read on match_events for select using (is_member(community_id));
 
--- Carga: admin/owner, o alguien que jugó el partido (anotado 'in'). El evento tiene que ser de la
+-- Carga: solo owner/admins. El evento tiene que ser de la
 -- comunidad del partido, sobre un partido ya jugado, y el jugador del evento debe ser miembro y haber jugado.
 drop policy if exists ev_ins on match_events;
 create policy ev_ins on match_events for insert with check (
   created_by = me()
-  and is_member(community_id)
+  and is_admin(community_id)
   and exists (select 1 from matches m
               where m.id = match_events.match_id
                 and m.community_id = match_events.community_id
@@ -33,13 +33,8 @@ create policy ev_ins on match_events for insert with check (
               where js.match_id = match_events.match_id
                 and js.profile_id = match_events.profile_id
                 and js.status = 'in')
-  and (is_admin(community_id)
-       or exists (select 1 from match_signups s
-                  where s.match_id = match_events.match_id
-                    and s.profile_id = me()
-                    and s.status = 'in'))
 );
 
--- Borra: admin/owner de la comunidad o quien lo cargó
+-- Borra: solo owner/admins
 drop policy if exists ev_del on match_events;
-create policy ev_del on match_events for delete using (is_admin(community_id) or created_by = me());
+create policy ev_del on match_events for delete using (is_admin(community_id));

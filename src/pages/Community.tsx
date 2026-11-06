@@ -9,9 +9,11 @@ import { Vote } from './Vote';
 import { Player } from './Player';
 import { Matches } from './Matches';
 import { Match } from './Match';
-import { Chat } from './Chat';
+import { Chat, seenKey } from './Chat';
 
-interface Community { id: string; name: string; slug: string; invite_code: string; owner_id: string }
+import '../admin.css';
+
+interface Community { id: string; name: string; slug: string; invite_code: string; owner_id: string; invite_expires_at?: string | null }
 const ROLE: Record<string, string> = { owner: 'Owner', admin: 'Admin', member: 'Miembro' };
 const ORDER: Record<string, number> = { owner: 0, admin: 1, member: 2 };
 
@@ -35,6 +37,22 @@ export function Community({ slug, sub, me }: { slug: string; sub: string[]; me: 
     setC(r.data);
   };
   useEffect(() => { setC(undefined); setActErr(''); load(); }, [slug]);
+  // Mensajes nuevos de otros desde la última vez que abriste el chat (badge en la pestaña)
+  const [unread, setUnread] = useState(0);
+  useEffect(() => {
+    if (!c) return;
+    if (sub[0] === 'chat') return setUnread(0);
+    let seen: string | null = null;
+    try {
+      seen = localStorage.getItem(seenKey(c.id));
+      // Sin marca (otro dispositivo, recién llegado): arranca desde ahora en vez de contar todo el historial
+      if (!seen) localStorage.setItem(seenKey(c.id), new Date().toISOString());
+    } catch { /* sin storage */ }
+    if (!seen) return setUnread(0);
+    sb.from('messages').select('id', { count: 'exact', head: true }).eq('community_id', c.id).neq('author_id', me.id)
+      .gt('created_at', seen)
+      .then(({ count }) => setUnread(count ?? 0));
+  }, [c?.id, sub[0]]);
   // En pantallas angostas, que la pestaña activa quede a la vista
   useEffect(() => {
     document.querySelector('.tabs a.on')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
@@ -57,13 +75,28 @@ export function Community({ slug, sub, me }: { slug: string; sub: string[]; me: 
     if (navigator.share) navigator.share({ text }).catch(() => {});
     else open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
-  const regen = async () => {
-    const { error } = await sb.rpc('regenerate_invite', { p_community: c.id });
-    if (error) setActErr(error.message); else { setMsg('Link nuevo generado; el anterior ya no sirve'); load(); }
+  const regen = async (hours: number | null) => {
+    // Sin vencimiento se manda solo p_community (igual que antes de existir p_hours)
+    const { error } = await sb.rpc('regenerate_invite', hours ? { p_community: c.id, p_hours: hours } : { p_community: c.id });
+    if (error) setActErr(adminError(error.message));
+    else {
+      setActErr('');
+      setMsg(`Link nuevo generado${hours ? ` (vence en ${hours === 24 ? '24 horas' : `${hours / 24} días`})` : ''}; el anterior ya no sirve`);
+      load();
+    }
   };
   const setRole = async (pid: string, role: string) => {
     const { error } = await sb.rpc('set_role', { p_community: c.id, p_profile: pid, p_role: role });
     if (error) setActErr(error.message); else { setActErr(''); loadRows(c.id); }
+  };
+  const transfer = async (pid: string, name: string) => {
+    if (!confirm(`¿Pasarle la comunidad "${c.name}" a ${name}? Va a ser el nuevo owner y vos quedás como admin. Solo ${name} podría devolvértela.`)) return false;
+    const { error } = await sb.rpc('transfer_ownership', { p_community: c.id, p_profile: pid });
+    if (error) { setActErr(adminError(error.message)); return false; }
+    setActErr(''); setMsg(`Ahora ${name} es el owner. Vos quedaste como admin.`);
+    await load();
+    scrollTo({ top: 0, behavior: 'smooth' });
+    return true;
   };
   const kick = async (pid: string, name: string) => {
     if (!confirm(`¿Sacar a ${name} de la comunidad? Se libera su lugar en los partidos abiertos. Si no querés que vuelva a entrar, después regenerá el link de invitación.`)) return;
@@ -85,12 +118,14 @@ export function Community({ slug, sub, me }: { slug: string; sub: string[]; me: 
     if (error) setActErr(error.message); else go('');
   };
 
-  const Tab = ({ id, label }: { id: string; label: string }) =>
-    <a href={`#/c/${slug}${id === 'partidos' ? '' : '/' + id}`} class={tab === id || (id === 'partidos' && tab === 'm') ? 'on' : ''}>{label}</a>;
+  const Tab = ({ id, label, badge }: { id: string; label: string; badge?: number }) =>
+    <a href={`#/c/${slug}${id === 'partidos' ? '' : '/' + id}`} class={tab === id || (id === 'partidos' && tab === 'm') ? 'on' : ''}>
+      {label}{!!badge && tab !== id && <span class="tab-badge" aria-label={`${badge} sin leer`}>{badge > 99 ? '99+' : badge}</span>}
+    </a>;
 
   let body;
   if (tab === 'm' && sub[1]) {
-    body = <Match key={sub[1]} id={sub[1]} rows={rows} meId={me.id} isAdmin={isAdmin} />;
+    body = <Match key={sub[1]} id={sub[1]} slug={slug} rows={rows} meId={me.id} isAdmin={isAdmin} />;
   } else if (tab === 'chat') {
     body = <Chat key={c.id} communityId={c.id} rows={rows} meId={me.id} isAdmin={isAdmin} onUnknown={() => loadRows(c.id)} />;
   } else if (tab === 'ranking') {
@@ -106,16 +141,8 @@ export function Community({ slug, sub, me }: { slug: string; sub: string[]; me: 
     const fans = teamTally(rows.map(r => r.profile));
     const top = fans.teams[0]?.n ?? 1;
     body = <>
-      <div class="card">
-        <h3 style="margin-bottom:8px">Invitar</h3>
-        <p class="muted" style="margin-bottom:12px;word-break:break-all">{link}</p>
-        <div class="row" style="flex-wrap:wrap">
-          <button class="btn primary" onClick={share}>Compartir</button>
-          <button class="btn" onClick={copy}>Copiar link</button>
-          {isAdmin && <button class="btn" onClick={regen}>Regenerar</button>}
-        </div>
-        {msg && <p class="muted" style="margin-top:8px">{msg}</p>}
-      </div>
+      <InviteCard link={link} expiresAt={c.invite_expires_at ?? null} isAdmin={isAdmin} msg={msg}
+        onShare={share} onCopy={copy} onRegen={regen} />
       <div class="card" style="padding:4px 12px">
         {members.map(m => (
           <div class="row rank-row">
@@ -143,6 +170,10 @@ export function Community({ slug, sub, me }: { slug: string; sub: string[]; me: 
           ))}
         {fans.teams.length > 0 && fans.none > 0 && <p class="muted st-note">{fans.none} sin equipo elegido</p>}
       </div>
+      {isOwner && <TransferOwner
+        candidates={members.filter(m => m.profile.id !== me.id && m.profile.user_id)
+          .map(m => ({ id: m.profile.id, name: displayName(m.profile), role: m.role }))}
+        onTransfer={transfer} />}
       {isOwner
         ? <button class="btn block danger" onClick={remove}>Eliminar comunidad</button>
         : <button class="btn block danger" onClick={leave}>Salir de la comunidad</button>}
@@ -158,7 +189,7 @@ export function Community({ slug, sub, me }: { slug: string; sub: string[]; me: 
       <h2 style="margin:8px 0 12px">{c.name}</h2>
       <nav class="tabs">
         <Tab id="partidos" label="Partidos" />
-        <Tab id="chat" label="Chat" />
+        <Tab id="chat" label="Chat" badge={unread} />
         <Tab id="ranking" label="Ranking" />
         <Tab id="votar" label="Votar" />
         <Tab id="miembros" label="Miembros" />
@@ -166,4 +197,80 @@ export function Community({ slug, sub, me }: { slug: string; sub: string[]; me: 
       {body}
     </div>
   );
+}
+
+const EXPIRY: { label: string; hours: number | null }[] = [
+  { label: 'Nunca', hours: null }, { label: '24 horas', hours: 24 }, { label: '7 días', hours: 168 },
+];
+const fmtExpiry = (iso: string) => new Date(iso).toLocaleString('es-AR',
+  { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+
+/** Link de invitación: compartir/copiar, cuándo vence y (admins) regenerarlo eligiendo el vencimiento. */
+function InviteCard({ link, expiresAt, isAdmin, msg, onShare, onCopy, onRegen }: {
+  link: string; expiresAt: string | null; isAdmin: boolean; msg: string;
+  onShare: () => void; onCopy: () => void; onRegen: (hours: number | null) => Promise<void>;
+}) {
+  const [hours, setHours] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+  const expired = !!expiresAt && new Date(expiresAt) <= new Date();
+  const regen = async () => { setBusy(true); try { await onRegen(hours); } finally { setBusy(false); } };
+  return (
+    <div class="card">
+      <h3 style="margin-bottom:8px">Invitar</h3>
+      <p class="muted" style="margin-bottom:8px;word-break:break-all">{link}</p>
+      <p class={`muted invite-exp ${expired ? 'off' : ''}`}>
+        {!expiresAt ? 'No vence' : expired ? `Venció el ${fmtExpiry(expiresAt)}. Regenerá el link para invitar.` : `Vence el ${fmtExpiry(expiresAt)}`}
+      </p>
+      <div class="row" style="flex-wrap:wrap">
+        <button class="btn primary" disabled={expired} onClick={onShare}>Compartir</button>
+        <button class="btn" disabled={expired} onClick={onCopy}>Copiar link</button>
+      </div>
+      {isAdmin && <>
+        <span class="adm-label" style="margin-top:16px" id="exp-label">Link nuevo: ¿cuándo vence?</span>
+        <div class="adm-seg" role="group" aria-labelledby="exp-label">
+          {EXPIRY.map(o => (
+            <button type="button" class={hours === o.hours ? 'on' : ''} aria-pressed={hours === o.hours} onClick={() => setHours(o.hours)}>{o.label}</button>
+          ))}
+        </div>
+        <button class="btn block" disabled={busy} onClick={regen}>{busy ? 'Generando…' : 'Regenerar link'}</button>
+      </>}
+      {msg && <p class="muted" style="margin-top:8px">{msg}</p>}
+    </div>
+  );
+}
+
+/** Solo el owner: elige a otro miembro (con cuenta) y le pasa la comunidad; él queda como admin. */
+function TransferOwner({ candidates, onTransfer }: {
+  candidates: { id: string; name: string; role: string }[];
+  onTransfer: (pid: string, name: string) => Promise<boolean>;
+}) {
+  const [pid, setPid] = useState('');
+  const [busy, setBusy] = useState(false);
+  if (!candidates.length) return null;
+  const submit = async () => {
+    const p = candidates.find(x => x.id === pid);
+    if (!p) return;
+    setBusy(true);
+    try { await onTransfer(p.id, p.name); } finally { setBusy(false); }
+  };
+  return (
+    <div class="card adm-card">
+      <h3 style="margin-bottom:4px">Transferir la comunidad</h3>
+      <p class="muted adm-note">Elegí a quién le pasás el rol de owner. Vos quedás como admin.</p>
+      <select class="adm-select" aria-label="Nuevo owner" value={pid} onChange={e => setPid((e.target as HTMLSelectElement).value)}>
+        <option value="">Elegí un miembro…</option>
+        {candidates.map(p => <option value={p.id}>{p.name} · {ROLE[p.role]}</option>)}
+      </select>
+      <button class="btn block" disabled={!pid || busy} onClick={submit}>{busy ? 'Transfiriendo…' : 'Transferir ownership'}</button>
+    </div>
+  );
+}
+
+function adminError(m: string) {
+  if (m.includes('forbidden')) return 'No tenés permiso para hacer eso.';
+  if (m.includes('not_member')) return 'Esa persona ya no es miembro de la comunidad.';
+  if (m.includes('bad_target')) return 'No se le puede transferir a esa persona: tiene que ser otro miembro con cuenta.';
+  if (m.includes('bad_hours')) return 'El vencimiento elegido no es válido.';
+  if (m.includes('Failed to fetch') || m.includes('NetworkError')) return 'Sin conexión. Probá de nuevo.';
+  return m;
 }

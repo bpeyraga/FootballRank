@@ -14,6 +14,10 @@ export const fmtDate = (iso: string) => new Date(iso).toLocaleString('es-AR',
 export const STATUS: Record<Match['status'], string> =
   { open: 'Inscripción abierta', closed: 'Lista cerrada', played: 'Jugado', cancelled: 'Cancelado' };
 
+/** Una lista abierta se cierra sola cuando llega la hora del partido (lo hace también el servidor al anotarse). */
+export const statusLabel = (m: Pick<Match, 'status' | 'starts_at'>) =>
+  m.status === 'open' && new Date(m.starts_at) <= new Date() ? 'Lista cerrada (ya empezó)' : STATUS[m.status];
+
 /** Lista de próximos e historial; los admins crean convocatorias. */
 export function Matches({ communityId, slug, meId, isAdmin }:
   { communityId: string; slug: string; meId: string; isAdmin: boolean }) {
@@ -44,7 +48,7 @@ export function Matches({ communityId, slug, meId, isAdmin }:
         <b class="ellipsis" style="display:block">{m.title}</b>
         <div class="muted" style="font-size:.85rem">{fmtDate(m.starts_at)}{m.location ? ` · ${m.location}` : ''}</div>
         <div style="font-size:.85rem">
-          {m.status === 'played' && m.score_a != null ? `Resultado ${m.score_a} – ${m.score_b}` : STATUS[m.status]}
+          {m.status === 'played' && m.score_a != null ? `Resultado ${m.score_a} – ${m.score_b}` : statusLabel(m)}
           {m.mine === 'in' && <span class="pill">Anotado</span>}
           {m.mine === 'waitlist' && <span class="pill warn">En espera</span>}
         </div>

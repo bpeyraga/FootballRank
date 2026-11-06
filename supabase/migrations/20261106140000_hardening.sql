@@ -37,20 +37,17 @@ drop trigger if exists membership_removed on memberships;
 create trigger membership_removed after delete on memberships
   for each row execute function on_membership_removed();
 
--- 3) Resultado: cualquier miembro lo carga, pero una vez cargado solo lo corrige quien lo cargó o un admin.
+-- 3) Resultado: lo cargan y corrigen solo owner/admins de la comunidad.
 create or replace function set_result(p_match uuid, p_a int, p_b int) returns void
 language plpgsql security definer set search_path = public as $$
 declare m matches;
 begin
   select * into m from matches where id = p_match for update;
-  if m.id is null or not is_member(m.community_id) then raise exception 'forbidden'; end if;
+  if m.id is null or not is_admin(m.community_id) then raise exception 'forbidden'; end if;
   if m.status = 'cancelled' then raise exception 'cancelled'; end if;
   if m.starts_at > now() then raise exception 'not_started'; end if;
   if p_a is null or p_b is null or p_a not between 0 and 99 or p_b not between 0 and 99 then
     raise exception 'bad_score';
-  end if;
-  if m.status = 'played' and m.result_by is distinct from me() and not is_admin(m.community_id) then
-    raise exception 'result_locked';
   end if;
   update matches set score_a = p_a, score_b = p_b, result_by = me(), status = 'played' where id = p_match;
 end $$;
