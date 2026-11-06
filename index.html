@@ -16,7 +16,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
 <script>
 try {
-  // Aplica el tema ya resuelto por la app (src/lib/theme.ts → bootOf), sin lógica propia, para que no parpadee.
+  // Aplica el tema ya resuelto por la app (src/features/theme/theme.ts → bootOf), sin lógica propia, para que no parpadee.
   var b = (JSON.parse(localStorage.getItem('fr-theme') || 'null') || {}).boot, e = document.documentElement;
   if (b) {
     if (b.theme) e.setAttribute('data-theme', b.theme);
@@ -26,5 +26,5 @@ try {
 } catch (_) {}
 </script>
 </head>
-<body><div id="app"></div><script type="module" src="/src/main.tsx"></script></body>
+<body><div id="app"></div><script type="module" src="/src/app/main.tsx"></script></body>
 </html>
