@@ -15,6 +15,8 @@ export async function loadMe(): Promise<Profile | null> {
   if (!user) return null;
   const { data, error } = await sb.from('profiles').select('*').eq('user_id', user.id).maybeSingle();
   if (error) throw error;
+  // Con sesión pero sin perfil (usuario creado antes del trigger): no mostrar el login en loop.
+  if (!data) throw new Error('No encontramos tu perfil de jugador. Salí y volvé a entrar; si sigue pasando, avisale al admin.');
   return data;
 }
 

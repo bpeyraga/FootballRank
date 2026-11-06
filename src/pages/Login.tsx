@@ -1,12 +1,18 @@
 import { useState } from 'preact/hooks';
 import { sb } from '../lib/supabase';
 
+/** Ruta a la que volver después del login con Google (ver main.tsx). */
+export const NEXT_KEY = 'futrank-next';
+
 export function Login() {
   const [err, setErr] = useState('');
   const go = async () => {
+    // El token vuelve en el hash (#access_token=…): si redirectTo ya tiene "#/join/…" queda
+    // "#/join/…#access_token=…" y supabase-js no lo detecta. Guardamos la ruta y la restauramos en main.tsx.
+    try { if (location.hash.startsWith('#/')) localStorage.setItem(NEXT_KEY, location.hash); } catch { /* sin storage */ }
     const { error } = await sb.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: location.origin + location.pathname + location.hash },
+      options: { redirectTo: location.origin + location.pathname },
     });
     if (error) setErr(error.message);
   };

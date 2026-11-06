@@ -13,7 +13,10 @@ export function Onboarding({ me, done }: { me: Profile; done: () => void }) {
   const onPhoto = async (e: Event) => {
     const f = (e.target as HTMLInputElement).files?.[0];
     if (!f) return;
+    // busy: que no se pueda tocar "Listo" con la foto subiendo (se guardaría la foto vieja)
+    setBusy(true); setErr('');
     try { setPhoto(await uploadPhoto(me.id, f)); } catch (x: any) { setErr(x.message); }
+    setBusy(false);
   };
 
   const save = async () => {
@@ -30,7 +33,7 @@ export function Onboarding({ me, done }: { me: Profile; done: () => void }) {
       <h2 style="margin-bottom:12px">Tu ficha</h2>
       <div class="card">
         <div class="row" style="margin-bottom:14px">
-          {photo ? <img class="avatar" src={photo} alt="" /> : <span class="avatar">{name.charAt(0).toUpperCase() || '?'}</span>}
+          {photo ? <img class="avatar" src={photo} alt="" referrerpolicy="no-referrer" /> : <span class="avatar">{name.charAt(0).toUpperCase() || '?'}</span>}
           <label class="btn">Cambiar foto<input type="file" accept="image/*" hidden onChange={onPhoto} /></label>
         </div>
         <label class="field"><span>Nombre</span>

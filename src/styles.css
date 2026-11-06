@@ -69,8 +69,8 @@ p{margin:0}
 .avatar{width:56px;height:56px;border-radius:50%;object-fit:cover;background:var(--accent-soft);display:grid;place-items:center;font:700 1.4rem var(--f-display)}
 a{color:var(--accent)}
 .ellipsis{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.tabs{display:flex;gap:4px;margin-bottom:12px;border-bottom:1px solid var(--line)}
-.tabs a{padding:10px 12px;color:var(--muted);text-decoration:none;font-weight:600;border-bottom:3px solid transparent;margin-bottom:-1px}
+.tabs{display:flex;gap:4px;margin-bottom:12px;box-shadow:inset 0 -1px var(--line);overflow-x:auto;scrollbar-width:none}
+.tabs a{padding:10px 12px;color:var(--muted);text-decoration:none;font-weight:600;border-bottom:3px solid transparent;white-space:nowrap}
 .tabs a.on{color:var(--fg);border-color:var(--accent)}
 .rank-row{padding:8px 0;border-top:1px solid var(--line);color:inherit;text-decoration:none}
 .rank-row:first-child{border-top:0}
