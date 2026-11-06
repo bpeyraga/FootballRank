@@ -3,6 +3,7 @@ import { displayName, hue, posLine, sb, type Profile, type Stats } from '../lib/
 import { go, slugify } from '../lib/router';
 import { Avatar } from '../lib/Avatar';
 import { FutCard } from '../lib/FutCard';
+import { useInstall } from '../lib/install';
 
 interface Comm { id: string; name: string; slug: string }
 interface Row { role: string; community: Comm }
@@ -26,6 +27,8 @@ export function Home({ me }: { me: Profile }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const menu = useRef<HTMLDetailsElement>(null);
+  const install = useInstall();
+  const [tip, setTip] = useState('');
 
   useEffect(() => {
     sb.from('base_stats').select('rit,tir,pas,reg,def,fis').eq('profile_id', me.id).maybeSingle()
@@ -92,12 +95,25 @@ export function Home({ me }: { me: Profile }) {
           <div class="menu-pop">
             <div class="menu-who"><b class="ellipsis">{displayName(me)}</b><span class="muted">{posLine(me)}</span></div>
             <a href="#/perfil">Editar perfil</a>
+            {install.kind !== 'installed' && (
+              <a href="#" onClick={e => {
+                e.preventDefault();
+                if (install.kind === 'prompt') install.run(); else setTip(install.text);
+                menu.current && (menu.current.open = false);
+              }}>📲 Instalar app</a>
+            )}
             <a href="/terminos.html">Términos</a>
             <a href="/privacidad.html">Privacidad</a>
             <button onClick={() => sb.auth.signOut()}>Cerrar sesión</button>
           </div>
         </details>
       </header>
+      {tip && (
+        <div class="card note install-tip" role="status">
+          <span>📲 {tip}</span>
+          <button class="btn sm" onClick={() => setTip('')} aria-label="Cerrar">✕</button>
+        </div>
+      )}
 
       <section class="me-card">
         <FutCard p={me} stats={stats} size="sm" />

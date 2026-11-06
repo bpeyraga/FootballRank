@@ -1,6 +1,7 @@
 import { render } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import './styles.css';
+import './lib/install'; // registra el service worker y escucha "instalar app" desde el arranque
 import { loadMe, sb, type Profile } from './lib/supabase';
 import { Login, NEXT_KEY } from './pages/Login';
 import { Onboarding } from './pages/Onboarding';

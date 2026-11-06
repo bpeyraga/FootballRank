@@ -347,7 +347,7 @@ export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: str
         );
       })()}
 
-      {/* Resultado: cualquier miembro, una vez empezado */}
+      {/* Resultado: solo admins (owner incluido), una vez empezado */}
       {isAdmin && started && m.status !== 'cancelled' && (
         <div class="card">
           <h3 style="margin-bottom:12px">{m.status === 'played' ? 'Corregir resultado' : 'Cargar resultado'}</h3>
