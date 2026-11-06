@@ -3,8 +3,9 @@ import { displayName, sb } from '../lib/supabase';
 import { outcome, type Team } from '../lib/stats';
 import type { Ranked } from '../lib/ranking';
 import { fmtDate } from './Matches';
+import { houseCodes } from '../lib/Radar';
 
-interface Custom { id: string; label: string; value: number; created_by: string; hidden: boolean }
+interface Custom { id: string; label: string; value: number; created_by: string; hidden: boolean; code: string | null }
 
 /**
  * Stats inventadas ("Morfón 90"). Las ve toda la comunidad.
@@ -13,7 +14,7 @@ interface Custom { id: string; label: string; value: number; created_by: string;
 export function CustomStats({ pid, rows, meId, communityId, isAdmin, onChange }:
   { pid: string; rows: Ranked[]; meId: string; communityId: string; isAdmin: boolean; onChange?: () => void }) {
   const [list, setList] = useState<Custom[] | null>(null);
-  const [form, setForm] = useState<{ label: string; value: number } | null>(null);
+  const [form, setForm] = useState<{ label: string; value: number; code: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const canModerate = pid === meId || isAdmin;
@@ -23,7 +24,7 @@ export function CustomStats({ pid, rows, meId, communityId, isAdmin, onChange }:
   };
 
   const load = async () => {
-    const { data, error } = await sb.from('custom_stats').select('id,label,value,created_by,hidden')
+    const { data, error } = await sb.from('custom_stats').select('id,label,value,created_by,hidden,code')
       .eq('community_id', communityId).eq('target_id', pid).order('value', { ascending: false });
     if (error) setErr(error.message); else setList(data);
   };
@@ -40,7 +41,8 @@ export function CustomStats({ pid, rows, meId, communityId, isAdmin, onChange }:
   };
   const save = async () => {
     const ok = await run(sb.from('custom_stats').upsert(
-      { community_id: communityId, target_id: pid, created_by: meId, label: form!.label.trim(), value: form!.value, hidden: false },
+      { community_id: communityId, target_id: pid, created_by: meId, label: form!.label.trim(), value: form!.value, hidden: false,
+        code: cleanCode(form!.code) || null },
       { onConflict: 'community_id,target_id,created_by,label' }));
     if (ok) setForm(null);
   };
@@ -53,7 +55,7 @@ export function CustomStats({ pid, rows, meId, communityId, isAdmin, onChange }:
     <div class="card">
       <div class="row" style="justify-content:space-between;margin-bottom:8px">
         <h3>Stats de la casa</h3>
-        {!form && <button class="btn sm" onClick={() => setForm({ label: '', value: 80 })}>+ Agregar</button>}
+        {!form && <button class="btn sm" onClick={() => setForm({ label: '', value: 80, code: '' })}>+ Agregar</button>}
       </div>
       {list && !visible.length && !form && (
         <p class="muted">{pid === meId
@@ -68,7 +70,7 @@ export function CustomStats({ pid, rows, meId, communityId, isAdmin, onChange }:
             <small class="muted">por {nameOf(c.created_by)}{c.hidden && ' · oculta'}</small>
             <span class="chip-actions">
               {c.created_by === meId &&
-                <button disabled={busy} onClick={() => setForm({ label: c.label, value: c.value })}>Editar</button>}
+                <button disabled={busy} onClick={() => setForm({ label: c.label, value: c.value, code: c.code ?? '' })}>Editar</button>}
               {(c.created_by === meId || isAdmin) &&
                 <button disabled={busy} onClick={() => run(sb.from('custom_stats').delete().eq('id', c.id))}>Borrar</button>}
               {canModerate && c.created_by !== meId &&
@@ -83,12 +85,17 @@ export function CustomStats({ pid, rows, meId, communityId, isAdmin, onChange }:
           <label class="field"><span>Nombre de la stat</span>
             <input value={form.label} maxLength={24} placeholder="Morfón"
               onInput={e => setForm({ ...form, label: (e.target as HTMLInputElement).value })} /></label>
+          <label class="field"><span>Código para el gráfico (opcional, 2-3 letras)</span>
+            <input value={form.code} maxLength={3} autoCapitalize="characters" style="text-transform:uppercase;max-width:8em"
+              placeholder={form.label.trim() ? houseCodes([form.label])[0] : 'MOR'}
+              onInput={e => setForm({ ...form, code: cleanCode((e.target as HTMLInputElement).value) })} /></label>
+          {form.code.length === 1 && <p class="err" style="margin-top:-8px">Usá 2 o 3 letras, o dejalo vacío.</p>}
           <label class="slider"><b>Valor</b>
             <input type="range" min={1} max={99} value={form.value}
               onInput={e => setForm({ ...form, value: +(e.target as HTMLInputElement).value })} />
             <output>{form.value}</output></label>
           <div class="row">
-            <button class="btn primary" disabled={busy || !form.label.trim()} onClick={save}>Guardar</button>
+            <button class="btn primary" disabled={busy || !form.label.trim() || form.code.length === 1} onClick={save}>Guardar</button>
             <button class="btn" onClick={() => setForm(null)}>Cancelar</button>
           </div>
         </div>
@@ -203,3 +210,7 @@ export function SuspensionNotice({ pid, communityId, isAdmin }: { pid: string; c
     </div>
   );
 }
+
+/** Código: mayúsculas, solo letras (con Ñ) y números, máx. 3. */
+const cleanCode = (s: string) => s.toLocaleUpperCase('es').replace(/Ñ/g, ' ').normalize('NFD')
+  .replace(/[̀-ͯ]/g, '').replace(/ /g, 'Ñ').replace(/[^A-Z0-9Ñ]/g, '').slice(0, 3);

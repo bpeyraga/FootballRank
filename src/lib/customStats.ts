@@ -1,12 +1,12 @@
 import { sb } from './supabase';
 
-export interface CustomRow { id: string; label: string; value: number; created_by: string; hidden: boolean }
+export interface CustomRow { id: string; label: string; value: number; created_by: string; hidden: boolean; code: string | null }
 
 /** Una stat de la casa agrupada por nombre: cada miembro que la puntúa aporta su valor. */
-export interface HouseStat { key: string; label: string; avg: number | null; n: number; own: number | null; mine: number | null }
+export interface HouseStat { key: string; label: string; code: string | null; avg: number | null; n: number; own: number | null; mine: number | null }
 
 export async function loadCustom(communityId: string, pid: string): Promise<CustomRow[]> {
-  const { data, error } = await sb.from('custom_stats').select('id,label,value,created_by,hidden')
+  const { data, error } = await sb.from('custom_stats').select('id,label,value,created_by,hidden,code')
     .eq('community_id', communityId).eq('target_id', pid).order('created_at');
   if (error) throw error;
   return data ?? [];
@@ -30,6 +30,8 @@ export function aggregateCustom(list: CustomRow[], pid: string, meId: string): H
     return {
       key,
       label: cs[0].label.trim(),
+      // El código lo elige quien la creó primero; si no puso, el primero que haya puesto uno
+      code: cs.find(c => c.code)?.code ?? null,
       avg: others.length ? Math.round(others.reduce((t, c) => t + c.value, 0) / others.length) : null,
       n: others.length,
       own: cs.find(c => c.created_by === pid)?.value ?? null,

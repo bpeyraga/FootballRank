@@ -68,7 +68,7 @@ export function Vote({ rows, communityId, slug, meId, startId, saved }:
         </div>
         <h3>OVR {ovr(stats)}</h3>
       </div>
-      <Radar stats={stats} compare={cur.base} extra={radarHouse(house).map(h => ({ label: h.label, value: hv[h.key] ?? 50, compare: h.own }))} />
+      <Radar stats={stats} compare={cur.base} extra={radarHouse(house).map(h => ({ label: h.label, code: h.code, value: hv[h.key] ?? 50, compare: h.own }))} />
       {cur.base && <p class="muted legend"><i class="sw a" /> tu voto <i class="sw b" /> su autoevaluación</p>}
       {ATTRS.map(([k, l, full]) => (
         <label class="slider" title={full}>

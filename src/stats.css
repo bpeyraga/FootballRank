@@ -70,3 +70,5 @@
 .seg{display:flex;width:max-content;margin:0 auto 8px;border:1px solid var(--line);border-radius:99px;padding:2px}
 .seg button{border:0;background:none;border-radius:99px;padding:6px 14px;font-size:.85rem;font-weight:600;color:var(--muted);cursor:pointer;min-height:32px}
 .seg button.on{background:var(--accent);color:var(--accent-fg)}
+.radar-key{display:flex;flex-wrap:wrap;justify-content:center;gap:4px 12px;margin:2px 0 6px;font-size:.8rem;color:var(--muted)}
+.radar-key b{font-family:var(--f-display);font-style:italic;color:var(--fg)}

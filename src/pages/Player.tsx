@@ -45,7 +45,7 @@ export function Player({ r, rows, slug, meId, communityId, isAdmin }:
   }, [communityId, r.profile.id]);
   const [withHouse, setWithHouse] = useState(true);
   const inRadar = radarHouse(house);
-  const extra = withHouse ? inRadar.map(h => ({ label: h.label, value: (h.avg ?? h.own)!, compare: h.own })) : [];
+  const extra = withHouse ? inRadar.map(h => ({ label: h.label, code: h.code, value: (h.avg ?? h.own)!, compare: h.own })) : [];
   const decided = st ? st.won + st.drawn + st.lost : 0;
   return (
     <>
