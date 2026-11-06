@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
+import { Tip } from '../lib/Tip';
 import { ATTRS, displayName, infoLine } from '../lib/supabase';
+import { lineup } from '../lib/formation';
+import { Pitch, type PitchPlayer } from '../lib/Pitch';
 import { ovr, tier, type Ranked } from '../lib/ranking';
 import { Avatar } from '../lib/Avatar';
 import { Crest } from '../lib/Crest';
@@ -37,6 +40,11 @@ export function Ranking({ rows, slug, meId, communityId }: { rows: Ranked[]; slu
     () => stats && view !== 'ovr' ? leaderboard(rows.map(r => ({ id: r.profile.id, name: displayName(r.profile) })), stats, view) : [],
     [rows, stats, view]);
 
+  // Formación ideal: OVR de la comunidad, o la autoevaluación si todavía no lo votaron
+  const ideal = useMemo(() => lineup<PitchPlayer>(rows.map(r => ({
+    id: r.profile.id, pos: r.profile.pos, profile: r.profile, ovr: r.ovr ?? (r.base ? ovr(r.base) : null),
+  }))), [rows]);
+
   return (
     <>
       <div class="st-seg c4 sm" role="group" aria-label="Ordenar ranking por">
@@ -52,6 +60,14 @@ export function Ranking({ rows, slug, meId, communityId }: { rows: Ranked[]; slu
             <b>Votar →</b>
           </a>
         )}
+        <Tip kind="joke" />
+        <div class="card">
+          <div class="row" style="justify-content:space-between;margin-bottom:10px">
+            <h3>Formación ideal · Fútbol 5</h3><span class="muted">1-2-1</span>
+          </div>
+          <Pitch placed={ideal.placed} href={id => `#/c/${slug}/p/${id}`} showAlts />
+          <p class="muted st-note">El mejor OVR de cada puesto según la posición de su ficha. Debajo, otros que juegan de eso.</p>
+        </div>
         <div class="card rk-list" style="padding:4px 12px">
           {rows.map((r, i) => (
             <a class="row rank-row" href={`#/c/${slug}/p/${r.profile.id}`}>

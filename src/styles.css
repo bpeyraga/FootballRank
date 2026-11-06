@@ -352,3 +352,13 @@ a{color:var(--accent)}
 .venues-card summary{display:flex;align-items:center;min-height:44px;cursor:pointer;font:700 1.15rem var(--f-display);letter-spacing:.01em}
 .venues-card[open] summary{margin-bottom:4px}
 .venue-row{padding:8px 0;border-top:1px solid var(--line)}
+
+/* Consejos / chistes al azar */
+.tip{display:flex;gap:10px;align-items:flex-start;margin:12px 0;padding:10px 12px;border-radius:12px;
+  background:var(--accent-soft);font-size:.88rem;line-height:1.35}
+.tip>span:first-child{font-size:1.1rem;line-height:1.2}
+/* MVP */
+.pill.mvp{background:#f6c400;color:#1d1d1d}
+.mvp-opt{width:100%;background:none;border:0;border-top:1px solid var(--line);font:inherit;color:inherit;cursor:pointer;gap:8px;border-radius:8px}
+.mvp-opt.on{background:var(--accent-soft)}
+.note-inline{margin-bottom:8px;padding:6px 10px;border-radius:8px;background:var(--note-bg);color:var(--note-fg);font-size:.88rem}

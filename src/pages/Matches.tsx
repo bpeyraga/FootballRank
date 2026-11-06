@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
+import { Tip } from '../lib/Tip';
 import { sb } from '../lib/supabase';
 import { go } from '../lib/router';
 import { mapUrl, type Venue } from '../lib/maps';
@@ -102,6 +103,7 @@ export function Matches({ communityId, slug, meId, isAdmin, rows }:
             <button class="btn" onClick={() => setQuick(true)}>Cargar partido jugado</button>
           </div>)}
       {err && <p class="err">{err}</p>}
+      <Tip />
       {list === null && !err && <p class="muted">Cargando…</p>}
       <h3 style="margin:4px 0 8px">Próximos</h3>
       {list && !upcoming.length && <p class="muted" style="margin-bottom:12px">No hay partidos convocados.</p>}

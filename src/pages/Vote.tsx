@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
+import { Tip } from '../lib/Tip';
 import { ATTRS, displayName, ovr, posLine, sb, type Stats } from '../lib/supabase';
 import { Radar } from '../lib/Radar';
 import { Avatar } from '../lib/Avatar';
@@ -102,6 +103,7 @@ export function Vote({ rows, communityId, slug, meId, startId, saved }:
         </button>
       </div>
       {err && <p class="err">{err}</p>}
+      <Tip kind="fairplay" />
     </div>
   );
 }

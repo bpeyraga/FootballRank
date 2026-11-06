@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { Tip } from '../lib/Tip';
 import { displayName, ovr, posLine, sb, type Profile, type Stats } from '../lib/supabase';
 import { balance, type BPlayer } from '../lib/balance';
 import { Avatar } from '../lib/Avatar';
@@ -28,6 +29,7 @@ export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: str
   const [susp, setSusp] = useState<Susp[]>([]);
   const [scores, setScores] = useState<Map<string, { avg: number; n: number }>>(new Map());
   const [myRatings, setMyRatings] = useState<Record<string, number>>({});
+  const [mvp, setMvp] = useState<{ mine: string | null; tally: Map<string, number> }>({ mine: null, tally: new Map() });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [msg, setMsg] = useState('');
@@ -76,7 +78,16 @@ export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: str
     setScores(new Map((c.data ?? []).map((x: any) => [x.profile_id, { avg: +x.avg_score, n: x.n }])));
     setMyRatings(Object.fromEntries((d.data ?? []).map((x: any) => [x.target_id, x.score])));
     if (a.data?.score_a != null) setRes({ a: String(a.data.score_a), b: String(a.data.score_b) });
-    if (a.data?.status === 'played') loadEvents();
+    if (a.data?.status === 'played') { loadEvents(); loadMvp(); }
+  };
+  // MVP aparte: si la tabla todavía no existe, el resto sigue andando
+  const loadMvp = async () => {
+    const [mine, tally] = await Promise.all([
+      sb.from('mvp_votes').select('target_id').eq('match_id', id).eq('voter_id', meId).maybeSingle(),
+      sb.from('match_mvp').select('profile_id,votes').eq('match_id', id),
+    ]);
+    if (mine.error || tally.error) return;
+    setMvp({ mine: mine.data?.target_id ?? null, tally: new Map((tally.data ?? []).map((x: any) => [x.profile_id, x.votes])) });
   };
   useEffect(() => { load(); }, [id]);
 
@@ -229,6 +240,8 @@ export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: str
     if (ok) setPicked([]);
   };
 
+  const topVotes = Math.max(0, ...mvp.tally.values());
+  const isMvp = (pid: string) => topVotes > 0 && mvp.tally.get(pid) === topVotes;
   const PlayerRow = ({ pid, right }: { pid: string; right?: any }) => {
     const p = prof(pid), sc = scores.get(pid);
     return (
@@ -236,6 +249,7 @@ export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: str
         <Avatar p={p} size={32} />
         <span style="flex:1" class="ellipsis">{displayName(p)}{su.find(s => s.profile_id === pid && s.status === 'in' && s.team && s.captain) && <span class="cap" title="Capitán">C</span>} <span class="muted">· {posLine(p)}</span></span>
         {su.find(s => s.profile_id === pid && s.status === 'in')?.absent && <span class="pill bad">Ausente</span>}
+        {m.status === 'played' && isMvp(pid) && <span class="pill mvp" title={`MVP · ${topVotes} ${topVotes === 1 ? 'voto' : 'votos'}`}>🏆 MVP</span>}
         {sc && <span class="pill" title={`${sc.n} ${sc.n === 1 ? 'calificación' : 'calificaciones'}`}>★ {sc.avg}</span>}
         {right}
       </div>
@@ -445,6 +459,14 @@ export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: str
           initial={myRatings} busy={busy}
           save={sc => run(() => sb.rpc('rate_teammates', { p_match: id, p_scores: sc }), '¡Gracias por calificar!')} />
       )}
+
+      {/* MVP de todo el partido: se puede elegir a cualquiera de los dos equipos */}
+      {m.status === 'played' && (
+        <MvpVote canVote={!!myTeam} meId={meId} mine={mvp.mine} tally={mvp.tally} busy={busy}
+          players={inList.filter(s => s.team && !s.absent).map(s => ({ p: prof(s.profile_id), team: s.team! }))}
+          vote={pid => run(async () => { const r = await sb.rpc('vote_mvp', { p_match: id, p_target: pid }); if (!r.error) await loadMvp(); return r; }, '¡Voto de MVP guardado!')} />
+      )}
+      {started && <Tip />}
     </>
   );
 }
@@ -528,10 +550,12 @@ function RateTeammates({ mates, initial, busy, save }:
   useEffect(() => setSc(initial), [initial]);
   if (!mates.length) return null;
   const done = Object.keys(initial).length > 0;
+  const missing = mates.filter(p => initial[p.id] == null).length;
   return (
     <div class="card">
       <h3 style="margin-bottom:4px">Calificá a tu equipo</h3>
-      <p class="muted" style="margin-bottom:8px">Del 1 al 10, ¿cómo jugó cada uno hoy?</p>
+      <p class="muted" style="margin-bottom:8px">Todos califican a todos sus compañeros: del 1 al 10, ¿cómo jugó cada uno hoy?</p>
+      {missing > 0 && <p class="note-inline">Te {missing === 1 ? 'falta' : 'faltan'} calificar <b>{missing}</b> {missing === 1 ? 'compañero' : 'compañeros'}.</p>}
       {mates.map(p => (
         <div class="rank-row">
           <div class="row"><Avatar p={p} size={32} /><span style="flex:1">{displayName(p)}</span><b>{sc[p.id] ?? '—'}</b></div>
@@ -549,7 +573,51 @@ function RateTeammates({ mates, initial, busy, save }:
   );
 }
 
+function MvpVote({ canVote, meId, mine, tally, players, busy, vote }: {
+  canVote: boolean; meId: string; mine: string | null; tally: Map<string, number>; busy: boolean;
+  players: { p: Profile; team: 'A' | 'B' }[]; vote: (pid: string) => void;
+}) {
+  const [sel, setSel] = useState<string | null>(mine);
+  useEffect(() => setSel(mine), [mine]);
+  const total = [...tally.values()].reduce((a, b) => a + b, 0);
+  const top = Math.max(0, ...tally.values());
+  const winners = players.filter(x => top > 0 && tally.get(x.p.id) === top);
+  const options = players.filter(x => x.p.id !== meId);
+  return (
+    <div class="card">
+      <h3 style="margin-bottom:4px">🏆 MVP del partido</h3>
+      {winners.length > 0
+        ? <p style="margin-bottom:8px"><b>{winners.map(w => displayName(w.p)).join(' y ')}</b>
+            <span class="muted"> · {top} de {total} {total === 1 ? 'voto' : 'votos'}{winners.length > 1 ? ' (empate)' : ''}</span></p>
+        : <p class="muted" style="margin-bottom:8px">Todavía nadie votó.</p>}
+      {canVote ? <>
+        <p class="muted" style="margin-bottom:8px">
+          {mine ? 'Ya votaste, podés cambiar tu voto.' : 'Elegí al mejor de la cancha. Acá sí vale votar a uno del equipo contrario.'}
+        </p>
+        {(['A', 'B'] as const).map(t => {
+          const ps = options.filter(x => x.team === t);
+          return ps.length > 0 && <div class={`team ${t}`} style="padding-left:8px;margin-bottom:8px">
+            <b class={t === 'A' ? 'ta' : 'tb'} style="font-size:.85rem">Equipo {t}</b>
+            {ps.map(({ p }) => (
+              <button type="button" class={`row rank-row mvp-opt${sel === p.id ? ' on' : ''}`} onClick={() => setSel(p.id)} aria-pressed={sel === p.id}>
+                <Avatar p={p} size={28} /><span class="ellipsis" style="flex:1;text-align:left">{displayName(p)}</span>
+                {tally.get(p.id) ? <span class="muted">{tally.get(p.id)}</span> : null}
+                <span aria-hidden="true">{sel === p.id ? '🏆' : ''}</span>
+              </button>
+            ))}
+          </div>;
+        })}
+        <button class="btn primary block" disabled={busy || !sel || sel === mine} onClick={() => sel && vote(sel)}>
+          {mine ? 'Cambiar mi voto' : 'Votar MVP'}
+        </button>
+      </> : <p class="muted">Votan los que jugaron el partido.</p>}
+    </div>
+  );
+}
+
 function friendly(m: string) {
+  if (m.includes('self_vote')) return 'No te podés votar a vos mismo como MVP 😅';
+  if (m.includes('not_in_match')) return 'Ese jugador no jugó este partido.';
   if (m.includes('already_suspended')) return 'Ya está suspendido para el próximo partido.';
   if (m.includes('suspended')) return 'Está suspendido para este partido por ausencias.';
   if (m.includes('result_locked')) return 'El resultado ya está cargado: solo lo corrige quien lo cargó o un admin.';

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
+import { Tip } from '../lib/Tip';
 import { displayName, hue, posLine, sb, type Profile, type Stats } from '../lib/supabase';
 import { go, slugify } from '../lib/router';
 import { Avatar } from '../lib/Avatar';
@@ -195,6 +196,7 @@ export function Home({ me }: { me: Profile }) {
         </form>
       )}
       {err && <p class="err">{err}</p>}
+      <Tip />
       </div>
       </div>
     </div>
