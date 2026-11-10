@@ -60,3 +60,101 @@
 .debt-item:first-child{border-top:0}
 .debt-item b{flex:none}
 .danger-zone{border-color:color-mix(in srgb,var(--danger) 35%,var(--line))}
+
+/* ---------- Partido en vivo (LivePanel) ---------- */
+.live-start p{margin:4px 0 12px}
+.live-start .btn.primary{min-height:52px;font-size:1.05rem}
+.live-card{padding-top:0;border-color:color-mix(in srgb,var(--danger) 40%,var(--line))}
+.lv-head{display:grid;grid-template-columns:minmax(0,auto) minmax(0,1fr);align-items:center;gap:8px 16px;margin:0 -16px;padding:14px 16px 12px;
+  border-radius:14px 14px 0 0;background:var(--surface)}
+.lv-time{display:grid;gap:3px;min-width:0}
+.lv-clock{min-width:4.3ch;font:700 3rem/1 var(--f-display);letter-spacing:.02em;font-variant-numeric:tabular-nums}
+.lv-state{display:flex;align-items:center;gap:6px;min-width:0;font-size:.8rem;font-weight:600;color:var(--muted);white-space:nowrap}
+.lv-dot{flex:none;width:9px;height:9px;border-radius:50%;background:var(--danger)}
+.lv-dot.running{animation:lv-pulse 1.4s ease-in-out infinite}
+.lv-dot.paused,.lv-dot.ended{background:var(--muted)}
+@keyframes lv-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.8)}}
+@media (prefers-reduced-motion:reduce){.lv-dot.running{animation:none}}
+.lv-score{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);justify-items:center;align-items:center;column-gap:6px;min-width:0}
+.lv-score>span{min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;font:700 .74rem var(--f-body);letter-spacing:.04em;text-transform:uppercase;white-space:nowrap}
+.lv-score b{font:700 2.8rem/1 var(--f-display)}
+.lv-score em{font:700 1.6rem var(--f-display);font-style:normal;color:var(--muted)}
+.lv-ctl{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:8px;margin-top:10px}
+.lv-ctl .btn{min-width:0;min-height:48px;padding:0 8px;line-height:1.1;text-align:center}
+.live-card>.err{margin-top:8px}
+.lv-final{margin-top:12px;padding:12px;border-radius:12px;background:var(--accent-soft)}
+.lv-final p{margin:0 0 10px;line-height:1.35}
+.lv-final p:last-child{margin:0}
+.lv-final .lv-hint{margin:10px 0 0;font-size:.82rem}
+.lv-final p+.btn{margin-top:10px}
+.lv-note{margin:12px 0 0}
+.lv-body{display:grid;gap:16px;margin-top:14px}
+.lv-undo{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:48px;margin-bottom:8px;padding:4px 4px 4px 12px;
+  border:1px solid var(--line);border-radius:12px;background:var(--bg);font-size:.92rem}
+.lv-undo>span{flex:1;min-width:0}
+.lv-undo .btn{flex:none}
+.lv-teams{display:grid;gap:12px}
+.lv-teams .qm-grp{margin-top:0}
+.lv-pl{display:grid;gap:6px;padding:8px 0;border-top:1px solid var(--line)}
+.qm-gh+.lv-pl,.qm-grp>.lv-pl:first-child{border-top:0}
+.lv-pwho{display:flex;align-items:center;gap:8px;min-width:0;font-weight:600}
+.lv-btns{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.lv-b{position:relative;height:52px;padding:0;border:1px solid var(--line);border-radius:12px;background:var(--bg);font-size:1.45rem;line-height:1;
+  cursor:pointer;touch-action:manipulation;transition:transform .08s,background .1s}
+.lv-b.on{border-color:var(--accent);background:var(--accent-soft)}
+.lv-b:active:not(:disabled){transform:scale(.93);background:var(--accent-soft)}
+.lv-b:disabled{opacity:.4;cursor:default}
+.lv-b sup{position:absolute;top:-6px;right:-4px;min-width:18px;height:18px;padding:0 4px;border-radius:9px;background:var(--fg);color:var(--bg);
+  font:700 .72rem/18px var(--f-body);text-align:center}
+.lv-tlbox h4{margin:0 0 6px;font:700 1rem var(--f-display);letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.lv-tl{margin:0;padding:0;list-style:none}
+.lv-ev{display:flex;align-items:center;gap:8px;min-height:44px;padding:4px 0 4px 10px;border-left:4px solid var(--line)}
+.lv-ev+.lv-ev{box-shadow:0 -1px 0 var(--line)}
+.lv-ev.A{border-left-color:var(--ta)}
+.lv-ev.B{border-left-color:var(--tb)}
+.lv-min{flex:none;min-width:2.6em;font:700 1.15rem var(--f-display);font-variant-numeric:tabular-nums}
+.lv-ico{flex:none;font-size:1.2rem}
+.lv-who{flex:1;min-width:0}
+.lv-who small{font-size:.78rem}
+.lv-x{flex:none;width:40px;height:40px;border:0;border-radius:8px;background:none;color:var(--muted);font-size:1.5rem;line-height:1;cursor:pointer}
+.lv-empty{margin:4px 0}
+.lv-reset{display:block;margin:12px auto 0;color:var(--muted);font-size:.85rem}
+.lv-played{margin-top:16px;padding-top:12px;border-top:1px solid var(--line)}
+.lv-played h4{margin:0 0 6px;font:700 1rem var(--f-display);letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+@media (max-width:380px){
+  /* Celulares angostos: el cronómetro y el marcador se achican para que entren juntos */
+  .lv-head{gap:6px 10px}
+  .lv-clock{min-width:0;font-size:2.5rem}
+  .lv-score b{font-size:2.3rem}
+  .lv-score>span{font-size:.66rem;letter-spacing:.02em}
+  .lv-state{font-size:.74rem}
+}
+@media (max-width:899.98px){
+  /* Celular: el cronómetro y el marcador quedan pegados arriba mientras recorrés la lista de jugadores */
+  .lv-head{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;box-shadow:0 1px var(--line)}
+}
+@media (min-width:900px){
+  .live-card{column-span:all;padding-top:4px}
+  .lv-head{grid-template-columns:auto minmax(0,380px);justify-content:space-between;margin:0;padding:18px 0 14px}
+  .lv-clock{font-size:5rem}
+  .lv-state{font-size:.95rem}
+  .lv-score>span{font-size:.9rem}
+  .lv-score b{font-size:4rem}
+  .lv-ctl{grid-template-columns:repeat(auto-fit,minmax(150px,200px));justify-content:start}
+  .lv-body{grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:28px;align-items:start}
+  .lv-body.solo{grid-template-columns:minmax(0,640px)}
+  .lv-teams{grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;align-items:start}
+  .lv-tl{max-height:520px;overflow:auto}
+  .lv-ev{min-height:46px}
+}
+@media (min-width:900px) and (hover:hover) and (pointer:fine){
+  .lv-b:not(:disabled):hover{border-color:var(--accent);background:var(--accent-soft)}
+  .lv-x:hover{color:var(--danger)}
+}
+
+/* Partido en vivo: resultado final editable */
+.lv-result{display:grid;gap:10px;margin-top:8px}
+.lv-result-in{display:flex;align-items:flex-end;justify-content:center;gap:12px}
+.lv-result-in label{display:grid;gap:4px;justify-items:center;font-size:.8rem;color:var(--muted)}
+.lv-result-in input{width:64px;height:52px;text-align:center;font:700 1.6rem var(--f-display);border-radius:12px}
+.lv-result-in em{font-style:normal;font-size:1.4rem;padding-bottom:12px;color:var(--muted)}

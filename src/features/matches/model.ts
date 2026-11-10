@@ -1,6 +1,7 @@
 // Partidos: tipos y reglas puras (sin Supabase ni Preact). Lo usan api.ts, los hooks y las pantallas.
 import type { Venue } from '../venues/maps';
 import type { PaySignup } from './fees';
+import type { LiveState } from './live';
 
 export interface Match {
   id: string; community_id: string; title: string; starts_at: string; location: string | null;
@@ -9,6 +10,8 @@ export interface Match {
   venue_id: string | null; venue?: Venue | null; // `venue` solo viene cuando se pide con select('*, venue:venues(...)')
   fee_total?: number | string | null; // costo de la cancha (null = sin cuota); numeric: la API puede devolverlo como string
   schedule_id?: string | null; // el partido fijo que la creó
+  // Reloj del partido en vivo (live_clock). undefined = la base todavía no tiene las columnas; null = no se juega en vivo.
+  live_state?: LiveState | null; live_half?: number | null; live_since?: string | null; live_elapsed?: number | null;
 }
 
 /** Un partido de la lista, con lo necesario para los cupos, "Anotado/En espera" y las deudas. */
@@ -26,8 +29,14 @@ export const STATUS: Record<Match['status'], string> =
   { open: 'Inscripción abierta', closed: 'Lista cerrada', played: 'Jugado', cancelled: 'Cancelado' };
 
 /** Una lista abierta se cierra sola cuando llega la hora del partido (lo hace también el servidor al anotarse). */
-export const statusLabel = (m: Pick<Match, 'status' | 'starts_at'>) =>
-  m.status === 'open' && new Date(m.starts_at) <= new Date() ? 'Lista cerrada (ya empezó)' : STATUS[m.status];
+export const statusLabel = (m: Pick<Match, 'status' | 'starts_at' | 'live_state'>) => {
+  if (m.status === 'open' || m.status === 'closed') {
+    if (m.live_state === 'running') return '🔴 En vivo';
+    if (m.live_state === 'paused') return '🔴 En vivo (en pausa)';
+    if (m.live_state === 'ended') return 'Terminó · falta confirmar el resultado';
+  }
+  return m.status === 'open' && new Date(m.starts_at) <= new Date() ? 'Lista cerrada (ya empezó)' : STATUS[m.status];
+};
 
 /** Suspensión activa: pendiente (sin partido) o de un partido abierto/cerrado que todavía no pasó (hasta 3 h después). */
 export const isActiveSuspension = (x: { match: { status: string; starts_at: string } | null }, now = Date.now()) =>

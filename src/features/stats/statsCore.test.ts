@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  aggregateStats, emptyStats, fmtAvg, groupMatchEvents, leaderboard, outcome, perMatch,
+  aggregateStats, disciplineBoard, emptyStats, fmtAvg, groupMatchEvents, leaderboard, outcome, perMatch,
   type Appearance, type MatchEvent, type PlayerStats, type Team,
 } from './statsCore';
 
@@ -32,7 +32,7 @@ describe('aggregateStats', () => {
     ap('m4', 'bob', 'A', null, null),       // sin marcador: suma PJ pero no G/E/P
   ];
   const events = [ev('ana', 'goal'), ev('ana', 'goal'), ev('bob', 'goal'), ev('ana', 'assist'),
-    ev('bob', 'yellow'), ev('bob', 'yellow'), ev('bob', 'red'), ev('zoe', 'goal')];
+    ev('bob', 'yellow'), ev('bob', 'yellow'), ev('bob', 'red'), ev('zoe', 'goal'), ev('ana', 'foul'), ev('ana', 'foul'), ev('bob', 'foul')];
   const s = aggregateStats(apps, events);
 
   it('cuenta partidos jugados y G/E/P', () => {
@@ -40,8 +40,8 @@ describe('aggregateStats', () => {
     expect(s.get('bob')).toMatchObject({ pj: 3, won: 0, drawn: 1, lost: 1 });
   });
   it('cuenta goles, asistencias y tarjetas', () => {
-    expect(s.get('ana')).toMatchObject({ goals: 2, assists: 1, yellow: 0, red: 0 });
-    expect(s.get('bob')).toMatchObject({ goals: 1, assists: 0, yellow: 2, red: 1 });
+    expect(s.get('ana')).toMatchObject({ goals: 2, assists: 1, fouls: 2, yellow: 0, red: 0 });
+    expect(s.get('bob')).toMatchObject({ goals: 1, assists: 0, fouls: 1, yellow: 2, red: 1 });
   });
   it('incluye a quien tiene eventos pero no participaciones', () => {
     expect(s.get('zoe')).toMatchObject({ pj: 0, goals: 1 });
@@ -61,7 +61,7 @@ describe('perMatch', () => {
 
 describe('leaderboard', () => {
   const st = (goals: number, assists = 0, pj = 1): PlayerStats =>
-    ({ pj, goals, assists, yellow: 0, red: 0, won: 0, drawn: 0, lost: 0 });
+    ({ pj, goals, assists, fouls: 0, yellow: 0, red: 0, won: 0, drawn: 0, lost: 0 });
   const players = ['Carla', 'Ana', 'Beto', 'Dani', 'Eli'].map(name => ({ id: name.toLowerCase(), name }));
   const stats = new Map([['carla', st(3)], ['ana', st(3)], ['beto', st(5)], ['dani', st(0, 2)]]);
 
@@ -117,5 +117,56 @@ describe('leaderboard de tarjetas', () => {
     ]);
     const rows = leaderboard([{ id: 'a', name: 'Ana' }, { id: 'b', name: 'Beto' }, { id: 'c', name: 'Caro' }, { id: 'd', name: 'Dani' }], st, 'cards');
     expect(rows.map(r => [r.id, r.value, r.pos])).toEqual([['c', 3, 1], ['b', 2, 2], ['a', 1, 3]]);
+  });
+});
+
+describe('leaderboard de faltas', () => {
+  it('ordena por cantidad de faltas y oculta a quien no tiene', () => {
+    const st = new Map([
+      ['a', { ...emptyStats(), fouls: 2 }],
+      ['b', { ...emptyStats(), fouls: 5, yellow: 1 }],
+      ['c', emptyStats()],
+    ]);
+    const rows = leaderboard([{ id: 'a', name: 'Ana' }, { id: 'b', name: 'Beto' }, { id: 'c', name: 'Caro' }], st, 'fouls');
+    expect(rows.map(r => [r.id, r.value, r.pos])).toEqual([['b', 5, 1], ['a', 2, 2]]);
+  });
+});
+
+describe('disciplineBoard (tarjetas y faltas)', () => {
+  const players = [{ id: 'a', name: 'Ana' }, { id: 'b', name: 'Beto' }, { id: 'c', name: 'Caro' }, { id: 'd', name: 'Dani' }, { id: 'e', name: 'Eli' }];
+  it('ordena por tarjetas, desempata por faltas y después por nombre; incluye a quien solo tiene faltas', () => {
+    const st = new Map([
+      ['a', { ...emptyStats(), pj: 2, fouls: 1 }],
+      ['b', { ...emptyStats(), pj: 3, yellow: 1, fouls: 4 }],
+      ['c', { ...emptyStats(), pj: 1, yellow: 1, fouls: 2 }],
+      ['d', { ...emptyStats(), pj: 1, red: 1 }],
+      ['e', emptyStats()],
+    ]);
+    const rows = disciplineBoard(players, st);
+    expect(rows.map(r => [r.id, r.value, r.fouls, r.pos])).toEqual([['d', 2, 0, 1], ['b', 1, 4, 2], ['c', 1, 2, 3], ['a', 0, 1, 4]]);
+    expect(rows[1].pj).toBe(3);
+  });
+  it('comparte posición solo si empata en tarjetas y faltas', () => {
+    const st = new Map([
+      ['a', { ...emptyStats(), yellow: 1, fouls: 2 }],
+      ['b', { ...emptyStats(), yellow: 1, fouls: 2 }],
+      ['c', { ...emptyStats(), yellow: 1, fouls: 1 }],
+    ]);
+    expect(disciplineBoard(players, st).map(r => [r.name, r.pos])).toEqual([['Ana', 1], ['Beto', 1], ['Caro', 3]]);
+  });
+  it('sin datos devuelve una lista vacía', () => {
+    expect(disciplineBoard(players, new Map())).toEqual([]);
+  });
+});
+
+describe('faltas en los eventos', () => {
+  it('groupMatchEvents las ordena después de las asistencias y antes de las tarjetas', () => {
+    const events = [ev('ana', 'red'), ev('ana', 'yellow'), ev('ana', 'foul'), ev('ana', 'assist'), ev('ana', 'goal')];
+    const g = groupMatchEvents(events, () => 'A');
+    expect(g[0].groups.map(x => x.kind)).toEqual(['goal', 'assist', 'foul', 'yellow', 'red']);
+  });
+  it('los eventos con minuto siguen contando igual en las estadísticas', () => {
+    const e1: MatchEvent = { ...ev('ana', 'foul'), minute: 12 };
+    expect(aggregateStats([], [e1, { ...ev('ana', 'goal'), minute: null }]).get('ana')).toMatchObject({ fouls: 1, goals: 1 });
   });
 });

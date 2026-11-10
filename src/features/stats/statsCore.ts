@@ -1,17 +1,19 @@
 // Estadísticas por jugador: tipos y agregación pura (sin Supabase, para testear sin variables de entorno).
 
-export type EventKind = 'goal' | 'assist' | 'yellow' | 'red';
+export type EventKind = 'goal' | 'assist' | 'foul' | 'yellow' | 'red';
 export type Team = 'A' | 'B';
 
 /** Orden de aparición en pantallas. */
-export const EVENT_KINDS: readonly EventKind[] = ['goal', 'assist', 'yellow', 'red'];
-export const KIND_ICON: Record<EventKind, string> = { goal: '⚽', assist: '👟', yellow: '🟨', red: '🟥' };
-export const KIND_LABEL: Record<EventKind, string> = { goal: 'Gol', assist: 'Asistencia', yellow: 'Amarilla', red: 'Roja' };
-export const KIND_LABEL_PLURAL: Record<EventKind, string> = { goal: 'Goles', assist: 'Asistencias', yellow: 'Amarillas', red: 'Rojas' };
+export const EVENT_KINDS: readonly EventKind[] = ['goal', 'assist', 'foul', 'yellow', 'red'];
+export const KIND_ICON: Record<EventKind, string> = { goal: '⚽', assist: '👟', foul: '🦵', yellow: '🟨', red: '🟥' };
+export const KIND_LABEL: Record<EventKind, string> = { goal: 'Gol', assist: 'Asistencia', foul: 'Falta', yellow: 'Amarilla', red: 'Roja' };
+export const KIND_LABEL_PLURAL: Record<EventKind, string> = { goal: 'Goles', assist: 'Asistencias', foul: 'Faltas', yellow: 'Amarillas', red: 'Rojas' };
 
 export interface MatchEvent {
   id: number; match_id: string; community_id: string; profile_id: string;
   kind: EventKind; created_by: string | null; created_at: string;
+  /** Minuto del partido en que pasó (solo los cargados en vivo); null o ausente = sin dato. */
+  minute?: number | null;
 }
 
 /** Una participación: el jugador estuvo anotado ('in') en un partido jugado. */
@@ -21,12 +23,12 @@ export interface Appearance {
 }
 
 export interface PlayerStats {
-  pj: number; goals: number; assists: number; yellow: number; red: number;
+  pj: number; goals: number; assists: number; fouls: number; yellow: number; red: number;
   won: number; drawn: number; lost: number;
 }
 
 export const emptyStats = (): PlayerStats =>
-  ({ pj: 0, goals: 0, assists: 0, yellow: 0, red: 0, won: 0, drawn: 0, lost: 0 });
+  ({ pj: 0, goals: 0, assists: 0, fouls: 0, yellow: 0, red: 0, won: 0, drawn: 0, lost: 0 });
 
 /** Resultado para un equipo; null si no hay equipo o marcador. */
 export function outcome(team: Team | null, a: number | null, b: number | null): 'won' | 'drawn' | 'lost' | null {
@@ -36,7 +38,7 @@ export function outcome(team: Team | null, a: number | null, b: number | null): 
 }
 
 /**
- * Agrega PJ, goles, asistencias, tarjetas y G/E/P por jugador.
+ * Agrega PJ, goles, asistencias, faltas, tarjetas y G/E/P por jugador.
  * G/E/P solo cuenta partidos con equipo asignado y marcador cargado, así que ganados+empatados+perdidos <= pj.
  */
 export function aggregateStats(appearances: Appearance[], events: Pick<MatchEvent, 'profile_id' | 'kind'>[]): Map<string, PlayerStats> {
@@ -52,6 +54,7 @@ export function aggregateStats(appearances: Appearance[], events: Pick<MatchEven
     const s = get(e.profile_id);
     if (e.kind === 'goal') s.goals++;
     else if (e.kind === 'assist') s.assists++;
+    else if (e.kind === 'foul') s.fouls++;
     else if (e.kind === 'yellow') s.yellow++;
     else if (e.kind === 'red') s.red++;
   }
@@ -61,14 +64,14 @@ export function aggregateStats(appearances: Appearance[], events: Pick<MatchEven
 /** Promedio por partido (2 decimales); 0 si no jugó. */
 export const perMatch = (n: number, pj: number) => pj > 0 ? Math.round((n / pj) * 100) / 100 : 0;
 
-export type BoardKey = 'goals' | 'assists' | 'cards';
+export type BoardKey = 'goals' | 'assists' | 'cards' | 'fouls';
 export const boardValue = (s: PlayerStats | undefined, key: BoardKey) =>
   !s ? 0 : key === 'cards' ? s.yellow + s.red * 2 : s[key];
 
 export interface BoardRow { id: string; name: string; value: number; pj: number; pos: number }
 
 /**
- * Tabla ordenada por goles, asistencias o tarjetas (roja pesa como 2 amarillas): oculta ceros, desempata por nombre
+ * Tabla ordenada por goles, asistencias, faltas o tarjetas (roja pesa como 2 amarillas): oculta ceros, desempata por nombre
  * y comparte posición en empates.
  */
 export function leaderboard(
@@ -83,6 +86,30 @@ export function leaderboard(
   let pos = 0;
   return rows.map((r, i) => {
     if (i === 0 || r.value !== rows[i - 1].value) pos = i + 1;
+    return { ...r, pos };
+  });
+}
+
+export interface DisciplineRow extends BoardRow { fouls: number }
+
+/**
+ * Tabla de "Tarjetas y faltas": primero por tarjetas (roja = 2 amarillas), a igualdad por faltas y después por nombre.
+ * Aparece quien tiene alguna tarjeta o alguna falta; comparte posición solo si empata en las dos cosas.
+ */
+export function disciplineBoard(
+  players: { id: string; name: string }[],
+  stats: Map<string, PlayerStats>,
+): DisciplineRow[] {
+  const rows = players
+    .map(p => {
+      const s = stats.get(p.id);
+      return { id: p.id, name: p.name, value: boardValue(s, 'cards'), fouls: boardValue(s, 'fouls'), pj: s?.pj ?? 0 };
+    })
+    .filter(r => r.value > 0 || r.fouls > 0)
+    .sort((a, b) => b.value - a.value || b.fouls - a.fouls || a.name.localeCompare(b.name));
+  let pos = 0;
+  return rows.map((r, i) => {
+    if (i === 0 || r.value !== rows[i - 1].value || r.fouls !== rows[i - 1].fouls) pos = i + 1;
     return { ...r, pos };
   });
 }

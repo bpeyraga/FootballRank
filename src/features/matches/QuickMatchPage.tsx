@@ -24,7 +24,7 @@ const avg = (ps: BP[]) => ps.length ? Math.round(ps.reduce((t, p) => t + p.ovr, 
 
 /**
  * Cargar un partido ya jugado en una sola pantalla: fecha y cancha, quiénes jugaron (con equipo),
- * resultado, goles y tarjetas. Se guarda todo junto con load_played_match.
+ * resultado, goles, faltas y tarjetas. Se guarda todo junto con load_played_match.
  */
 export function QuickMatch({ communityId, meId, slug, venues, defaultVenue, addVenue, cancel, rows: given }: {
   communityId: string; meId: string; slug: string; venues: Venue[]; defaultVenue: string;
@@ -218,11 +218,11 @@ export function QuickMatch({ communityId, meId, slug, venues, defaultVenue, addV
 
       {/* 4. Goles y tarjetas */}
       <div class="card">
-        <h3><span class="qm-nn">4</span>Goles y tarjetas <small class="muted">(opcional)</small></h3>
+        <h3><span class="qm-nn">4</span>Goles, faltas y tarjetas <small class="muted">(opcional)</small></h3>
         {!played.length
           ? <p class="muted">Primero marcá quiénes jugaron.</p>
           : <>
-              <p class="muted qm-help">⚽ goles · 👟 asistencias · 🟨 amarilla · 🟥 roja</p>
+              <p class="muted qm-help">⚽ goles · 👟 asistencias · 🦵 faltas · 🟨 amarilla · 🟥 roja</p>
               <EventRows players={played} counts={counts} onStep={(id, kind, dir) => setCounts(c => bump(c, id, kind, dir))} />
             </>}
       </div>

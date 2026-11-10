@@ -11,8 +11,8 @@ export type OnStep = (id: string, kind: EventKind, dir: 1 | -1) => void;
 
 const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name, 'es');
 
-/** Cuadro numérico con − y +: goles y asistencias. */
-function Step({ kind, n, who, onStep }: { kind: 'goal' | 'assist'; n: number; who: string; onStep: (dir: 1 | -1) => void }) {
+/** Cuadro numérico con − y +: goles, asistencias y faltas. */
+function Step({ kind, n, who, onStep }: { kind: 'goal' | 'assist' | 'foul'; n: number; who: string; onStep: (dir: 1 | -1) => void }) {
   const label = KIND_LABEL[kind].toLowerCase();
   return (
     <div class="qm-step">
@@ -39,7 +39,7 @@ function Card({ kind, n, who, onStep }: { kind: 'yellow' | 'red'; n: number; who
 }
 
 /**
- * Una fila por jugador con − / + de goles y asistencias y toque para amarilla y roja.
+ * Una fila por jugador con − / + de goles, asistencias y faltas y toque para amarilla y roja.
  * Agrupa por equipo (A, B, sin equipo) cuando hay equipos.
  */
 export function EventRows({ players, counts, onStep }: { players: EvPlayer[]; counts: CountsMap; onStep: OnStep }) {
@@ -68,8 +68,11 @@ export function EventRows({ players, counts, onStep }: { players: EvPlayer[]; co
                   <div class="qm-evctl">
                     <Step kind="goal" n={c.goal} who={p.name} onStep={step('goal')} />
                     <Step kind="assist" n={c.assist} who={p.name} onStep={step('assist')} />
-                    <Card kind="yellow" n={c.yellow} who={p.name} onStep={step('yellow')} />
-                    <Card kind="red" n={c.red} who={p.name} onStep={step('red')} />
+                    <Step kind="foul" n={c.foul} who={p.name} onStep={step('foul')} />
+                    <div class="qm-cards">
+                      <Card kind="yellow" n={c.yellow} who={p.name} onStep={step('yellow')} />
+                      <Card kind="red" n={c.red} who={p.name} onStep={step('red')} />
+                    </div>
                   </div>
                 </div>
               );
@@ -81,7 +84,7 @@ export function EventRows({ players, counts, onStep }: { players: EvPlayer[]; co
   );
 }
 
-/** Resumen de solo lectura: por equipo, quién hizo goles, asistencias y tarjetas. */
+/** Resumen de solo lectura: por equipo, quién hizo goles, asistencias, faltas y tarjetas. */
 export function EventSummary({ events, nameOf, teamOf }:
   { events: Pick<MatchEvent, 'profile_id' | 'kind'>[]; nameOf: (id: string) => string; teamOf: (id: string) => 'A' | 'B' | null }) {
   const counts = eventCounts(events);
@@ -102,6 +105,7 @@ export function EventSummary({ events, nameOf, teamOf }:
               <span class="ellipsis qm-sum-name">{r.name}</span>
               {r.c.goal > 0 && <span class="qm-chip" title={KIND_LABEL.goal}>{KIND_ICON.goal} {r.c.goal}</span>}
               {r.c.assist > 0 && <span class="qm-chip" title={KIND_LABEL.assist}>{KIND_ICON.assist} {r.c.assist}</span>}
+              {r.c.foul > 0 && <span class="qm-chip" title={KIND_LABEL.foul}>{KIND_ICON.foul} {r.c.foul}</span>}
               {r.c.yellow > 0 && <span class="qm-chip" title={KIND_LABEL.yellow}>{KIND_ICON.yellow}{r.c.yellow > 1 ? ` ${r.c.yellow}` : ''}</span>}
               {r.c.red > 0 && <span class="qm-chip" title={KIND_LABEL.red}>{KIND_ICON.red}</span>}
             </div>

@@ -15,6 +15,7 @@
 .st-grid{display:grid;gap:8px}
 .st-grid+.st-grid{margin-top:8px}
 .st-grid.c5{grid-template-columns:repeat(5,minmax(0,1fr))}
+.st-grid.c6{grid-template-columns:repeat(6,minmax(0,1fr));gap:6px}
 .st-grid.c4{grid-template-columns:repeat(4,minmax(0,1fr))}
 .st-tile{min-width:0;padding:8px 2px;border:1px solid var(--line);border-radius:10px;background:var(--bg);text-align:center}
 .st-tile b{display:block;font:700 1.5rem/1.1 var(--f-display)}

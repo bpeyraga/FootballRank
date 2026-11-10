@@ -4,6 +4,7 @@ import { displayName, type Profile } from '../../shared/supabase';
 import { Avatar } from '../../shared/ui/Avatar';
 import type { EventKind, MatchEvent } from '../stats/statsCore';
 import { EventRows, EventSummary, type EvPlayer } from './EventSteppers';
+import { Timeline } from './LivePanel';
 import { eventCounts } from './quickMatch';
 import type { Venue } from '../venues/maps';
 import { NEW_VENUE, draftValid, emptyDraft } from '../venues/venues';
@@ -59,27 +60,34 @@ export function EditMatch({ m, meId, venues, addVenue, busy, onSave, onCancel }:
   );
 }
 
-/** Goles, asistencias y tarjetas: los admins los cargan con − / + por jugador; los demás ven un resumen. */
+/** Goles, asistencias, faltas y tarjetas: los admins los cargan con − / + por jugador; los demás ven un resumen (y el minuto a minuto si se cargó en vivo). */
 export function MatchEvents({ events, err, isAdmin, players, nameOf, teamOf, onStep }: {
   events: MatchEvent[] | null; err: string; isAdmin: boolean;
   players: EvPlayer[]; nameOf: (pid: string) => string; teamOf: (pid: string) => 'A' | 'B' | null;
   onStep: (pid: string, kind: EventKind, dir: 1 | -1) => void;
 }) {
   const counts = eventCounts(events ?? []);
+  const timed = (events ?? []).some(e => e.minute != null); // cargados en vivo: se muestra el minuto a minuto
   return (
     <div class="card">
-      <h3>Goles y tarjetas</h3>
+      <h3>Goles, faltas y tarjetas</h3>
       {events == null && !err && <p class="muted" style="margin-top:8px">Cargando…</p>}
       {err && <p class="err">{err}</p>}
       {events != null && isAdmin && (players.length
         ? <>
-            <p class="muted" style="margin:6px 0 8px;font-size:.85rem">Tocá + o − para sumar o sacar. ⚽ goles · 👟 asistencias · 🟨 amarilla · 🟥 roja</p>
+            <p class="muted" style="margin:6px 0 8px;font-size:.85rem">Tocá + o − para sumar o sacar. ⚽ goles · 👟 asistencias · 🦵 faltas · 🟨 amarilla · 🟥 roja</p>
             <EventRows players={players} counts={counts} onStep={onStep} />
           </>
         : <p class="muted" style="margin-top:8px">No hay jugadores anotados.</p>)}
       {events != null && !isAdmin && (events.length
         ? <EventSummary events={events} nameOf={nameOf} teamOf={teamOf} />
-        : <p class="muted" style="margin-top:8px">Todavía no hay goles ni tarjetas cargados.</p>)}
+        : <p class="muted" style="margin-top:8px">Todavía no hay goles, faltas ni tarjetas cargados.</p>)}
+      {events != null && timed && (
+        <div class="lv-played">
+          <h4>Minuto a minuto</h4>
+          <Timeline events={events} nameOf={nameOf} teamOf={teamOf} />
+        </div>
+      )}
     </div>
   );
 }

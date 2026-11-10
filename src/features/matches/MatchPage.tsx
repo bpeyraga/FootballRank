@@ -9,6 +9,8 @@ import { Pitch, type PitchPlayer } from './Pitch';
 import type { Ranked } from '../ranking/ranking';
 import { addedNotice, editNotice, fmtDate, roster, statusLabel } from './model';
 import { useMatch } from './useMatch';
+import { LivePanel } from './LivePanel';
+import { canStartLive } from './live';
 import { Beers } from './Beers';
 import { MemberChecklist } from './MemberChecklist';
 import { EditMatch, MatchEvents, MvpVote, RateTeammates } from './MatchSections';
@@ -61,6 +63,10 @@ export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: str
   const suspended = (pid: string) => susp.some(s => s.profile_id === pid);
   const canMarkAbsent = started && m.status !== 'cancelled';
   const prof = (pid: string): Profile => byId.get(pid)?.profile ?? { id: pid, name: '?', pos: 'MED', photo_url: null, user_id: null, onboarded: true, nickname: null, shirt_number: null, fav_team: null };
+  // Partido en vivo (reloj andando o terminado pero sin resultado cargado todavía)
+  const liveOn = editable && !!m.live_state;
+  const nameOf = (pid: string) => displayName(prof(pid));
+  const teamOfIn = (pid: string) => su.find(s => s.profile_id === pid && s.status === 'in')?.team ?? null;
 
   const shareWhatsApp = () => {
     const text = shareText(m, inList.length, link, m.venue?.maps_url);
@@ -193,6 +199,27 @@ export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: str
         {x.err && <p class="err">{x.err}</p>}
       </div>
 
+      {/* Partido en vivo: cronómetro, marcador y línea de tiempo para todos; el reloj y los botones, para los admins */}
+      {isAdmin && !liveOn && canStartLive(m, Date.now()) && (
+        <div class="card live-start">
+          <h3>📡 Partido en vivo</h3>
+          <p class="muted">
+            Cronómetro y goles, asistencias, faltas y tarjetas con un toque por jugador mientras se juega. Todos los del grupo lo ven al instante.
+            {!hasTeams && ' Armá los equipos antes de empezar para que el marcador sume solo.'}
+          </p>
+          <button type="button" class="btn primary block" disabled={x.liveBusy} onClick={() => x.liveClock('start')}>Iniciar partido en vivo</button>
+          {x.liveErr && <p class="err" role="alert">{x.liveErr}</p>}
+        </div>
+      )}
+      {liveOn && (
+        <LivePanel clock={m} skew={x.skew} events={events ?? []} ready={events != null}
+          players={inList.filter(s => !s.absent).map(s => ({ id: s.profile_id, name: nameOf(s.profile_id), profile: prof(s.profile_id), team: s.team }))}
+          nameOf={nameOf} teamOf={teamOfIn} canEdit={isAdmin} busy={x.liveBusy} err={x.liveErr || x.evErr}
+          onClock={a => { if (a !== 'reset' || confirm('¿Reiniciar el reloj? El partido vuelve a "sin empezar"; los goles y tarjetas cargados se conservan.')) x.liveClock(a); }}
+          onRetry={x.loadEvents} onRemove={x.removeEv} onSaveResult={x.saveLiveResult}
+          onEvent={(pid, kind, minute) => x.stepEvent(pid, kind, 1, minute)} onUndo={x.undoLast} meId={meId} />
+      )}
+
       {/* Cancha: mapa embebido y cómo llegar */}
       {m.venue && (
         <div class="card venue-card">
@@ -242,13 +269,13 @@ export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: str
           onPaid={x.setPaid} onSetFee={x.setFee} />
       )}
 
-      {/* Goles y tarjetas: partido jugado; los cargan solo los admins con − / +, el resto lo ve de solo lectura */}
+      {/* Goles, faltas y tarjetas: partido jugado; los cargan solo los admins con − / +, el resto lo ve de solo lectura */}
       {m.status === 'played' && (
-        <MatchEvents events={events} err={x.evErr} isAdmin={isAdmin} onStep={x.stepEvent}
+        <MatchEvents events={events} err={x.evErr} isAdmin={isAdmin} onStep={(pid, kind, dir) => x.stepEvent(pid, kind, dir)}
           players={inList.filter(s => !s.absent || evHas(s.profile_id)).map(s => ({
             id: s.profile_id, name: displayName(prof(s.profile_id)), profile: prof(s.profile_id), team: hasTeams ? s.team : null,
           }))}
-          nameOf={pid => displayName(prof(pid))} teamOf={pid => (hasTeams ? inList.find(s => s.profile_id === pid)?.team ?? null : null)} />
+          nameOf={nameOf} teamOf={pid => (hasTeams ? inList.find(s => s.profile_id === pid)?.team ?? null : null)} />
       )}
 
       {/* Tercer tiempo: cervezas de los que jugaron */}
@@ -307,8 +334,9 @@ export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: str
         );
       })()}
 
-      {/* Resultado: solo admins (owner incluido), una vez empezado */}
-      {isAdmin && started && m.status !== 'cancelled' && (
+      {/* Resultado: solo admins (owner incluido), una vez empezado (o en vivo: el servidor deja cerrarlo aunque lo hayan arrancado antes de la hora).
+          Mientras el panel en vivo está, el resultado se guarda desde ahí. */}
+      {isAdmin && (started || !!m.live_state) && m.status !== 'cancelled' && !liveOn && (
         <div class="card">
           <h3 style="margin-bottom:12px">{m.status === 'played' ? 'Corregir resultado' : 'Cargar resultado'}</h3>
           <div class="row">
@@ -344,7 +372,7 @@ export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: str
           <p class="muted" style="margin:0 0 10px;font-size:.88rem">
             {m.schedule_id && !started
               ? 'Es del partido fijo: si lo eliminás se vuelve a crear solo. Para no jugar esa fecha usá "Cancelar partido", o pausá el partido fijo.'
-              : 'Se borran los anotados, goles, tarjetas, calificaciones y votos de este partido. No se puede deshacer.'}
+              : 'Se borran los anotados, goles, faltas, tarjetas, calificaciones y votos de este partido. No se puede deshacer.'}
           </p>
           <button class="btn danger" disabled={busy} onClick={async () => {
             if (!confirm(`¿Eliminar "${m.title}" para siempre? Se pierden sus anotados, goles y votos.`)) return;

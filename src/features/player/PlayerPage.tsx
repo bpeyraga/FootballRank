@@ -139,10 +139,11 @@ export function Player({ r, rows, slug, meId, communityId, isAdmin, communityNam
         {stErr && <p class="err" style="margin:0">No pudimos cargar las estadísticas. {stErr}</p>}
         {!st && !stErr && <p class="muted">Cargando…</p>}
         {st && <>
-          <div class="st-grid c5">
+          <div class="st-grid c6">
             <div class="st-tile"><b>{st.pj}</b><span>PJ</span></div>
             <div class="st-tile"><b>{st.goals}</b><span>Goles</span></div>
             <div class="st-tile"><b>{st.assists}</b><span>Asist.</span></div>
+            <div class="st-tile"><b>{st.fouls}</b><span class="em" aria-label="Faltas">🦵</span></div>
             <div class="st-tile"><b>{st.yellow}</b><span class="em" aria-label="Amarillas">🟨</span></div>
             <div class="st-tile"><b>{st.red}</b><span class="em" aria-label="Rojas">🟥</span></div>
           </div>

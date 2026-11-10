@@ -52,6 +52,14 @@ describe('statusLabel', () => {
     expect(statusLabel({ status: 'open', starts_at: '2000-01-01T00:00:00Z' })).toBe('Lista cerrada (ya empezó)');
     expect(statusLabel({ status: 'played', starts_at: '2000-01-01T00:00:00Z' })).toBe('Jugado');
   });
+  it('en vivo: reloj corriendo, en pausa o terminado sin resultado', () => {
+    const at = '2000-01-01T00:00:00Z';
+    expect(statusLabel({ status: 'open', starts_at: at, live_state: 'running' })).toBe('🔴 En vivo');
+    expect(statusLabel({ status: 'closed', starts_at: at, live_state: 'paused' })).toBe('🔴 En vivo (en pausa)');
+    expect(statusLabel({ status: 'closed', starts_at: at, live_state: 'ended' })).toBe('Terminó · falta confirmar el resultado');
+    expect(statusLabel({ status: 'played', starts_at: at, live_state: 'ended' })).toBe('Jugado'); // con resultado cargado ya no es "en vivo"
+    expect(statusLabel({ status: 'open', starts_at: at, live_state: null })).toBe('Lista cerrada (ya empezó)');
+  });
 });
 
 describe('matchError', () => {

@@ -67,14 +67,17 @@ describe('contadores', () => {
     m = bump(m, 'a', 'yellow', 1); m = bump(m, 'a', 'yellow', 1);
     expect(bump(m, 'a', 'yellow', 1).a.yellow).toBe(2); // amarilla: máximo 2
     expect(m.a.goal).toBe(2); // no pisa los otros
+    m = bump(m, 'a', 'foul', 1); m = bump(m, 'a', 'foul', 1);
+    expect(m.a.foul).toBe(2); // las faltas cuentan aparte, sin tope de 2
+    expect(bump(m, 'a', 'foul', -5).a.foul).toBe(0);
   });
 });
 
 describe('resultado automático', () => {
   const sel: Sel = { a: 'A', b: 'A', c: 'B', d: 'X' };
   it('suma los goles de cada equipo y no cuenta a los sin equipo', () => {
-    const counts: CountsMap = { a: { goal: 2, assist: 1, yellow: 0, red: 0 }, b: { goal: 1, assist: 0, yellow: 0, red: 0 },
-      c: { goal: 4, assist: 0, yellow: 0, red: 0 }, d: { goal: 9, assist: 0, yellow: 0, red: 0 }, z: { goal: 7, assist: 0, yellow: 0, red: 0 } };
+    const counts: CountsMap = { a: { goal: 2, assist: 1, foul: 0, yellow: 0, red: 0 }, b: { goal: 1, assist: 0, foul: 0, yellow: 0, red: 0 },
+      c: { goal: 4, assist: 0, foul: 0, yellow: 0, red: 0 }, d: { goal: 9, assist: 0, foul: 0, yellow: 0, red: 0 }, z: { goal: 7, assist: 0, foul: 0, yellow: 0, red: 0 } };
     expect(autoScore(sel, counts)).toEqual({ a: 3, b: 4 });
   });
   it('sin goles es 0-0 y clampScore acota', () => {
@@ -82,10 +85,10 @@ describe('resultado automático', () => {
     expect(clampScore(-3)).toBe(0); expect(clampScore(150)).toBe(99); expect(clampScore(NaN)).toBe(0);
   });
   it('avisa si hay más goles cargados que en el resultado', () => {
-    const counts: CountsMap = { a: { goal: 3, assist: 0, yellow: 0, red: 0 } };
+    const counts: CountsMap = { a: { goal: 3, assist: 0, foul: 0, yellow: 0, red: 0 } };
     expect(warnings(sel, counts, 2, 0)).toEqual(['Cargaste 3 goles del Equipo A y el resultado dice 2.']);
     expect(warnings(sel, counts, 3, 0)).toEqual([]);
-    expect(warnings(sel, { c: { goal: 1, assist: 0, yellow: 0, red: 0 } }, 0, 0)).toEqual(['Cargaste 1 gol del Equipo B y el resultado dice 0.']);
+    expect(warnings(sel, { c: { goal: 1, assist: 0, foul: 0, yellow: 0, red: 0 } }, 0, 0)).toEqual(['Cargaste 1 gol del Equipo B y el resultado dice 0.']);
   });
 });
 
@@ -96,11 +99,11 @@ describe('armado del pedido', () => {
   });
   it('buildEvents: un renglón por evento y solo de quienes jugaron', () => {
     const counts: CountsMap = {
-      a: { goal: 2, assist: 1, yellow: 0, red: 0 }, b: { goal: 0, assist: 0, yellow: 1, red: 1 },
-      zz: { goal: 5, assist: 0, yellow: 0, red: 0 }, // no jugó: no se manda
+      a: { goal: 2, assist: 1, foul: 2, yellow: 0, red: 0 }, b: { goal: 0, assist: 0, foul: 0, yellow: 1, red: 1 },
+      zz: { goal: 5, assist: 0, foul: 0, yellow: 0, red: 0 }, // no jugó: no se manda
     };
     expect(buildEvents(sel, counts)).toEqual([
-      { id: 'a', kind: 'goal' }, { id: 'a', kind: 'goal' }, { id: 'a', kind: 'assist' },
+      { id: 'a', kind: 'goal' }, { id: 'a', kind: 'goal' }, { id: 'a', kind: 'assist' }, { id: 'a', kind: 'foul' }, { id: 'a', kind: 'foul' },
       { id: 'b', kind: 'yellow' }, { id: 'b', kind: 'red' },
     ]);
     expect(buildEvents(sel, {})).toEqual([]);
@@ -131,10 +134,10 @@ describe('validateQuick', () => {
   });
   it('tope de eventos', () => {
     const sel: Sel = { a: 'A', b: 'B' };
-    const counts: CountsMap = { a: { goal: 30, assist: 30, yellow: 2, red: 1 } };
+    const counts: CountsMap = { a: { goal: 30, assist: 30, foul: 0, yellow: 2, red: 1 } };
     expect(validateQuick({ ...base, sel, counts })).toBeNull();
     const many: CountsMap = {}; const big: Sel = {};
-    for (let i = 0; i < 6; i++) { big['p' + i] = i % 2 ? 'A' : 'B'; many['p' + i] = { goal: 30, assist: 30, yellow: 0, red: 0 }; }
+    for (let i = 0; i < 6; i++) { big['p' + i] = i % 2 ? 'A' : 'B'; many['p' + i] = { goal: 30, assist: 30, foul: 0, yellow: 0, red: 0 }; }
     expect(validateQuick({ ...base, sel: big, counts: many })).toContain('demasiados');
   });
 });
@@ -161,10 +164,11 @@ describe('goles y tarjetas del partido', () => {
   const evs = [
     { id: 1, profile_id: 'a', kind: 'goal' as const }, { id: 2, profile_id: 'b', kind: 'goal' as const },
     { id: 3, profile_id: 'a', kind: 'goal' as const }, { id: 4, profile_id: 'a', kind: 'yellow' as const },
+    { id: 5, profile_id: 'b', kind: 'foul' as const }, { id: 6, profile_id: 'b', kind: 'foul' as const },
   ];
   it('eventCounts cuenta por jugador y tipo', () => {
     expect(eventCounts(evs)).toEqual({
-      a: { goal: 2, assist: 0, yellow: 1, red: 0 }, b: { goal: 1, assist: 0, yellow: 0, red: 0 },
+      a: { goal: 2, assist: 0, foul: 0, yellow: 1, red: 0 }, b: { goal: 1, assist: 0, foul: 2, yellow: 0, red: 0 },
     });
     expect(eventCounts([])).toEqual({});
   });

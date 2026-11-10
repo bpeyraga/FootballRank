@@ -4,19 +4,19 @@ import { ATTRS, displayName, infoLine } from '../../shared/supabase';
 import { tier, type Ranked } from './ranking';
 import { Avatar } from '../../shared/ui/Avatar';
 import { Crest } from '../../shared/ui/Crest';
-import { emptyStats, fmtAvg, leaderboard, perMatch, type PlayerStats } from '../stats/statsCore';
+import { disciplineBoard, emptyStats, fmtAvg, leaderboard, perMatch, type PlayerStats } from '../stats/statsCore';
 import { loadAttendanceData, loadCommunityStats, loadMvps } from '../stats/api';
 import { mvpBoard, presenceBoard } from './boards';
 import '../player/stats.css';
 
 type View = 'ovr' | 'goals' | 'assists' | 'cards' | 'mvp' | 'presence';
 const VIEWS: [View, string][] = [
-  ['ovr', 'OVR'], ['goals', 'Goleadores'], ['assists', 'Asistencias'], ['cards', 'Tarjetas'], ['mvp', 'Figura'], ['presence', 'Presentismo'],
+  ['ovr', 'OVR'], ['goals', 'Goleadores'], ['assists', 'Asistencias'], ['cards', 'Tarjetas y faltas'], ['mvp', 'Figura'], ['presence', 'Presentismo'],
 ];
 type StatView = 'goals' | 'assists' | 'cards';
 const isStatView = (v: View): v is StatView => v === 'goals' || v === 'assists' || v === 'cards';
 const EMPTY: Record<StatView, string> = {
-  goals: 'Todavía no hay goles cargados.', assists: 'Todavía no hay asistencias cargadas.', cards: 'Nadie vio tarjetas todavía. 😇',
+  goals: 'Todavía no hay goles cargados.', assists: 'Todavía no hay asistencias cargadas.', cards: 'Nadie vio tarjetas ni hizo faltas todavía. 😇',
 };
 
 /** Carga algo la primera vez que `on` es true (y reintenta a pedido). */
@@ -47,7 +47,7 @@ function BoardState({ err, retry, loading, empty }: { err: string; retry: () => 
   return empty ? <p class="muted st-empty">{empty}</p> : null;
 }
 
-/** Tabla de la comunidad: por OVR (promedio de votos), goleadores o asistencias. */
+/** Tabla de la comunidad: por OVR (promedio de votos), goleadores, asistencias, tarjetas y faltas, figura o presentismo. */
 export function Ranking({ rows, slug, meId, communityId }: { rows: Ranked[]; slug: string; meId: string; communityId: string }) {
   const [view, setView] = useState<View>('ovr');
   const [stats, setStats] = useState<Map<string, PlayerStats> | null>(null);
@@ -70,7 +70,7 @@ export function Ranking({ rows, slug, meId, communityId }: { rows: Ranked[]; slu
   const s = (id: string) => stats?.get(id) ?? emptyStats();
   const players = useMemo(() => rows.map(r => ({ id: r.profile.id, name: displayName(r.profile) })), [rows]);
   const board = useMemo(
-    () => stats && isStatView(view) ? leaderboard(players, stats, view) : [],
+    () => !stats || !isStatView(view) ? [] : view === 'cards' ? disciplineBoard(players, stats) : leaderboard(players, stats, view),
     [players, stats, view]);
   const mvp = useLazy(view === 'mvp', () => loadMvps(communityId), communityId);
   const att = useLazy(view === 'presence', () => loadAttendanceData(communityId), communityId);
@@ -152,6 +152,7 @@ export function Ranking({ rows, slug, meId, communityId }: { rows: Ranked[]; slu
                   ? <span class="st-val rk-cards">
                       {s(b.id).yellow > 0 && <span title="Amarillas">🟨 {s(b.id).yellow}</span>}
                       {s(b.id).red > 0 && <span title="Rojas">🟥 {s(b.id).red}</span>}
+                      {s(b.id).fouls > 0 && <span title="Faltas">🦵 {s(b.id).fouls}</span>}
                     </span>
                   : <span class="st-val">{b.value}</span>}
               </a>

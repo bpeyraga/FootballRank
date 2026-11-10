@@ -3,7 +3,8 @@
 import { must, sb, type Profile } from '../../shared/supabase';
 import { VENUE_COLS } from '../venues/api';
 import { SCHEDULE_COLS, type Schedule } from './schedule';
-import type { EventKind } from '../stats/statsCore';
+import type { EventKind, MatchEvent } from '../stats/statsCore';
+import type { LiveAction, LiveState } from './live';
 import type { Match, MatchListItem, Mvp, Score, Signup, Suspension, Team } from './model';
 
 const rpc = async (fn: string, args: Record<string, unknown>) => { must(await sb.rpc(fn, args)); };
@@ -119,16 +120,67 @@ export async function loadPaidAt(id: string, pid: string): Promise<string | null
 }
 export const setFee = (id: string, total: number | null) => rpc('set_fee', { p_match: id, p_total: total });
 
-// ---------- Goles y tarjetas ----------
+// ---------- Goles, faltas y tarjetas ----------
 
-export interface NewEvent { match_id: string; community_id: string; profile_id: string; kind: EventKind; created_by: string }
-/** Guarda un gol/asistencia/tarjeta y devuelve su id. */
+export interface NewEvent { match_id: string; community_id: string; profile_id: string; kind: EventKind; created_by: string; minute?: number }
+/** Guarda un gol/asistencia/falta/tarjeta y devuelve su id (`minute` solo si se carga en vivo). */
 export async function insertEvent(e: NewEvent): Promise<number> {
   return must(await sb.from('match_events').insert(e).select('id').single())!.id;
 }
 /** Devuelve false si no había nada que borrar (otro ya lo sacó). */
 export async function deleteEvent(eventId: number): Promise<boolean> {
   return !!must(await sb.from('match_events').delete().eq('id', eventId).select('id'))?.length;
+}
+
+// ---------- Partido en vivo ----------
+
+/** El reloj tal cual está en la base (`status` avisa si el partido cambió de estado: p. ej. otro admin cargó el resultado). */
+export type LiveRow = Pick<Match, 'status' | 'live_state' | 'live_half' | 'live_since' | 'live_elapsed'>;
+export async function loadLiveClock(id: string): Promise<LiveRow | null> {
+  return must(await sb.from('matches').select('status,live_state,live_half,live_since,live_elapsed').eq('id', id).maybeSingle()) as LiveRow | null;
+}
+
+/** La hora del servidor (ISO): así todos ven el mismo cronómetro aunque el reloj del celular esté corrido. */
+export async function liveNow(): Promise<string | null> {
+  return must(await sb.rpc('live_now')) as string | null;
+}
+
+/** Lo que devuelve live_clock: el reloj como quedó y la hora del servidor. */
+export interface LiveClockResult { live_state: LiveState | null; live_half: number | null; live_since: string | null; live_elapsed: number; now: string }
+/** Maneja el reloj (solo admins). Tira Error con el código del servidor (`liveError` lo traduce). */
+export async function liveClock(id: string, action: LiveAction): Promise<LiveClockResult> {
+  const data = must(await sb.rpc('live_clock', { p_match: id, p_action: action }));
+  if (!data) throw new Error('No se pudo.');
+  return data as LiveClockResult;
+}
+
+export interface LiveEvents {
+  /** Cambió la fila del partido (reloj, estado, resultado...). */
+  match: (row: Partial<Match>) => void;
+  eventAdded: (e: MatchEvent) => void;
+  eventGone: (id: number) => void;
+  /** Conectado; `again` = es una reconexión (puede haberse perdido algo mientras tanto). */
+  connected: (again: boolean) => void;
+}
+export interface LiveChannel { close: () => void }
+
+/** Escucha el partido: el reloj (UPDATE de matches) y los eventos que se cargan o se sacan. */
+export function openLiveChannel(id: string, on: LiveEvents): LiveChannel {
+  let connected = false;
+  const ch = sb.channel(`match-${id}`)
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'matches', filter: `id=eq.${id}` }, pl => on.match(pl.new as Partial<Match>))
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'match_events', filter: `match_id=eq.${id}` }, pl => on.eventAdded(pl.new as MatchEvent))
+    // Los DELETE no se pueden filtrar por partido (solo traen el id): quien escucha ignora los ids que no están en su lista.
+    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'match_events' }, pl => {
+      const eid = (pl.old as { id?: number }).id;
+      if (eid != null) on.eventGone(eid);
+    })
+    .subscribe(status => {
+      if (status !== 'SUBSCRIBED') return;
+      on.connected(connected);
+      connected = true;
+    });
+  return { close: () => { sb.removeChannel(ch); } };
 }
 
 // ---------- Tercer tiempo ----------

@@ -1,4 +1,4 @@
-// Carga rápida de un partido ya jugado y goles/tarjetas con − / +: lógica pura (sin Supabase),
+// Carga rápida de un partido ya jugado y goles/faltas/tarjetas con − / +: lógica pura (sin Supabase),
 // para poder testearla sin variables de entorno.
 import type { EventKind } from '../stats/statsCore';
 
@@ -6,15 +6,15 @@ import type { EventKind } from '../stats/statsCore';
 export type Side = 'A' | 'B' | 'X';
 export type Sel = Record<string, Side>;
 
-export interface Counts { goal: number; assist: number; yellow: number; red: number }
+export interface Counts { goal: number; assist: number; foul: number; yellow: number; red: number }
 export type CountsMap = Record<string, Counts>;
 
 /** Topes por jugador (el servidor acepta hasta 300 eventos y 80 jugadores en total). */
-export const MAX_COUNT: Record<EventKind, number> = { goal: 30, assist: 30, yellow: 2, red: 1 };
+export const MAX_COUNT: Record<EventKind, number> = { goal: 30, assist: 30, foul: 30, yellow: 2, red: 1 };
 export const MAX_SCORE = 99, MAX_PLAYERS = 80, MAX_EVENTS = 300;
-const KINDS: readonly EventKind[] = ['goal', 'assist', 'yellow', 'red'];
+const KINDS: readonly EventKind[] = ['goal', 'assist', 'foul', 'yellow', 'red'];
 
-export const emptyCounts = (): Counts => ({ goal: 0, assist: 0, yellow: 0, red: 0 });
+export const emptyCounts = (): Counts => ({ goal: 0, assist: 0, foul: 0, yellow: 0, red: 0 });
 export const countsOf = (m: CountsMap, id: string): Counts => m[id] ?? emptyCounts();
 
 /** Suma o resta uno (delta) a un contador, siempre entre 0 y su tope. Devuelve el mismo mapa si no cambia. */

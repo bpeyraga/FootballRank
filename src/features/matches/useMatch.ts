@@ -5,6 +5,8 @@ import type { EventKind, MatchEvent } from '../stats/statsCore';
 import { lastEvent } from './quickMatch';
 import { feeError } from './fees';
 import * as api from './api';
+import { EARLY_MS, applyDelete, applyInsert, lastMineOf, settleInsert } from './live';
+import { useLive } from './useLive';
 import { errText, type Match, type Mvp, type Score, type Signup, type Suspension } from './model';
 
 export function useMatch(id: string, meId: string) {
@@ -22,11 +24,13 @@ export function useMatch(id: string, meId: string) {
   const [events, setEvents] = useState<MatchEvent[] | null>(null);
   const [evErr, setEvErr] = useState('');
   const [, tick] = useState(0);
-  // Goles y tarjetas: se actualizan al toque y se guardan en orden, uno detrás de otro.
+  // Goles, faltas y tarjetas: se actualizan al toque y se guardan en orden, uno detrás de otro.
   const evRef = useRef<MatchEvent[] | null>(null);          // siempre la lista más nueva (el estado llega con un render de atraso)
   const evQueue = useRef<Promise<void>>(Promise.resolve());
   const evPending = useRef(0), evFailed = useRef(false), evSeq = useRef(0);
   const evReal = useRef(new Map<number, number | null>());  // id provisorio -> id real (null: no se pudo guardar)
+  const evGen = useRef(0);                                  // cuenta cada cambio de la lista: una lectura del servidor que arrancó antes de un cambio se descarta
+  const evEcho = useRef(new Map<number, MatchEvent>());     // filas de Realtime que pueden ser el eco de un insert mío todavía sin respuesta
 
   // La lista se cierra sola a la hora del partido: re-render justo cuando arranca.
   useEffect(() => {
@@ -37,11 +41,31 @@ export function useMatch(id: string, meId: string) {
     return () => clearTimeout(t);
   }, [m?.starts_at]);
 
-  // Goles y tarjetas se cargan aparte: si la tabla no existe todavía, el resto de la pantalla sigue andando.
-  const setEv = (es: MatchEvent[] | null) => { evRef.current = es; setEvents(es); };
+  // Cuando entra en la ventana de "hoy" (2 h antes), re-render para que aparezca "Iniciar partido en vivo".
+  useEffect(() => {
+    if (!m) return;
+    const ms = +new Date(m.starts_at) - EARLY_MS - Date.now();
+    if (ms <= 0 || ms > 2 ** 31 - 1) return;
+    const t = setTimeout(() => tick(n => n + 1), ms + 500);
+    return () => clearTimeout(t);
+  }, [m?.starts_at]);
+
+  // Goles, faltas y tarjetas se cargan aparte: si la tabla no existe todavía, el resto de la pantalla sigue andando.
+  const setEv = (es: MatchEvent[] | null) => { evGen.current++; evRef.current = es; setEvents(es); };
+  // Lee los eventos del servidor y los muestra, salvo que mientras tanto la lista haya cambiado (se guardó, se borró o llegó
+  // algo por Realtime) o haya cargas en camino: esa lectura puede estar vieja, así que se descarta y se vuelve a pedir (hasta 3 veces).
+  const refreshEvents = async (): Promise<boolean> => {
+    for (let i = 0; i < 3; i++) {
+      const gen = evGen.current;
+      const fresh = await loadMatchEvents(id);
+      if (evPending.current > 0) return false; // con cargas en camino mandan las que ya se ven
+      if (gen === evGen.current) { setEv(fresh); return true; }
+    }
+    return false;
+  };
   const loadEvents = async () => {
-    try { setEv(await loadMatchEvents(id)); setEvErr(''); }
-    catch (e: any) { setEvErr('No pudimos cargar los goles y tarjetas. ' + (e?.message ?? '')); }
+    try { await refreshEvents(); setEvErr(''); }
+    catch (e: any) { setEvErr('No pudimos cargar los goles, faltas y tarjetas. ' + (e?.message ?? '')); }
   };
   // MVP aparte, por lo mismo: si falla, el resto sigue andando
   const loadMvp = async () => { try { setMvp(await api.loadMvp(id, meId)); } catch { /* sin MVP */ } };
@@ -51,8 +75,15 @@ export function useMatch(id: string, meId: string) {
     try { b = await api.loadMatch(id, meId); } catch (e: any) { setErr(e?.message ?? 'Error de red'); return; }
     setM(b.match); setSu(b.signups); setSusp(b.suspensions); setScores(b.scores); setMyRatings(b.myRatings);
     if (b.match?.status === 'played') { loadEvents(); loadMvp(); }
+    else if (b.match?.live_state) loadEvents(); // partido en vivo: los eventos de hasta ahora
   };
   useEffect(() => { load(); }, [id]);
+
+  // Partido en vivo: reloj, tiempo real y respaldo por consulta (ver useLive).
+  const live = useLive({
+    id, meId, m, setM, load, setMsg, setErr,
+    ev: { ref: evRef, pending: evPending, echo: evEcho, set: setEv, refresh: refreshEvents, load: loadEvents },
+  });
 
   /** Corre una acción con "ocupado", traduce el error y recarga el partido si salió bien. */
   const run = async (f: () => Promise<unknown>, ok?: string) => {
@@ -87,6 +118,14 @@ export function useMatch(id: string, meId: string) {
     return '';
   };
 
+  // Terminó la cola: las filas de Realtime que quedaron en espera y no eran el eco de ninguno de mis inserts (otro celular
+  // de la misma cuenta, otro admin) se agregan ahora.
+  const flushEcho = () => {
+    const rows = [...evEcho.current.values()];
+    evEcho.current.clear();
+    const cur = evRef.current;
+    if (rows.length && cur) setEv(rows.reduce((l, r) => applyInsert(l, r), cur));
+  };
   const enqueueEv = (job: () => Promise<boolean>) => {
     evPending.current++;
     evQueue.current = evQueue.current.then(async () => {
@@ -94,25 +133,24 @@ export function useMatch(id: string, meId: string) {
       try { ok = await job(); } catch (e) { setEvErr(errText(e)); }
       if (!ok) evFailed.current = true;
       // Al terminar todo lo pendiente, si algo falló se vuelve a leer del servidor (sin borrar el aviso de error).
-      if (--evPending.current === 0 && evFailed.current) {
-        evFailed.current = false;
-        try {
-          const fresh = await loadMatchEvents(id);
-          // Si mientras se leía tocaron "+", esas filas temporales (id < 0) siguen en cola: no perderlas.
-          setEv([...fresh, ...(evRef.current ?? []).filter(e => e.id < 0)]);
-        } catch { /* queda lo que se ve */ }
+      if (--evPending.current === 0) flushEcho();
+      if (evPending.current === 0 && evFailed.current) {
+        // Si mientras se leía tocaron "+", la lectura se descarta y se reintenta; si no se pudo, queda lo que se ve y se
+        // vuelve a intentar cuando termine la próxima tanda.
+        try { if (await refreshEvents()) evFailed.current = false; } catch { /* queda lo que se ve */ }
       }
     });
   };
   // "+" agrega un evento y "−" borra el más reciente de ese jugador y tipo. Se ve al instante; si falla, se deshace.
-  const stepEvent = (pid: string, kind: EventKind, dir: 1 | -1) => {
+  // `minute` solo viene del partido en vivo (el minuto del reloj en el toque).
+  const stepEvent = (pid: string, kind: EventKind, dir: 1 | -1, minute?: number | null) => {
     const cur = evRef.current;
     if (!cur || !m) return;
     setEvErr('');
     if (dir > 0) {
       const tmp = -(++evSeq.current);
-      const row = { match_id: id, community_id: m.community_id, profile_id: pid, kind, created_by: meId };
-      setEv([...cur, { ...row, id: tmp, created_at: new Date().toISOString() }]);
+      const row = { match_id: id, community_id: m.community_id, profile_id: pid, kind, created_by: meId, ...(minute != null ? { minute } : {}) };
+      setEv([...cur, { ...row, id: tmp, created_at: new Date().toISOString(), minute: minute ?? null }]);
       enqueueEv(async () => {
         let real: number;
         try { real = await api.insertEvent(row); }
@@ -123,24 +161,36 @@ export function useMatch(id: string, meId: string) {
           return false;
         }
         evReal.current.set(tmp, real);
-        setEv((evRef.current ?? []).map(e => e.id === tmp ? { ...e, id: real } : e));
+        evEcho.current.delete(real); // era el eco de este insert
+        setEv(settleInsert(evRef.current ?? [], tmp, real)); // si Realtime ya trajo la fila, no queda repetida
         return true;
       });
     } else {
       const ev = lastEvent(cur, pid, kind);
-      if (!ev) return;
-      setEv(cur.filter(e => e !== ev));
-      enqueueEv(async () => {
-        const eid = ev.id < 0 ? evReal.current.get(ev.id) : ev.id;
-        if (eid == null) return true; // nunca llegó a guardarse: no hay nada que borrar
-        let gone: boolean;
-        try { gone = await api.deleteEvent(eid); }
-        catch (e) { setEv([...(evRef.current ?? []), { ...ev, id: eid }]); setEvErr(errText(e)); return false; }
-        if (!gone) { setEvErr('No se pudo borrar (puede que ya lo hayan sacado).'); return false; }
-        return true;
-      });
+      if (ev) removeEv(ev);
     }
   };
+  // Saca un evento puntual (el "−" de un jugador, "Deshacer" o la × de la línea de tiempo).
+  const removeEv = (ev: MatchEvent) => {
+    const cur = evRef.current;
+    if (!cur) return;
+    setEvErr('');
+    setEv(cur.filter(e => e.id !== ev.id));
+    enqueueEv(async () => {
+      const eid = ev.id < 0 ? evReal.current.get(ev.id) : ev.id;
+      if (eid == null) return true; // nunca llegó a guardarse: no hay nada que borrar
+      let gone: boolean;
+      try { gone = await api.deleteEvent(eid); }
+      catch (e) { setEv([...(evRef.current ?? []).filter(e => e.id !== eid), { ...ev, id: eid }]); setEvErr(errText(e)); return false; }
+      if (!gone) { setEvErr('No se pudo borrar (puede que ya lo hayan sacado).'); return false; }
+      // Si Realtime trajo la fila mientras se borraba (el toque y el "deshacer" fueron seguidos), que no quede de fantasma.
+      evEcho.current.delete(eid);
+      setEv(applyDelete(evRef.current ?? [], eid));
+      return true;
+    });
+  };
+  /** "Deshacer" del partido en vivo: saca el último evento que cargué yo (no el de otro admin). */
+  const undoLast = () => { const l = lastMineOf(evRef.current ?? [], meId); if (l) removeEv(l); };
 
   /** Edita el partido. Devuelve el error (en español) o '' si salió bien. */
   const saveEdit = async (v: api.MatchEdit, notice: string): Promise<string> => {
@@ -166,7 +216,9 @@ export function useMatch(id: string, meId: string) {
   return {
     m, su, susp, scores, myRatings, mvp, events, busy, paying, err, msg, feeErr, evErr,
     setErr, setMsg, reload: load, run,
-    setPaid, setFee, stepEvent, saveEdit, remove,
+    setPaid, setFee, stepEvent, removeEv, undoLast, loadEvents, saveEdit, remove,
+    // Partido en vivo: cronómetro, acciones del reloj y el resultado final
+    skew: live.skew, liveBusy: live.liveBusy, liveErr: live.liveErr, liveClock: live.liveClock, saveLiveResult: live.saveLiveResult,
     // Acciones que recargan el partido al terminar; `ok` es el aviso a mostrar si salen bien.
     signup: (ok: string) => run(() => api.signup(id), ok),
     leave: () => run(() => api.leaveMatch(id), 'Te bajaste'),
