@@ -22,6 +22,9 @@ const Community = page(() => import('../features/community/CommunityPage'), m =>
 const Futbol = page(() => import('../features/futbol/FutbolPage'), m => m.Futbol);
 const Admin = page(() => import('../features/admin/AdminPage'), m => m.Admin);
 const Zone = page(() => import('../features/zone/ZonePage'), m => m.Zone);
+const Courts = page(() => import('../features/courts/CourtsPage'), m => m.Courts);
+const MyBookings = page(() => import('../features/courts/MyBookingsPage'), m => m.MyBookings);
+const OwnerPage = page(() => import('../features/owner/OwnerPage'), m => m.OwnerPage);
 import { go, NEXT_KEY, useRoute } from './router';
 // Todos los estilos en la carga inicial (son chicos) y desktop.css al final: las pantallas se bajan aparte
 // y, si sus CSS llegaran después, le ganarían a las reglas de PC.
@@ -38,6 +41,7 @@ import '../features/community/players.css';
 import '../features/community/cover.css';
 import '../features/seasons/seasons.css';
 import '../features/zone/zone.css';
+import '../features/courts/courts.css';
 import '../features/admin/superadmin.css';
 import './styles/desktop.css';
 import './styles/themes.css';
@@ -96,14 +100,21 @@ function App() {
   );
   if (state === 'loading') return <div class="center"><p class="muted">Cargando…</p></div>;
   if (state === 'out' || !me) return <Login />;
-  if (!me.onboarded) return <Onboarding me={me} done={refresh} />;
+  if (!me.onboarded || me.role_chosen === false) return <Onboarding me={me} done={refresh} />;
   if (route[0] === 'tema') return <Theme me={me} />;
   if (route[0] === 'perfil') return <Onboarding me={me} done={async () => { await refresh(); go(''); }} cancel={() => go('')} />;
   if (route[0] === 'join' && route[1]) return <Join code={route[1]} />;
   if (route[0] === 'futbol') return <Futbol me={me} />;
   if (route[0] === 'zona') return <Zone me={me} />;
+  // Canchas: la lista y la ficha son la misma pantalla (en la compu van lado a lado y no se pierde la búsqueda al elegir otra)
+  if (route[0] === 'canchas') return <Courts />;
+  if (route[0] === 'cancha' && route[1]) return <Courts id={route[1]} />;
+  if (route[0] === 'mis-reservas') return <MyBookings me={me} />;
+  if (route[0] === 'duenio') return <OwnerPage me={me} />;
   if (route[0] === 'admin') return <Admin />;
   if (route[0] === 'c' && route[1]) return <Community slug={route[1]} sub={route.slice(2)} me={me} />;
+  // dueño que no juega: su inicio es el panel de sus canchas
+  if (me.is_owner && me.is_player === false && !route[0]) return <OwnerPage me={me} />;
   return <Home me={me} />;
 }
 

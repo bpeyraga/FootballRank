@@ -1,6 +1,13 @@
+import './roles.css';
 import { useEffect, useState } from 'preact/hooks';
+import { go } from '../../app/router';
 import { ATTRS, POS, ovr, type Pos, type Profile, type Stats } from '../../shared/supabase';
-import { loadAccount, loadBaseStats, saveMyProfile, uploadPhoto, type Account } from './api';
+import { loadAccount, loadBaseStats, saveMyProfile, setMyRoles, uploadPhoto, type Account } from './api';
+import { RolePicker } from './RolePicker';
+import {
+  clearIntent, defaultChoice, routeAfterSetup, choiceFlags, needsRoleChoice, readIntent, roleErrorText, roleFlags,
+  type RoleChoice, type RoleFlags,
+} from './roles';
 import { Radar } from '../../shared/ui/Radar';
 import { TEAMS_ASCENSO, TEAMS_PRIMERA } from '../../shared/teams';
 import { Crest } from '../../shared/ui/Crest';
@@ -8,8 +15,20 @@ import { ZonePicker } from '../zone/ZonePicker';
 import { clearMyZone, loadMyZone, saveMyZone } from '../zone/api';
 import { normalizeZone, sameZone, zoneErrorText, type ZoneDraft } from '../zone/model';
 
-/** Ficha inicial y edición de perfil (con `cancel` es modo edición). */
+/**
+ * Primer ingreso y edición de perfil (con `cancel` es modo edición).
+ * Primer ingreso: si todavía no eligió rol (`role_chosen` en false) empieza por "¿Cómo vas a usar la app?" (jugador, dueño de cancha
+ * o ambos); después viene la ficha de jugador, salvo que sea solo dueño de cancha (esa persona va directo a `#/duenio`).
+ * Edición: además de la ficha, un bloque para activar o apagar "Juego al fútbol" y "También tengo cancha".
+ */
 export function Onboarding({ me, done, cancel }: { me: Profile; done: () => void; cancel?: () => void }) {
+  const editing = !!cancel;
+  // Si entró por "¿Tenés una cancha?" de la landing, "Dueño de cancha" aparece marcado
+  const [intent] = useState(() => readIntent());
+  const [step, setStep] = useState<'role' | 'ficha'>(!editing && needsRoleChoice(me) ? 'role' : 'ficha');
+  const [choice, setChoice] = useState<RoleChoice>(() => defaultChoice(intent));
+  const flags0 = roleFlags(me);
+  const [flags, setFlags] = useState<RoleFlags>(flags0);
   const [name, setName] = useState(me.name);
   const [nickname, setNickname] = useState(me.nickname ?? '');
   const [shirt, setShirt] = useState(me.shirt_number ? String(me.shirt_number) : '');
@@ -55,6 +74,26 @@ export function Onboarding({ me, done, cancel }: { me: Profile; done: () => void
     setBusy(false);
   };
 
+  /** Termina el alta (no la edición): el dueño que no juega, o el que entró por la puerta de dueños, va a su panel; el resto, al inicio. */
+  const finish = (f: RoleFlags) => {
+    const dest = routeAfterSetup(f, intent, location.hash);
+    clearIntent();
+    if (dest !== null) go(dest);
+    done();
+  };
+
+  const chooseRole = async () => {
+    const f = choiceFlags(choice);
+    setBusy(true); setErr('');
+    try { await setMyRoles(f.player, f.owner); } catch (e) { setBusy(false); return setErr(roleErrorText(e)); }
+    setBusy(false);
+    setFlags(f);
+    // Solo dueño de cancha (o jugador que ya tenía la ficha completa): no hay ficha que armar
+    if (!f.player || me.onboarded) finish(f); else setStep('ficha');
+  };
+
+  const rolesChanged = editing && (flags.player !== flags0.player || flags.owner !== flags0.owner);
+
   const save = async () => {
     setBusy(true); setErr('');
     try {
@@ -72,9 +111,35 @@ export function Onboarding({ me, done, cancel }: { me: Profile; done: () => void
         if (cancel) { setBusy(false); return setErr('Guardamos tu perfil, pero no pudimos guardar tu zona. ' + zoneErrorText(e)); }
       }
     }
+    // Los roles también van aparte (misma lógica: el perfil ya quedó guardado y se puede reintentar)
+    if (rolesChanged) {
+      try { await setMyRoles(flags.player, flags.owner); }
+      catch (e) { setBusy(false); return setErr('Guardamos tu perfil, pero ' + roleErrorText(e).charAt(0).toLowerCase() + roleErrorText(e).slice(1)); }
+    }
     setBusy(false);
-    done();
+    if (editing) done(); else finish(flags);
   };
+
+  if (step === 'role') {
+    return (
+      <div class="wrap rl-wrap">
+        <div class="rl-head">
+          <span class="kicker">Bienvenido</span>
+          <h2>¿Cómo vas a usar Fútbol Rank?</h2>
+          <p class="muted">Elegí una opción. Lo podés cambiar después desde tu perfil.</p>
+        </div>
+        {intent === 'owner' && <p class="rl-tip" role="status">Entraste por la puerta de dueños de cancha, así que ya te marcamos esa opción.</p>}
+        <RolePicker value={choice} onChange={c => { setChoice(c); setErr(''); }} disabled={busy} />
+        {err && <p class="err" role="alert">{err}</p>}
+        <button class="btn primary block rl-go" disabled={busy} onClick={chooseRole}>{busy ? 'Guardando…' : 'Seguir'}</button>
+        <p class="rl-note muted">
+          {choice === 'owner' ? 'Vas directo a tu panel de dueño: cargás tu complejo, tus canchas y tus horarios.'
+            : choice === 'both' ? 'Primero armás tu ficha de jugador y después tenés disponible tu panel de dueño.'
+            : 'Ahora armás tu ficha de jugador: posición, foto y tus stats.'}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div class="wrap">
@@ -129,6 +194,27 @@ export function Onboarding({ me, done, cancel }: { me: Profile; done: () => void
         <p class="muted">Sumate al ranking de tu zona y mirá quién es el mejor de tu barrio.{cancel ? '' : ' Podés saltearlo y hacerlo después desde tu perfil.'}</p>
         <ZonePicker value={zone} onChange={setZone} disabled={busy} />
       </div>
+      {editing && (
+        <div class="card rl-edit">
+          <h3>Cómo usás la app</h3>
+          <label class="zn-switch">
+            <input type="checkbox" role="switch" checked={flags.player} disabled={busy || (flags.player && !flags.owner)}
+              onChange={e => setFlags(f => ({ ...f, player: (e.target as HTMLInputElement).checked }))} />
+            <span class="zn-track" aria-hidden="true"><i /></span>
+            <span class="zn-switch-copy"><b>Juego al fútbol</b>
+              <small class="muted">{flags.player ? 'Tenés tu carta, tus grupos y tus partidos.' : 'Tu inicio pasa a ser el panel de dueño. Tus grupos y tu ficha se conservan.'}</small></span>
+          </label>
+          <label class="zn-switch">
+            <input type="checkbox" role="switch" checked={flags.owner} disabled={busy || (flags.owner && !flags.player)}
+              onChange={e => setFlags(f => ({ ...f, owner: (e.target as HTMLInputElement).checked }))} />
+            <span class="zn-track" aria-hidden="true"><i /></span>
+            <span class="zn-switch-copy"><b>{flags.player ? 'También tengo cancha' : 'Tengo cancha'}</b>
+              <small class="muted">{flags.owner ? 'Manejás turnos y reservas de tu complejo desde el panel de dueño.' : 'Activalo para publicar tus canchas y recibir reservas.'}</small></span>
+          </label>
+          {flags0.owner && !rolesChanged && <a class="rl-link" href="#/duenio">Ir a mi panel de dueño →</a>}
+          {rolesChanged && <p class="muted rl-pending">Se guarda cuando toques “Guardar”.</p>}
+        </div>
+      )}
       {cancel && acct && (
         <div class="card acct">
           <h3 style="margin-bottom:10px">Tu cuenta</h3>

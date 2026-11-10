@@ -1,8 +1,12 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { PUSH_KINDS, pushKinds, pushOff, pushOn, pushStatus, setPushKinds, type PushKind, type PushStatus } from './push';
 
-/** Activar/desactivar los avisos en este celular y elegir cuáles. */
-export function PushPanel({ onClose, onInstall }: { onClose: () => void; onInstall: () => void }) {
+/**
+ * Activar/desactivar los avisos en este celular y elegir cuáles.
+ * `owner`: la persona maneja un complejo. 'only' (no juega) no ve los avisos de partidos, solo lo de sus turnos; 'also' (juega y tiene cancha)
+ * los ve y se le aclara que los pedidos de turno le llegan siempre.
+ */
+export function PushPanel({ onClose, onInstall, owner }: { onClose: () => void; onInstall: () => void; owner?: 'only' | 'also' }) {
   const [st, setSt] = useState<PushStatus | null>(null);
   const [kinds, setKinds] = useState<PushKind[]>([]);
   const [busy, setBusy] = useState(false);
@@ -45,17 +49,20 @@ export function PushPanel({ onClose, onInstall }: { onClose: () => void; onInsta
       {st === 'unsupported' && <p class="muted">Este navegador no soporta avisos. Probá con Chrome (Android) o con la app instalada (iPhone).</p>}
       {st === 'denied' && <p class="muted">Bloqueaste los avisos para esta página. Habilitalos en los ajustes del navegador (candadito al lado de la dirección → Notificaciones) y volvé a entrar.</p>}
       {st === 'off' && <>
-        <p class="muted">Enterate de los partidos nuevos, el día que jugás, cuando entrás desde la lista de espera, cuando se arman los equipos, del chat y el resumen de la semana.</p>
+        {owner === 'only'
+          ? <p class="muted">Enterate en el momento cuando un jugador te pide un turno o cancela uno, aunque no tengas la app abierta.</p>
+          : <p class="muted">Enterate de los partidos nuevos, el día que jugás, cuando entrás desde la lista de espera, cuando se arman los equipos, del chat y el resumen de la semana{owner ? ' y de los pedidos de turno de tu complejo' : ''}.</p>}
         <button class="btn primary block" disabled={busy} onClick={on}>{busy ? 'Activando…' : 'Activar avisos'}</button>
       </>}
       {st === 'on' && <>
-        {PUSH_KINDS.map(([k, label]) => (
+        {owner !== 'only' && PUSH_KINDS.map(([k, label]) => (
           <label class="push-kind">
             <input type="checkbox" checked={kinds.includes(k)} onChange={() => toggle(k)} />
             <span>{label}</span>
           </label>
         ))}
-        <p class="muted" style="font-size:.8rem;margin-top:6px">Siempre te avisamos si entrás desde la lista de espera, si se cancela un partido al que estás anotado o si te suspenden.</p>
+        {owner && <p class="muted" style="font-size:.8rem;margin-top:6px">Los pedidos de turno y las cancelaciones de tu complejo siempre te llegan.</p>}
+        {owner !== 'only' && <p class="muted" style="font-size:.8rem;margin-top:6px">Siempre te avisamos si entrás desde la lista de espera, si se cancela un partido al que estás anotado o si te suspenden.</p>}
         <button class="btn block" style="margin-top:10px" disabled={busy} onClick={off}>Desactivar avisos</button>
       </>}
       {msg && <p class="muted" style="margin-top:8px" role="status">{msg}</p>}

@@ -12,6 +12,8 @@ export interface Profile {
   id: string; user_id: string | null; name: string; pos: Pos;
   photo_url: string | null; onboarded: boolean;
   nickname: string | null; shirt_number: number | null; fav_team: string | null;
+  /** Roles (migración de complejos). Opcionales: sin la migración o en datos de prueba no vienen; ausente = jugador que ya eligió. */
+  is_player?: boolean; is_owner?: boolean; role_chosen?: boolean;
 }
 
 /** Nombre a mostrar: el apodo si tiene, si no el nombre. */

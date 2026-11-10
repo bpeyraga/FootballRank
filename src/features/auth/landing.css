@@ -229,17 +229,39 @@ body:has(.landing)::before{background:var(--hz0)}
 .ld-final .ld-gbtn{margin-top:6px;width:100%;max-width:420px}
 .ld-final small{color:rgba(255,255,255,.75)}
 
-/* ---------- Dueños de cancha (secundario, aparte) ---------- */
-.ld-owner{padding:26px 0;background:var(--surface);border-top:1px solid var(--line)}
-.ld-owner-in{display:grid;gap:14px;justify-items:start}
-.ld-owner-ico{display:grid;place-items:center;width:46px;height:46px;border-radius:50%;background:var(--bg);border:1px dashed var(--line);color:var(--muted)}
-.ld-owner-ico svg{width:24px;height:24px}
-.ld-owner h3{font-size:1.25rem;margin-bottom:3px}
-.ld-owner p{font-size:.92rem;line-height:1.4;max-width:46ch}
-.ld-soon{min-height:42px;padding:0 20px;border-radius:999px;border:1.5px dashed var(--line);background:transparent;color:var(--muted);font-weight:600;cursor:not-allowed}
+/* ---------- Dueños de cancha: la otra puerta de entrada ---------- */
+.ld-owner{scroll-margin-top:64px;padding:34px 0 38px;background:var(--surface);border-top:1px solid var(--line)}
+.ld-owner-card{position:relative;isolation:isolate;overflow:hidden;display:grid;gap:26px;padding:26px 20px 28px;border-radius:28px;color:#fff;
+  background:radial-gradient(120% 90% at 100% 0%,var(--hz2),transparent 60%),linear-gradient(160deg,var(--hz1),var(--hz0));border:1px solid rgba(255,255,255,.1);
+  box-shadow:0 24px 50px -30px rgba(0,0,0,.6)}
+.ld-owner-copy{display:grid;gap:14px;justify-items:start;min-width:0}
+.ld-owner h2{font-size:clamp(2.1rem,7vw,3.2rem);line-height:1}
+.ld-owner-copy>p{max-width:46ch;font-size:1.02rem;line-height:1.5;color:rgba(255,255,255,.88)}
+.ld-perks{list-style:none;margin:2px 0 4px;padding:0;display:grid;gap:14px;width:100%}
+.ld-perks li{display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:start}
+.ld-perks .ld-ico{margin:0}
+.ld-perks b{display:block;font-size:1.04rem}
+.ld-perks small{display:block;margin-top:1px;font-size:.9rem;line-height:1.4;color:rgba(255,255,255,.78)}
+.ld-owner-cta{display:grid;gap:10px;justify-items:start;width:100%}
+.ld-owner-cta .ld-gbtn{width:100%;max-width:420px}
+.ld-owner-cta small{font-size:.86rem;color:rgba(255,255,255,.78)}
+.ld-owner-art{position:relative;display:none;align-self:center;justify-self:center;width:100%;max-width:380px;padding:0 0 22px}
+.ld-ag{padding:14px;border-radius:20px;background:rgba(255,255,255,.96);color:#14281c;box-shadow:0 22px 44px -18px rgba(0,0,0,.6);transform:rotate(1.5deg)}
+.ld-ag-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;font:700 1.15rem var(--f-display)}
+.ld-ag-head span{padding:2px 9px;border-radius:99px;background:#dcefe2;font:700 .8rem var(--f-body)}
+.ld-ag-row{display:grid;grid-template-columns:3.2em 1fr auto;align-items:center;gap:8px;margin-top:6px;padding:9px 11px;border-radius:11px;font-size:.88rem;border-left:4px solid #1f8a4c;background:#e6f4ea}
+.ld-ag-row i{font-style:normal;font-weight:700;font-variant-numeric:tabular-nums}
+.ld-ag-row em{font-style:normal;font-size:.74rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;opacity:.8}
+.ld-ag-row.pend{background:#fff3cf;border:1.5px dashed #7a5a00;border-left:4px solid #7a5a00;color:#5a4300}
+.ld-ag-row.blk{background:repeating-linear-gradient(135deg,#f1f3f2 0 7px,#dde2df 7px 8px);border-left-color:#7a8780;color:#55655c}
+.ld-ag-row.free{background:transparent;border:1px dashed #c4d0c8;border-left:4px solid #c4d0c8;color:#7a8780}
+.ld-ag-toast{position:absolute;right:-6px;bottom:0;display:grid;gap:1px;padding:10px 14px;border-radius:14px;background:var(--au2);color:#1f1f1f;font-size:.84rem;
+  box-shadow:0 14px 30px -12px rgba(0,0,0,.6);transform:rotate(-2deg)}
+.ld-ag-toast b{font-size:.92rem}
 .ld-foot{padding:6px 0 calc(30px + env(safe-area-inset-bottom,0px));background:var(--surface);text-align:center;font-size:.85rem;color:var(--muted)}
 .ld-foot .ld-in{display:grid;gap:6px;padding-top:18px;border-top:1px solid var(--line)}
 .ld-foot a{color:inherit}
+.ld-foot-link{background:none;border:0;padding:0;color:inherit;font:inherit;text-decoration:underline;text-underline-offset:2px;cursor:pointer}
 
 /* ---------- Animaciones ---------- */
 @keyframes ld-deal{from{transform:translate(0,40px) rotate(0deg) scale(.7);opacity:0}}
@@ -266,7 +288,8 @@ body:has(.landing)::before{background:var(--hz0)}
   .ld-bento{grid-template-columns:repeat(2,minmax(0,1fr))}
   .t-card{grid-column:1/-1;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:center;gap:24px}
   .t-ar{grid-column:1/-1}
-  .ld-owner-in{grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:18px}
+  .ld-owner-card{padding:34px 34px 36px}
+  .ld-perks{gap:16px}
 }
 
 /* ---------- Escritorio ---------- */
@@ -306,7 +329,11 @@ body:has(.landing)::before{background:var(--hz0)}
   .ld-final-logo{width:104px;height:104px}
   .ld-final h2{font-size:clamp(4rem,6vw,5.6rem)}
   .ld-final p{font-size:1.2rem}
-  .ld-owner{padding:30px 0}
+  .ld-owner{padding:48px 0 56px}
+  .ld-owner-card{grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);gap:44px;padding:54px 56px;align-items:center;border-radius:36px}
+  .ld-owner-art{display:block}
+  .ld-owner-copy>p{font-size:1.14rem}
+  .ld-owner-cta .ld-gbtn{max-width:440px}
 }
 @media (hover:hover) and (pointer:fine){
   .ld-enter:not(:disabled):hover,.ld-ghost:hover{background:rgba(255,255,255,.18)}

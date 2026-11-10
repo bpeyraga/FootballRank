@@ -3,6 +3,9 @@
 // con el token del usuario, para probar en su propio celular).
 // 'weekly' (resumen de la semana, lo dispara pg_cron los lunes) arma el texto con la lógica de weeklyCore.ts: el bloque
 // SHARED de abajo es una copia exacta de src/features/matches/weeklyCore.ts (`npm test` verifica que sigan iguales).
+// 'booking_request' / 'booking_status' (reservas de canchas; los dispara el trigger push_on_booking con { type, booking_id } y, en
+// booking_status, { status, by: 'requester' | 'staff' }) van a perfiles puntuales (el dueño y sus encargados, o quien pidió el
+// turno) y sin filtro de tipo de aviso: son sobre SU turno o SU complejo, igual que 'promoted' o 'suspended'.
 // Secretos: VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT, PUSH_SECRET (SUPABASE_URL y
 // SUPABASE_SERVICE_ROLE_KEY los pone Supabase solo).
 import webpush from 'npm:web-push@3.6.7';
@@ -182,6 +185,27 @@ const involved = async (m: string) =>
 const hour = (iso: string) => new Date(iso).toLocaleTimeString('es-AR',
   { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'America/Argentina/Buenos_Aires' });
 
+/** Una reserva de cancha con su cancha, su complejo (nombre y zona horaria) y quién la pidió. */
+async function bookingInfo(id: string) {
+  const { data: b, error } = await db.from('bookings')
+    .select('id,starts_at,status,requested_by,owner_note,field:fields(name),complex:complexes(id,name,tz)').eq('id', id).maybeSingle();
+  if (error) console.error('booking lookup', error.message);
+  return b as unknown as {
+    id: string; starts_at: string; status: string; requested_by: string | null; owner_note: string | null;
+    field: { name: string } | null; complex: { id: string; name: string; tz: string | null } | null;
+  } | null;
+}
+/** "jue 12 nov, 21:00" en la hora del complejo (si la zona no es válida, la de Argentina). */
+const whenAt = (iso: string, tz: string | null) => {
+  try {
+    return new Date(iso).toLocaleString('es-AR', {
+      weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+      timeZone: tz || 'America/Argentina/Buenos_Aires',
+    });
+  } catch { return when(iso); }
+};
+const short = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s);
+
 Deno.serve(async req => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   const p = await req.json().catch(() => ({})) as Record<string, string> & { time_changed?: boolean; place_changed?: boolean };
@@ -254,6 +278,51 @@ Deno.serve(async req => {
     const note = weekNote(s, id => names.get(id) ?? 'Alguien', c.name);
     if (!note) return json({ sent: 0 });
     return json({ sent: await send(await members(c.id), 'weekly', { ...note, url: `/#/c/${c.slug}/ranking`, tag: `weekly-${c.id}` }) });
+  }
+
+  if (p.type === 'booking_request' || p.type === 'booking_status') {
+    const b = await bookingInfo(p.booking_id);
+    if (!b?.complex) return json({ sent: 0 });
+    const cx = b.complex;
+    const field = b.field?.name ?? 'Cancha';
+    const at = whenAt(b.starts_at, cx.tz);
+    // Dueño y encargados del complejo, menos quien pidió el turno (si es del equipo no hace falta avisarle).
+    const staff = async () => ((await db.from('complex_staff').select('profile_id').eq('complex_id', cx.id)).data ?? [])
+      .map(r => r.profile_id as string).filter(id => id !== b.requested_by);
+    const requester = async () => b.requested_by
+      ? (await db.from('profiles').select('name,nickname').eq('id', b.requested_by).maybeSingle()).data as { name: string; nickname: string | null } | null
+      : null;
+
+    if (p.type === 'booking_request') {
+      // Pedido nuevo → al dueño y a los encargados.
+      if (b.status !== 'pending') return json({ sent: 0 }); // lo cancelaron o decidieron antes de avisar
+      return json({ sent: await send(await staff(), null, {
+        title: short(`🏟️ Nueva reserva: ${field} · ${at}`, 80),
+        body: short(`${nameOf(await requester())} pidió turno en ${cx.name}. Confirmala o rechazala.`, 160),
+        url: '/#/duenio', tag: `booking-${b.id}`,
+      }) });
+    }
+    if (b.status === 'cancelled' && p.by === 'requester') {
+      // Lo canceló quien lo pidió → al dueño y a los encargados (el trigger manda by = 'requester' o 'staff').
+      return json({ sent: await send(await staff(), null, {
+        title: short(`🚫 Reserva cancelada: ${field} · ${at}`, 80),
+        body: short(`${nameOf(await requester())} canceló su pedido en ${cx.name}. El horario queda libre.`, 160),
+        url: '/#/duenio', tag: `booking-${b.id}`,
+      }) });
+    }
+    // Confirmada, rechazada o cancelada por el complejo → a quien la pidió.
+    const st = ({
+      confirmed: { icon: '✅', verb: 'confirmada', tip: 'Ya podés armar el partido desde Mis reservas.' },
+      rejected: { icon: '❌', verb: 'rechazada', tip: 'Probá con otro horario.' },
+      cancelled: { icon: '🚫', verb: 'cancelada', tip: '' },
+    } as Record<string, { icon: string; verb: string; tip: string }>)[b.status];
+    if (!st || !b.requested_by) return json({ sent: 0 });
+    const why = b.owner_note?.trim() && b.status !== 'confirmed' ? ` Motivo: ${b.owner_note.trim()}` : '';
+    return json({ sent: await send([b.requested_by], null, {
+      title: short(`${st.icon} Tu reserva en ${short(cx.name, 30)} fue ${st.verb}`, 80),
+      body: short(`${field} · ${at}. ${st.tip}${why}`.trim(), 160),
+      url: '/#/mis-reservas', tag: `booking-${b.id}`,
+    }) });
   }
 
   const m = p.match_id ? await matchInfo(p.match_id) : null;

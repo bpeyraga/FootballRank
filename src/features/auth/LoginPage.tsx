@@ -2,6 +2,7 @@ import { useEffect, useState } from 'preact/hooks';
 import type { ComponentChildren } from 'preact';
 import { signInWithGoogle, signInWithPassword, signUp } from './api';
 import { CardFan, ArtChat, ArtFixed, ArtFut, ArtMatch, ArtNotifs, ArtRank, ArtStats, ArtTeams } from './LandingArt';
+import { clearIntent, writeIntent } from './roles';
 
 /** Ruta a la que volver después del login con Google (ver main.tsx). */
 import { NEXT_KEY } from '../../app/router';
@@ -105,6 +106,20 @@ const saveNext = () => {
   try { if (location.hash.startsWith('#/')) localStorage.setItem(NEXT_KEY, location.hash); } catch { /* sin storage */ }
 };
 
+/**
+ * Entró por "¿Tenés una cancha?": se recuerda (para preseleccionar "Dueño de cancha" en el primer ingreso) y, como el login con Google
+ * sale de la página, también a dónde volver (main.tsx lo lee de NEXT_KEY). Si entra por cualquier otro botón, se olvida.
+ */
+const rememberOwner = (owner: boolean) => {
+  if (!owner) {
+    clearIntent();
+    try { if (localStorage.getItem(NEXT_KEY) === '#/duenio') localStorage.removeItem(NEXT_KEY); } catch { /* sin storage */ }
+    return;
+  }
+  writeIntent('owner');
+  try { localStorage.setItem(NEXT_KEY, '#/duenio'); } catch { /* sin storage */ }
+};
+
 const AUTH_ERRORS: Record<string, string> = {
   'Invalid login credentials': 'Correo o contraseña incorrectos.',
   'User already registered': 'Ya hay una cuenta con ese correo. Entrá con tu contraseña.',
@@ -112,7 +127,7 @@ const AUTH_ERRORS: Record<string, string> = {
 };
 
 /** Alta y entrada con correo y contraseña. Con la sesión iniciada, main.tsx se entera por onAuthStateChange. */
-function EmailAuth() {
+function EmailAuth({ id = 'ld-email', owner = false }: { id?: string; owner?: boolean }) {
   const [mode, setMode] = useState<'in' | 'up'>('in');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -124,13 +139,14 @@ function EmailAuth() {
   const submit = async (e: Event) => {
     e.preventDefault();
     setErr(''); setMsg('');
+    rememberOwner(owner);
     if (mode === 'up' && pass.length < 6) { setErr('La contraseña tiene que tener al menos 6 caracteres.'); return; }
     setBusy(true);
     if (mode === 'in') {
       try { await signInWithPassword(email.trim(), pass); }
       catch (e: any) { setErr(AUTH_ERRORS[e.message] ?? e.message); }
     } else {
-      saveNext(); // si hay que confirmar el correo, el link vuelve a la app y retomamos la invitación
+      if (!owner) saveNext(); // si hay que confirmar el correo, el link vuelve a la app y retomamos la invitación
       try {
         const r = await signUp(email.trim(), pass, name.trim());
         if (r.existed) setErr(AUTH_ERRORS['User already registered']);
@@ -143,7 +159,7 @@ function EmailAuth() {
   const flip = () => { setMode(mode === 'in' ? 'up' : 'in'); setErr(''); setMsg(''); };
 
   return (
-    <form class="ld-email" id="ld-email" onSubmit={submit}>
+    <form class="ld-email" id={id} onSubmit={submit}>
       {mode === 'up' && (
         <input type="text" placeholder="Tu nombre" autocomplete="name" maxLength={40} required
           value={name} onInput={e => setName(e.currentTarget.value)} />
@@ -168,9 +184,14 @@ export function Login() {
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const [withEmail, setWithEmail] = useState(false);
+  const [ownerEmail, setOwnerEmail] = useState(false);
   const openEmail = () => {
     setWithEmail(true);
     setTimeout(() => scrollTo('ld-email'));
+  };
+  const openOwnerEmail = () => {
+    setOwnerEmail(true);
+    setTimeout(() => scrollTo('ld-email-owner'));
   };
   const invited = location.hash.startsWith('#/join/');
   // Si vuelve atrás desde Google, el navegador restaura la página con el botón en "Abriendo…".
@@ -183,7 +204,14 @@ export function Login() {
   const go = async () => {
     // El token vuelve en el hash (#access_token=…): si redirectTo ya tiene "#/join/…" queda
     // "#/join/…#access_token=…" y supabase-js no lo detecta. Guardamos la ruta y la restauramos en main.tsx.
+    rememberOwner(false);
     saveNext();
+    setBusy(true); setErr('');
+    try { await signInWithGoogle(); } catch (e: any) { setErr(e.message); setBusy(false); }
+  };
+  /** Igual que `go`, pero por la puerta de dueños de cancha. */
+  const goOwner = async () => {
+    rememberOwner(true);
     setBusy(true); setErr('');
     try { await signInWithGoogle(); } catch (e: any) { setErr(e.message); setBusy(false); }
   };
@@ -305,25 +333,55 @@ export function Login() {
           </div>
         </section>
 
-        <section class="ld-owner" aria-labelledby="ld-h-owner">
-          <div class="ld-in ld-owner-in">
-            <span class="ld-owner-ico" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round">
-                <path d="M3 20V9l9-5 9 5v11M3 20h18M7 20v-6h10v6M12 4v5" />
-              </svg>
-            </span>
-            <div class="ld-owner-copy">
-              <h3 id="ld-h-owner">¿Tenés una cancha o un complejo?</h3>
-              <p class="muted">Muy pronto vas a poder publicar tus canchas, manejar turnos y recibir reservas.</p>
+        <section class="ld-owner" id="ld-duenios" aria-labelledby="ld-h-owner">
+          <div class="ld-in">
+            <div class="ld-owner-card ld-rv">
+              <div class="ld-owner-copy">
+                <span class="ld-kicker">Para dueños de cancha</span>
+                <h2 id="ld-h-owner">¿Tenés una cancha o un complejo?</h2>
+                <p>Dejá el cuaderno y el teléfono: tu agenda online, los pedidos de turno y tus canchas en el buscador de la app.</p>
+                <ul class="ld-perks">
+                  <li>
+                    <Ico><path d="M5.5 5h13A2.5 2.5 0 0 1 21 7.5v11a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 18.5v-11A2.5 2.5 0 0 1 5.5 5zM3 10h18M8 3v4M16 3v4" /></Ico>
+                    <span><b>Agenda online</b><small>Todos los turnos de cada cancha, por día y por semana, y los horarios bloqueados.</small></span>
+                  </li>
+                  <li>
+                    <Ico><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4zM10 21h4" /></Ico>
+                    <span><b>Reservas desde la app</b><small>Los jugadores te piden turno; aceptás o rechazás con un toque y les llega el aviso.</small></span>
+                  </li>
+                  <li>
+                    <Ico><><circle cx="11" cy="11" r="6.5" /><path d="M16 16l5 5M11 8v6M8 11h6" /></></Ico>
+                    <span><b>Aparecés en el buscador de canchas</b><small>Quien juega cerca tuyo te encuentra, con tus fotos, precios y horarios.</small></span>
+                  </li>
+                </ul>
+                <div class="ld-owner-cta">
+                  <button class="gbtn ld-gbtn" onClick={goOwner} disabled={busy}>
+                    <GoogleG /> {busy ? 'Abriendo Google…' : 'Entrar con Google'}
+                  </button>
+                  {ownerEmail
+                    ? <EmailAuth id="ld-email-owner" owner />
+                    : <button class="ld-link" onClick={openOwnerEmail}>O entrá con tu correo y contraseña</button>}
+                  <small>Es gratis. Si además jugás al fútbol, usás la misma cuenta para las dos cosas.</small>
+                </div>
+              </div>
+              <div class="ld-owner-art" aria-hidden="true">
+                <div class="ld-ag">
+                  <div class="ld-ag-head"><b>Hoy · Cancha 1</b><span>F5</span></div>
+                  <div class="ld-ag-row ok"><i>20:00</i><span>Los Pibes</span><em>Confirmado</em></div>
+                  <div class="ld-ag-row pend"><i>21:00</i><span>Beto M.</span><em>Pide turno</em></div>
+                  <div class="ld-ag-row blk"><i>22:00</i><span>Mantenimiento</span><em>Bloqueado</em></div>
+                  <div class="ld-ag-row free"><i>23:00</i><span>Libre</span><em /></div>
+                </div>
+                <div class="ld-ag-toast"><b>Nuevo pedido de turno</b><span>Beto M. · Cancha 1 · 21:00</span></div>
+              </div>
             </div>
-            <button class="ld-soon" disabled aria-disabled="true">Próximamente</button>
           </div>
         </section>
       </main>
 
       <footer class="ld-foot">
         <div class="ld-in">
-          <span><a href="/como-se-usa.html">Cómo se usa</a> · <a href="/terminos.html">Términos</a> · <a href="/privacidad.html">Privacidad</a></span>
+          <span><a href="/como-se-usa.html">Cómo se usa</a> · <button class="ld-foot-link" onClick={() => scrollTo('ld-duenios')}>Para dueños de cancha</button> · <a href="/terminos.html">Términos</a> · <a href="/privacidad.html">Privacidad</a></span>
           <p>Al entrar aceptás los términos y la política de privacidad.</p>
         </div>
       </footer>

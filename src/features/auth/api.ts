@@ -115,3 +115,10 @@ export async function uploadPhoto(profileId: string, file: File): Promise<string
   if (error) throw error;
   return `${sb.storage.from('avatars').getPublicUrl(path).data.publicUrl}?v=${Date.now()}`;
 }
+
+// ---------- Rol: jugador, dueño de cancha o ambos ----------
+
+/** Guarda qué usa la persona (al menos uno de los dos). Un dueño que no juega queda con la ficha "completa" (no tiene ficha de jugador). */
+export async function setMyRoles(player: boolean, owner: boolean) {
+  must(await sb.rpc('set_my_roles', { p_player: player, p_owner: owner }));
+}

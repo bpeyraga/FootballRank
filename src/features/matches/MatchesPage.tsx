@@ -170,6 +170,7 @@ function NewMatch({ communityId, meId, slug, venues, defaultVenue, addVenue, can
       <label class="field"><span>Fecha y hora</span><input type="datetime-local" value={f.when} onInput={set('when')} /></label>
       <VenueField venues={venues} value={venue} onChange={setVenue} draft={draft} onDraft={setDraft} />
       {!venue && <label class="field"><span>Lugar</span><input value={f.location} maxLength={200} placeholder="Cancha, dirección…" onInput={set('location')} /></label>}
+      {!venue && <a class="cn-find" href="#/canchas">¿Todavía no tenés cancha? Buscá y reservá</a>}
       <label class="field"><span>Cupos</span><input type="number" min={2} max={40} value={f.slots} onInput={set('slots')} /></label>
       <div class="row">
         <button class="btn primary" disabled={busy || !f.title.trim() || !f.when || f.slots < 2 || f.slots > 40 || (venue === NEW_VENUE && !draftValid(draft))} onClick={save}>
