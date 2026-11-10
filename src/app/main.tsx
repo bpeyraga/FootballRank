@@ -21,6 +21,7 @@ addEventListener('storage', e => { if (e.key === THEME_KEY) applyTheme(loadTheme
 const Community = page(() => import('../features/community/CommunityPage'), m => m.Community);
 const Futbol = page(() => import('../features/futbol/FutbolPage'), m => m.Futbol);
 const Admin = page(() => import('../features/admin/AdminPage'), m => m.Admin);
+const Zone = page(() => import('../features/zone/ZonePage'), m => m.Zone);
 import { go, NEXT_KEY, useRoute } from './router';
 // Todos los estilos en la carga inicial (son chicos) y desktop.css al final: las pantallas se bajan aparte
 // y, si sus CSS llegaran después, le ganarían a las reglas de PC.
@@ -36,6 +37,7 @@ import '../features/home/home.css';
 import '../features/community/players.css';
 import '../features/community/cover.css';
 import '../features/seasons/seasons.css';
+import '../features/zone/zone.css';
 import '../features/admin/superadmin.css';
 import './styles/desktop.css';
 import './styles/themes.css';
@@ -99,6 +101,7 @@ function App() {
   if (route[0] === 'perfil') return <Onboarding me={me} done={async () => { await refresh(); go(''); }} cancel={() => go('')} />;
   if (route[0] === 'join' && route[1]) return <Join code={route[1]} />;
   if (route[0] === 'futbol') return <Futbol me={me} />;
+  if (route[0] === 'zona') return <Zone me={me} />;
   if (route[0] === 'admin') return <Admin />;
   if (route[0] === 'c' && route[1]) return <Community slug={route[1]} sub={route.slice(2)} me={me} />;
   return <Home me={me} />;

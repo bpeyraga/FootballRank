@@ -4,6 +4,9 @@ import { loadAccount, loadBaseStats, saveMyProfile, uploadPhoto, type Account } 
 import { Radar } from '../../shared/ui/Radar';
 import { TEAMS_ASCENSO, TEAMS_PRIMERA } from '../../shared/teams';
 import { Crest } from '../../shared/ui/Crest';
+import { ZonePicker } from '../zone/ZonePicker';
+import { clearMyZone, loadMyZone, saveMyZone } from '../zone/api';
+import { normalizeZone, sameZone, zoneErrorText, type ZoneDraft } from '../zone/model';
 
 /** Ficha inicial y edición de perfil (con `cancel` es modo edición). */
 export function Onboarding({ me, done, cancel }: { me: Profile; done: () => void; cancel?: () => void }) {
@@ -16,6 +19,9 @@ export function Onboarding({ me, done, cancel }: { me: Profile; done: () => void
   const [stats, setStats] = useState<Stats>({ rit: 50, tir: 50, pas: 50, reg: 50, def: 50, fis: 50 });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  // ¿Dónde jugás? (opcional): lo guardado y lo que se está editando; solo se escribe si cambió
+  const [zone, setZone] = useState<ZoneDraft | null>(null);
+  const [zone0, setZone0] = useState<ZoneDraft | null>(null);
 
   // Datos de la cuenta (de la sesión local, sin pedir nada al servidor)
   const [acct, setAcct] = useState<Account | null>(null);
@@ -28,6 +34,13 @@ export function Onboarding({ me, done, cancel }: { me: Profile; done: () => void
     loadBaseStats(me.id)
       .then(s => { if (s) setStats(s); }, (e: any) => setErr(e?.message ?? 'Error de red'))
       .then(() => setBusy(false));
+  }, [me.id]);
+
+  useEffect(() => {
+    if (!cancel) return;
+    let live = true;
+    loadMyZone().then(z => { if (live && z) { setZone(cur => cur ?? z); setZone0(z); } }, () => {});
+    return () => { live = false; };
   }, [me.id]);
 
   const shirtNum = shirt === '' ? null : +shirt;
@@ -47,6 +60,18 @@ export function Onboarding({ me, done, cancel }: { me: Profile; done: () => void
     try {
       await saveMyProfile(me.id, stats, { name: name.trim(), nickname: nickname.trim() || null, shirt_number: shirtNum, fav_team: team || null, pos, photo_url: photo });
     } catch (e: any) { setBusy(false); return setErr(e?.message ?? 'Error de red'); }
+    // La zona va aparte: si falla, el perfil ya quedó guardado y se puede reintentar
+    if (!sameZone(zone, zone0)) {
+      try {
+        const z = zone && normalizeZone(zone);
+        if (z) await saveMyZone(z); else await clearMyZone();
+        setZone0(z);
+      } catch (e) {
+        // Editando: se muestra el error y se puede reintentar. En la primera ficha no se traba a nadie: el perfil ya quedó guardado
+        // y la zona se puede cargar después desde "Editar perfil".
+        if (cancel) { setBusy(false); return setErr('Guardamos tu perfil, pero no pudimos guardar tu zona. ' + zoneErrorText(e)); }
+      }
+    }
     setBusy(false);
     done();
   };
@@ -98,6 +123,11 @@ export function Onboarding({ me, done, cancel }: { me: Profile; done: () => void
             <output>{stats[k]}</output>
           </label>
         ))}
+      </div>
+      <div class="card zn-where">
+        <h3>¿Dónde jugás? <span class="muted" style="font:500 .85rem var(--f-body)">(opcional)</span></h3>
+        <p class="muted">Sumate al ranking de tu zona y mirá quién es el mejor de tu barrio.{cancel ? '' : ' Podés saltearlo y hacerlo después desde tu perfil.'}</p>
+        <ZonePicker value={zone} onChange={setZone} disabled={busy} />
       </div>
       {cancel && acct && (
         <div class="card acct">

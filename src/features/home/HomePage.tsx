@@ -14,6 +14,7 @@ import { createCommunity } from './api';
 import { ROLE, inviteCode, quickActions, tierOf } from './model';
 import { useHome } from './useHome';
 import { useTour } from './useTour';
+import { ZoneEntry } from '../zone/ZoneEntry';
 
 const Chev = () => <svg class="chev" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>;
 const QIco = ({ d }: { d: string }) => (
@@ -80,6 +81,7 @@ export function Home({ me }: { me: Profile }) {
           <div class="menu-pop">
             <div class="menu-who"><b class="ellipsis">{displayName(me)}</b><span class="muted">{posLine(me)}</span></div>
             <a href="#/perfil">Editar perfil</a>
+            <a href="#/zona">🏆 Ranking de tu zona</a>
             <a href="#/tema">🎨 Tema y colores</a>
             {install.kind !== 'installed' && (
               <a href="#" onClick={e => {
@@ -182,6 +184,7 @@ export function Home({ me }: { me: Profile }) {
           ))}
         </nav>
       )}
+      <ZoneEntry />
       <a class="fut-entry" href="#/futbol">
         <span class="fut-entry-ico" aria-hidden="true">⚽</span>
         <span class="fut-entry-copy"><b>Fútbol argentino</b><span class="muted">Tabla, partidos y noticias de la Liga</span></span>
