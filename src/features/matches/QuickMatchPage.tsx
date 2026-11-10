@@ -178,7 +178,7 @@ export function QuickMatch({ communityId, meId, slug, venues, defaultVenue, addV
               return (
                 <div class={`qm-pl ${s ? `on s-${s}` : ''}`}>
                   <button type="button" class="qm-who" aria-pressed={!!s} onClick={() => setSel(toggleSide(sel, m.id))}>
-                    <Avatar p={m.r.profile} size={34} />
+                    <Avatar p={m.r.profile} size={34} zoom={false} />
                     <span class="qm-name"><b class="ellipsis">{m.name}</b><small class="muted ellipsis">{s === 'X' ? 'Jugó · elegí equipo' : posLine(m.r.profile)}</small></span>
                   </button>
                   <div class="qm-seg" role="group" aria-label={`Equipo de ${m.name}`}>

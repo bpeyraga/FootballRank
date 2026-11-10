@@ -30,7 +30,7 @@ export function ChampionsCard({ data, rows, slug }: { data: SeasonsData; rows: R
           <b>Campeones</b>
           <small class="muted ellipsis">{latest.season.name}</small>
         </span>
-        <span class="sn-faces" aria-hidden="true">{faceIds.map(id => <Avatar p={people.get(id)!} size={28} />)}</span>
+        <span class="sn-faces" aria-hidden="true">{faceIds.map(id => <Avatar p={people.get(id)!} size={28} zoom={false} />)}</span>
         <span class="sn-chev" aria-hidden="true" />
       </summary>
       {list.map(sc => (

@@ -1,6 +1,6 @@
 // Inicio: tipos y reglas puras (sin Supabase ni Preact).
 
-export interface Comm { id: string; name: string; slug: string; photo_url?: string | null }
+export interface Comm { id: string; name: string; slug: string; photo_url?: string | null; logo_url?: string | null }
 /** Una comunidad mía y mi rol en ella. */
 export interface MyComm { role: string; community: Comm }
 export interface Next { id: string; community_id: string; title: string; starts_at: string; location: string | null; slots: number; status: string }
