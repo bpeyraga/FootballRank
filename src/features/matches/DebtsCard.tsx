@@ -42,7 +42,7 @@ export function DebtsCard({ debts, meId, isAdmin, slug, whoIs }: {
         return (
           <details class="debt-person">
             <summary>
-              {w ? <Avatar p={w} size={30} /> : <span class="avatar" style="width:30px;height:30px;font-size:12px;flex:none">?</span>}
+              {w ? <Avatar p={w} size={30} zoom={false} /> : <span class="avatar" style="width:30px;height:30px;font-size:12px;flex:none">?</span>}
               <span class="ellipsis debt-who">{w ? displayName(w) : 'Jugador'}{mine && <span class="muted"> (vos)</span>}
                 <small class="muted"> · {d.items.length} {d.items.length === 1 ? 'partido' : 'partidos'}</small></span>
               <b class="debt-amt">{money(d.total)}</b>

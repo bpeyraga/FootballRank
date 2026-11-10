@@ -20,7 +20,7 @@ export function FutCard({ p, stats, size = 'md' }:
           </div>
         )}
       </div>
-      <div class="fc-photo"><Avatar p={p} size={size === 'sm' ? 52 : 84} /></div>
+      <div class="fc-photo"><Avatar p={p} size={size === 'sm' ? 52 : 84} zoom={false} /></div>
       <div class="fc-name ellipsis">{displayName(p)}</div>
       <div class="fc-stats">
         {ATTRS.map(([k, l]) => <span><b>{stats ? stats[k] : '—'}</b> {l}</span>)}

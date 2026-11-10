@@ -66,7 +66,7 @@ export function RequestsView({ data, tick, reloadAll }: { data: ComplexData; tic
                       <span class="muted">{fmtDuration(durationMin(b))}{b.price !== null ? ` · ${fmtPrice(b.price)}` : ''}</span>
                     </div>
                     <div class="ow-who">
-                      <Avatar p={{ name: b.requester_name ?? '?', photo_url: b.requester_photo }} size={38} />
+                      <Avatar p={{ name: b.requester_name ?? '?', photo_url: b.requester_photo }} size={38} zoom={false} />
                       <div class="ow-who-copy">
                         <b class="ellipsis">{b.requester_name ?? 'Jugador'}</b>
                         <small class="muted ellipsis">{f ? `${f.name} · ${sizeLabel(f.size)}` : 'Cancha'}{b.community_name ? ` · ${b.community_name}` : ''}</small>

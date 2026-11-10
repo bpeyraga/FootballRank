@@ -42,7 +42,7 @@ export function OwnerPage({ me }: { me: Profile }) {
           <img src="/icon.png" width={30} height={30} alt="" /> Ranking Fútbol
         </a>
         <details class="menu" ref={menu}>
-          <summary aria-label="Mi cuenta"><Avatar p={me} size={38} /></summary>
+          <summary aria-label="Mi cuenta"><Avatar p={me} size={38} zoom={false} /></summary>
           <div class="menu-pop">
             <div class="menu-who"><b>{me.nickname?.trim() || me.name}</b><small class="muted">Panel de dueño</small></div>
             {me.is_player !== false && <a href="#/">Mis grupos</a>}

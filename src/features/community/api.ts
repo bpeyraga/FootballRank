@@ -100,9 +100,21 @@ export async function uploadCommunityLogo(communityId: string, file: File): Prom
   return sb.storage.from('communities').getPublicUrl(path).data.publicUrl;
 }
 
-/** Cambia (o con null quita) la imagen del escudo y borra la anterior del almacenamiento (si eso falla, no importa). */
+/** Ruta dentro del bucket a partir del link público. */
+const storagePath = (url: string | null) => url?.split('/communities/')[1]?.split('?')[0];
+
+/**
+ * Cambia (o con null quita) la imagen del escudo y borra la anterior del almacenamiento (si eso falla, no importa).
+ * Si no se pudo guardar, borra la recién subida para no dejarla huérfana.
+ */
 export async function setCommunityLogo(communityId: string, next: string | null, previous: string | null) {
-  await rpc('set_community_logo', { p_community: communityId, p_url: next });
-  const old = previous?.split('/communities/')[1]?.split('?')[0];
+  try {
+    await rpc('set_community_logo', { p_community: communityId, p_url: next });
+  } catch (e) {
+    const fresh = storagePath(next);
+    if (fresh) await sb.storage.from('communities').remove([fresh]).catch(() => {});
+    throw e;
+  }
+  const old = storagePath(previous);
   if (old) await sb.storage.from('communities').remove([old]);
 }

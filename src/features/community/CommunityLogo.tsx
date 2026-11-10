@@ -1,4 +1,4 @@
-import { useState } from 'preact/hooks';
+import { useRef, useState } from 'preact/hooks';
 import { hue } from '../../shared/supabase';
 import { initials } from '../../shared/text';
 import { Sheet } from '../../shared/ui/Sheet';
@@ -11,6 +11,7 @@ import { setCommunityLogo, uploadCommunityLogo } from './api';
 export function CommunityLogo({ id, name, url, isAdmin, changed }: {
   id: string; name: string; url: string | null; isAdmin: boolean; changed: () => void;
 }) {
+  const file = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -52,10 +53,10 @@ export function CommunityLogo({ id, name, url, isAdmin, changed }: {
             <span class={`cover-crest logo-preview${url ? ' has-logo' : ''}`} aria-hidden="true"
               style={`--h:${hue(id)}${url ? `;background-image:url("${url}")` : ''}`}>{url ? '' : initials(name)}</span>
             <p class="muted">La imagen se recorta en cuadrado y va dentro del escudo. Conviene una con el motivo al centro.</p>
-            <label class={`btn primary${busy ? ' disabled' : ''}`}>
+            <button type="button" class="btn primary" disabled={busy} onClick={() => file.current?.click()}>
               {busy ? 'Guardando…' : url ? 'Cambiar imagen' : 'Subir imagen'}
-              <input type="file" accept="image/jpeg,image/png,image/webp" hidden disabled={busy} onChange={onFile} />
-            </label>
+            </button>
+            <input ref={file} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={onFile} />
             {url && <button type="button" class="btn danger" disabled={busy} onClick={() => save(null)}>Quitar imagen</button>}
             {err && <p class="err">{err}</p>}
           </div>
