@@ -3,10 +3,11 @@ import { deletePush, loadPushKinds, savePush, sendTestPush } from './api';
 /** Clave pública VAPID (es pública a propósito; la privada está solo en los secretos de Supabase). */
 const VAPID = 'BEvKobO6rMvQwL3lvd_QGwdYh-QrHyZT-jhsMv0LXCywqkwZszKeodqqCa-vVi3xLkls5H1oLV0ltCS6r5j1q1Q';
 
-export type PushKind = 'match' | 'reminder' | 'teams' | 'chat';
+export type PushKind = 'match' | 'reminder' | 'teams' | 'chat' | 'weekly';
 export const PUSH_KINDS: [PushKind, string][] = [
   ['match', 'Partidos (nuevos, cambios de horario o lugar, faltan jugadores)'],
   ['reminder', 'Recordatorios (hoy jugás, 1 h antes, figura, pagos)'], ['teams', 'Equipos armados'], ['chat', 'Mensajes del chat'],
+  ['weekly', 'Resumen semanal (lunes)'],
 ];
 
 export type PushStatus = 'unsupported' | 'ios-install' | 'denied' | 'off' | 'on';

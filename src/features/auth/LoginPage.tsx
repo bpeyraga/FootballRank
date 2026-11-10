@@ -284,6 +284,10 @@ export function Login() {
                   <p class="muted">{a}</p>
                 </details>
               ))}
+              <a class="ld-faq-more ld-rv" href="/como-se-usa.html" target="_blank" rel="noopener">
+                <span aria-hidden="true">📖</span>
+                <span><b>Guía "Cómo se usa"</b><small class="muted">Todo paso a paso, para jugadores y admins. Se puede guardar en PDF.</small></span>
+              </a>
             </div>
           </div>
         </section>
@@ -319,7 +323,7 @@ export function Login() {
 
       <footer class="ld-foot">
         <div class="ld-in">
-          <span><a href="/terminos.html">Términos</a> · <a href="/privacidad.html">Privacidad</a></span>
+          <span><a href="/como-se-usa.html">Cómo se usa</a> · <a href="/terminos.html">Términos</a> · <a href="/privacidad.html">Privacidad</a></span>
           <p>Al entrar aceptás los términos y la política de privacidad.</p>
         </div>
       </footer>

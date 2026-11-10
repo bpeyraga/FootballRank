@@ -13,6 +13,7 @@ import { signOut } from '../auth/api';
 import { createCommunity } from './api';
 import { ROLE, inviteCode, quickActions, tierOf } from './model';
 import { useHome } from './useHome';
+import { useTour } from './useTour';
 
 const Chev = () => <svg class="chev" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>;
 const QIco = ({ d }: { d: string }) => (
@@ -30,6 +31,8 @@ export function Home({ me }: { me: Profile }) {
   const install = useInstall();
   const [tip, setTip] = useState('');
   const [alerts, setAlerts] = useState(false);
+  const tour = useTour();
+  const tourToAlerts = useRef(false);
 
   // La cuenta regresiva se actualiza sola
   useEffect(() => {
@@ -86,6 +89,8 @@ export function Home({ me }: { me: Profile }) {
               }}>📲 Instalar app</a>
             )}
             <a href="#" onClick={e => { e.preventDefault(); setAlerts(a => !a); menu.current && (menu.current.open = false); }}>🔔 Avisos</a>
+            <a href="#" onClick={e => { e.preventDefault(); menu.current && (menu.current.open = false); tour.show(); }}>💡 Ver tutorial</a>
+            <a href="/como-se-usa.html" target="_blank" rel="noopener" onClick={() => { menu.current && (menu.current.open = false); }}>📖 Cómo se usa</a>
             {staff && <a href="#/admin">📊 Panel de la app</a>}
             <a href="/terminos.html">Términos</a>
             <a href="/privacidad.html">Privacidad</a>
@@ -246,6 +251,10 @@ export function Home({ me }: { me: Profile }) {
       <Tip />
       </div>
       </div>
+      {tour.View && <tour.View onClose={tour.close}
+        onAlerts={() => { tourToAlerts.current = true; setAlerts(true); }}
+        // si el tutorial abre los avisos, el foco va al panel de avisos y no vuelve al menú
+        restoreFocus={() => (tourToAlerts.current ? (tourToAlerts.current = false, null) : menu.current?.querySelector('summary'))} />}
     </div>
   );
 }

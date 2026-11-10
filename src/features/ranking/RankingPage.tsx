@@ -4,9 +4,13 @@ import { ATTRS, displayName, infoLine } from '../../shared/supabase';
 import { tier, type Ranked } from './ranking';
 import { Avatar } from '../../shared/ui/Avatar';
 import { Crest } from '../../shared/ui/Crest';
-import { disciplineBoard, emptyStats, fmtAvg, leaderboard, perMatch, type PlayerStats } from '../stats/statsCore';
-import { loadAttendanceData, loadCommunityStats, loadMvps } from '../stats/api';
-import { mvpBoard, presenceBoard } from './boards';
+import { disciplineBoard, emptyStats, fmtAvg, leaderboard, perMatch, statsInRange, type StatsData } from '../stats/statsCore';
+import { loadAttendanceData, loadMvpWins, loadStatsData } from '../stats/api';
+import { mvpBoard, mvpTimes, presenceBoard } from './boards';
+import { ChampionsCard } from '../seasons/ChampionsCard';
+import { SeasonPicker } from '../seasons/SeasonPicker';
+import { useSeasons } from '../seasons/useSeasons';
+import { ALL, rangeFor, resolveKey } from '../seasons/model';
 import '../player/stats.css';
 
 type View = 'ovr' | 'goals' | 'assists' | 'cards' | 'mvp' | 'presence';
@@ -17,6 +21,10 @@ type StatView = 'goals' | 'assists' | 'cards';
 const isStatView = (v: View): v is StatView => v === 'goals' || v === 'assists' || v === 'cards';
 const EMPTY: Record<StatView, string> = {
   goals: 'Todavía no hay goles cargados.', assists: 'Todavía no hay asistencias cargadas.', cards: 'Nadie vio tarjetas ni hizo faltas todavía. 😇',
+};
+const EMPTY_SEASON: Record<StatView, string> = {
+  goals: 'Todavía no hay goles en esta temporada.', assists: 'Todavía no hay asistencias en esta temporada.',
+  cards: 'Nadie vio tarjetas ni hizo faltas en esta temporada. 😇',
 };
 
 /** Carga algo la primera vez que `on` es true (y reintenta a pedido). */
@@ -47,10 +55,13 @@ function BoardState({ err, retry, loading, empty }: { err: string; retry: () => 
   return empty ? <p class="muted st-empty">{empty}</p> : null;
 }
 
-/** Tabla de la comunidad: por OVR (promedio de votos), goleadores, asistencias, tarjetas y faltas, figura o presentismo. */
+/**
+ * Tabla de la comunidad: por OVR (promedio de votos), goleadores, asistencias, tarjetas y faltas, figura o presentismo.
+ * Todo lo que sale de partidos se puede ver por temporada (o en el histórico); el OVR sale de los votos y no cambia.
+ */
 export function Ranking({ rows, slug, meId, communityId }: { rows: Ranked[]; slug: string; meId: string; communityId: string }) {
   const [view, setView] = useState<View>('ovr');
-  const [stats, setStats] = useState<Map<string, PlayerStats> | null>(null);
+  const [stats, setStats] = useState<StatsData | null>(null);
   const [statsErr, setStatsErr] = useState('');
   const [tries, setTries] = useState(0);
   const pending = rows.filter(r => r.profile.id !== meId && !r.mine).length;
@@ -60,24 +71,36 @@ export function Ranking({ rows, slug, meId, communityId }: { rows: Ranked[]; slu
     if (!isStatView(view) || stats) return;
     let alive = true;
     setStatsErr('');
-    loadCommunityStats(communityId)
+    loadStatsData(communityId)
       .then(s => alive && setStats(s))
       .catch(e => alive && setStatsErr(e?.message ?? 'Error desconocido'));
     return () => { alive = false; };
   }, [view, communityId, tries]);
 
+  // Temporada: por defecto la actual (si hay una abierta) o el histórico. Los datos se bajan una vez y se filtran acá.
+  const seasonsQ = useSeasons(communityId);
+  const seasons = useMemo(() => seasonsQ.data?.seasons ?? [], [seasonsQ.data]);
+  const [pick, setPick] = useState<string | null>(null);
+  useEffect(() => { setPick(null); }, [communityId]);
+  const key = resolveKey(pick, seasons);
+  const range = useMemo(() => rangeFor(key, seasons), [key, seasons]);
+  const inSeason = key !== ALL;
+  // Hasta saber si hay temporada abierta no se dibujan tablas (para no mostrar el histórico un instante).
+  const ready = !!seasonsQ.data || !!seasonsQ.err;
+
   const byId = useMemo(() => new Map(rows.map(r => [r.profile.id, r])), [rows]);
-  const s = (id: string) => stats?.get(id) ?? emptyStats();
+  const statMap = useMemo(() => stats ? statsInRange(stats, range) : null, [stats, range]);
+  const s = (id: string) => statMap?.get(id) ?? emptyStats();
   const players = useMemo(() => rows.map(r => ({ id: r.profile.id, name: displayName(r.profile) })), [rows]);
   const board = useMemo(
-    () => !stats || !isStatView(view) ? [] : view === 'cards' ? disciplineBoard(players, stats) : leaderboard(players, stats, view),
-    [players, stats, view]);
-  const mvp = useLazy(view === 'mvp', () => loadMvps(communityId), communityId);
+    () => !statMap || !ready || !isStatView(view) ? [] : view === 'cards' ? disciplineBoard(players, statMap) : leaderboard(players, statMap, view),
+    [players, statMap, view, ready]);
+  const mvp = useLazy(view === 'mvp', () => loadMvpWins(communityId), communityId);
   const att = useLazy(view === 'presence', () => loadAttendanceData(communityId), communityId);
-  const mvpRows = useMemo(() => mvp.data ? mvpBoard(players, mvp.data) : [], [players, mvp.data]);
+  const mvpRows = useMemo(() => mvp.data && ready ? mvpBoard(players, mvpTimes(mvp.data, range)) : [], [players, mvp.data, range, ready]);
   const presRows = useMemo(
-    () => att.data ? presenceBoard(players, att.data.matches, att.data.signups, att.data.joined) : [],
-    [players, att.data]);
+    () => att.data && ready ? presenceBoard(players, att.data.matches, att.data.signups, att.data.joined, range) : [],
+    [players, att.data, range, ready]);
   // En el celular las 6 solapas no entran: el selector se desliza y la elegida queda a la vista
   const segRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -86,6 +109,13 @@ export function Ranking({ rows, slug, meId, communityId }: { rows: Ranked[]; slu
 
   return (
     <>
+      {seasonsQ.data && <ChampionsCard data={seasonsQ.data} rows={rows} slug={slug} />}
+      {seasonsQ.err && !seasonsQ.data && (
+        <p class="muted st-note" role="alert">
+          No pudimos cargar las temporadas, así que ves el histórico. <button class="btn sm" onClick={seasonsQ.reload}>Reintentar</button>
+        </p>
+      )}
+      <SeasonPicker seasons={seasons} value={key} onPick={setPick} />
       <div class="st-seg rk-seg sm" role="group" aria-label="Ordenar ranking por" ref={segRef}>
         {VIEWS.map(([k, label]) => (
           <button type="button" class={view === k ? 'on' : ''} aria-pressed={view === k} onClick={() => setView(k)}>{label}</button>
@@ -93,6 +123,7 @@ export function Ranking({ rows, slug, meId, communityId }: { rows: Ranked[]; slu
       </div>
 
       {view === 'ovr' && <>
+        {inSeason && <p class="muted st-note sn-note">El OVR sale de los votos de siempre: no cambia con la temporada.</p>}
         {pending > 0 && (
           <a class="card row note" href={`#/c/${slug}/votar`}>
             <span style="flex:1">Te faltan votar <b>{pending}</b> {pending === 1 ? 'compañero' : 'compañeros'}</span>
@@ -128,10 +159,10 @@ export function Ranking({ rows, slug, meId, communityId }: { rows: Ranked[]; slu
               <button class="btn" onClick={() => setTries(tries + 1)}>Reintentar</button>
             </div>
           )}
-          {!stats && !statsErr && <p class="muted st-empty">Cargando…</p>}
-          {stats && !board.length && (
+          {(!stats || !ready) && !statsErr && <p class="muted st-empty">Cargando…</p>}
+          {stats && ready && !board.length && (
             <p class="muted st-empty">
-              {EMPTY[view]}
+              {(inSeason ? EMPTY_SEASON : EMPTY)[view]}
               {' '}Se cargan desde cada partido jugado.
             </p>
           )}
@@ -163,8 +194,10 @@ export function Ranking({ rows, slug, meId, communityId }: { rows: Ranked[]; slu
 
       {view === 'mvp' && (
         <div class="card rk-board" style="padding:4px 12px">
-          <BoardState err={mvp.err} retry={mvp.retry} loading={!mvp.data}
-            empty={mvp.data && !mvpRows.length ? 'Todavía nadie fue figura del partido. Se vota después de cada partido jugado.' : null} />
+          <BoardState err={mvp.err} retry={mvp.retry} loading={!mvp.data || !ready}
+            empty={mvp.data && ready && !mvpRows.length
+              ? (inSeason ? 'Todavía nadie fue figura en esta temporada. Se vota después de cada partido jugado.' : 'Todavía nadie fue figura del partido. Se vota después de cada partido jugado.')
+              : null} />
           {mvpRows.map(b => {
             const r = byId.get(b.id)!;
             return (
@@ -185,8 +218,10 @@ export function Ranking({ rows, slug, meId, communityId }: { rows: Ranked[]; slu
 
       {view === 'presence' && (
         <div class="card rk-board" style="padding:4px 12px">
-          <BoardState err={att.err} retry={att.retry} loading={!att.data}
-            empty={att.data && !presRows.length ? 'Todavía no hay partidos jugados para medir la asistencia.' : null} />
+          <BoardState err={att.err} retry={att.retry} loading={!att.data || !ready}
+            empty={att.data && ready && !presRows.length
+              ? (inSeason ? 'Todavía no hay partidos jugados en esta temporada.' : 'Todavía no hay partidos jugados para medir la asistencia.')
+              : null} />
           {presRows.map(b => {
             const r = byId.get(b.id)!;
             return (

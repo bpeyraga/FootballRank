@@ -1,5 +1,6 @@
 // Tablas del ranking de la comunidad: figura del partido y presentismo. Lógica pura.
-import { attendanceFrom, byTime, type PlayedMatch, type Signup } from '../stats/playCore';
+import { attendanceFrom, byTime, type MvpWin, type PlayedMatch, type Signup } from '../stats/playCore';
+import { filterByRange, type DateRange } from '../stats/statsCore';
 
 export interface PosRow { pos: number }
 
@@ -10,6 +11,13 @@ function withPos<T>(rows: T[], same: (a: T, b: T) => boolean): (T & PosRow)[] {
     if (i === 0 || !same(r, rows[i - 1])) pos = i + 1;
     return { ...r, pos };
   });
+}
+
+/** Veces que fue figura cada jugador en los partidos del rango (null = todos). */
+export function mvpTimes(wins: MvpWin[], range: DateRange | null): { profile_id: string; times: number }[] {
+  const n = new Map<string, number>();
+  for (const w of filterByRange(wins, range)) n.set(w.profile_id, (n.get(w.profile_id) ?? 0) + 1);
+  return [...n].map(([profile_id, times]) => ({ profile_id, times }));
 }
 
 export interface MvpRow { id: string; name: string; value: number; pos: number }
@@ -30,13 +38,15 @@ export interface PresenceRow {
 
 /**
  * Tabla de presentismo: % de partidos jugados de la comunidad desde que cada uno se sumó.
+ * Con `range` (una temporada) cuenta solo los partidos de esos días.
  * Oculta a quien todavía no jugó ninguno; desempata por más partidos jugados, racha y nombre.
  */
 export function presenceBoard(
   players: { id: string; name: string }[],
   matches: PlayedMatch[], signups: Signup[], joined: Map<string, string>,
+  range: DateRange | null = null,
 ): PresenceRow[] {
-  const sorted = [...matches].sort(byTime);
+  const sorted = [...filterByRange(matches, range)].sort(byTime);
   const per = new Map<string, Map<string, Signup>>();
   for (const s of signups) {
     let m = per.get(s.profile_id);

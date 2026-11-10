@@ -18,6 +18,7 @@ import { fmtDay, type OvrHistory } from '../stats/historyCore';
 import { OvrChart } from './OvrChart';
 import { loadBeerTotal } from '../matches/api';
 import { ClaimProfile } from '../community/ClaimProfile';
+import { PlayerTrophies } from '../seasons/Trophies';
 import './stats.css';
 import './history.css';
 
@@ -165,6 +166,7 @@ export function Player({ r, rows, slug, meId, communityId, isAdmin, communityNam
           {st.pj === 0 && <p class="muted st-note">Todavía no jugó partidos en esta comunidad.</p>}
         </>}
       </div>
+      <PlayerTrophies communityId={communityId} profileId={r.profile.id} />
       <PresenceCard att={calc?.att ?? null} susp={pd?.suspensions ?? null} />
       <AchievementsCard list={calc?.ach ?? null} />
       </div><div class="pl-side">

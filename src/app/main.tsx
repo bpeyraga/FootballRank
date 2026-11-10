@@ -35,6 +35,7 @@ import '../features/auth/landing.css';
 import '../features/home/home.css';
 import '../features/community/players.css';
 import '../features/community/cover.css';
+import '../features/seasons/seasons.css';
 import '../features/admin/superadmin.css';
 import './styles/desktop.css';
 import './styles/themes.css';

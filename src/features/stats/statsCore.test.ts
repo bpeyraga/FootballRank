@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  aggregateStats, disciplineBoard, emptyStats, fmtAvg, groupMatchEvents, leaderboard, outcome, perMatch,
-  type Appearance, type MatchEvent, type PlayerStats, type Team,
+  aggregateStats, argDay, disciplineBoard, emptyStats, filterByRange, fmtAvg, groupMatchEvents, inRange, leaderboard, outcome, perMatch,
+  statsInRange,
+  type Appearance, type MatchEvent, type PlayerStats, type StatsData, type Team,
 } from './statsCore';
 
 const ap = (match_id: string, profile_id: string, team: Team | null, a: number | null, b: number | null): Appearance =>
@@ -168,5 +169,62 @@ describe('faltas en los eventos', () => {
   it('los eventos con minuto siguen contando igual en las estadísticas', () => {
     const e1: MatchEvent = { ...ev('ana', 'foul'), minute: 12 };
     expect(aggregateStats([], [e1, { ...ev('ana', 'goal'), minute: null }]).get('ana')).toMatchObject({ fouls: 1, goals: 1 });
+  });
+});
+
+describe('por fechas (temporadas)', () => {
+  it('argDay: el día en Argentina (UTC-3), no el de UTC', () => {
+    expect(argDay('2026-01-02T02:59:59Z')).toBe('2026-01-01');   // todavía es 1/1 a las 23:59 en Argentina
+    expect(argDay('2026-01-02T03:00:00Z')).toBe('2026-01-02');
+    expect(argDay('2026-11-06T21:00:00-03:00')).toBe('2026-11-06');
+    expect(argDay(Date.UTC(2026, 11, 31, 23, 0))).toBe('2026-12-31');
+    expect(argDay(new Date('2027-01-01T01:00:00Z'))).toBe('2026-12-31');
+    expect(argDay('no es una fecha')).toBe('');
+  });
+  it('inRange: inclusivo en los dos extremos, sin tope con null y sin rango entra todo', () => {
+    const r = { from: '2026-03-01', to: '2026-06-30' };
+    expect(inRange('2026-03-01', r)).toBe(true);
+    expect(inRange('2026-06-30', r)).toBe(true);
+    expect(inRange('2026-02-28', r)).toBe(false);
+    expect(inRange('2026-07-01', r)).toBe(false);
+    expect(inRange('2030-01-01', { from: '2026-03-01', to: null })).toBe(true);
+    expect(inRange('2020-01-01', { from: null, to: '2026-06-30' })).toBe(true);
+    expect(inRange('2020-01-01', null)).toBe(true);
+    expect(inRange('', r)).toBe(false);
+    expect(inRange('', null)).toBe(true);
+  });
+  it('filterByRange: usa el día de Argentina del partido (un partido de las 22:00 no se cae al día siguiente)', () => {
+    const items = [
+      { id: 1, starts_at: '2026-03-01T00:30:00Z' },   // 28/2 21:30 en Argentina: fuera
+      { id: 2, starts_at: '2026-03-01T03:00:00Z' },   // 1/3 00:00: dentro
+      { id: 3, starts_at: '2026-07-01T01:00:00Z' },   // 30/6 22:00 en Argentina: dentro
+      { id: 4, starts_at: '2026-07-01T03:00:00Z' },   // 1/7: fuera
+      { id: 5, starts_at: 'basura' },
+    ];
+    const r = { from: '2026-03-01', to: '2026-06-30' };
+    expect(filterByRange(items, r).map(i => i.id)).toEqual([2, 3]);
+    expect(filterByRange(items, null)).toBe(items);
+    expect(filterByRange(items, { from: null, to: null }).map(i => i.id)).toEqual([1, 2, 3, 4]);   // sin topes: solo cae lo inválido
+  });
+  it('statsInRange: agrega solo los partidos del rango; sin rango es el histórico', () => {
+    const d1 = '2026-03-05T21:00:00Z', d2 = '2026-08-05T21:00:00Z';
+    const data: StatsData = {
+      appearances: [
+        { ...ap('m1', 'ana', 'A', 2, 0), starts_at: d1 }, { ...ap('m2', 'ana', 'B', 1, 3), starts_at: d2 },
+        { ...ap('m1', 'bob', 'B', 2, 0), starts_at: d1 },
+      ],
+      events: [
+        { profile_id: 'ana', kind: 'goal', starts_at: d1 }, { profile_id: 'ana', kind: 'goal', starts_at: d2 },
+        { profile_id: 'bob', kind: 'red', starts_at: d1 }, { profile_id: 'ana', kind: 'foul', starts_at: d2 },
+      ],
+    };
+    const first = statsInRange(data, { from: '2026-03-01', to: '2026-06-30' });
+    expect(first.get('ana')).toMatchObject({ pj: 1, goals: 1, fouls: 0, won: 1 });
+    expect(first.get('bob')).toMatchObject({ pj: 1, red: 1, lost: 1 });
+    const all = statsInRange(data, null);
+    expect(all.get('ana')).toMatchObject({ pj: 2, goals: 2, fouls: 1, won: 2 });
+    expect(statsInRange(data, { from: '2027-01-01', to: null }).size).toBe(0);
+    // sale lo mismo que el agregado de siempre
+    expect(all).toEqual(aggregateStats(data.appearances, data.events));
   });
 });

@@ -12,6 +12,7 @@ import { seenKey } from '../chat/model';
 import { Loading, page } from '../../app/lazy';
 import { ClaimsCard } from './ClaimsCard';
 import { VenuesCard } from '../venues/VenuesManager';
+import { SeasonsCard } from '../seasons/SeasonsCard';
 import { nPlayers, stepFromRoute } from './players';
 import './admin.css';
 import { initials } from '../../shared/text';
@@ -237,6 +238,7 @@ export function Community({ slug, sub, me }: { slug: string; sub: string[]; me: 
         })}
       </div>
       {isAdmin && <VenuesCard communityId={c.id} meId={me.id} />}
+      {isAdmin && <SeasonsCard communityId={c.id} />}
       {sheet?.k === 'add' && (
         <Suspense fallback={null}>
           <AddPlayersSheet communityId={c.id} existing={existingNames} start={sheet.mode} onClose={() => setSheet(null)}

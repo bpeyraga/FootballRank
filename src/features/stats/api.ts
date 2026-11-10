@@ -4,8 +4,8 @@ import { fetchAll, must, sb } from '../../shared/supabase';
 import { isActiveSuspension } from '../matches/model';
 import type { CustomRow } from './customStats';
 import { normalizeSeries, type OvrHistory } from './historyCore';
-import type { PlayedMatch, PlayerEvent, Signup } from './playCore';
-import { aggregateStats, type Appearance, type MatchEvent, type PlayerStats } from './statsCore';
+import type { MvpWin, PlayedMatch, PlayerEvent, Signup } from './playCore';
+import type { MatchEvent, StatsData } from './statsCore';
 
 /** La tabla todavía no existe (migración sin aplicar) o PostgREST no la ve. */
 const isMissingTable = (e: any) =>
@@ -21,21 +21,26 @@ export async function loadMatchEvents(matchId: string): Promise<MatchEvent[]> {
   return (must(await sb.from('match_events').select('*').eq('match_id', matchId).order('id')) ?? []) as MatchEvent[];
 }
 
-/** Estadísticas por jugador de una comunidad (solo partidos jugados). */
-export async function loadCommunityStats(communityId: string): Promise<Map<string, PlayerStats>> {
+/**
+ * Participaciones y eventos de todos los partidos jugados de la comunidad, cada uno con el momento del partido
+ * (statsInRange los agrega por jugador, en todo el historial o dentro de una temporada).
+ */
+export async function loadStatsData(communityId: string): Promise<StatsData> {
   const [signups, events] = await Promise.all([
-    fetchAll<any>((a, b) => sb.from('match_signups').select('match_id,profile_id,team,matches!inner(score_a,score_b,community_id,status)')
+    fetchAll<any>((a, b) => sb.from('match_signups').select('match_id,profile_id,team,matches!inner(score_a,score_b,community_id,status,starts_at)')
       .eq('status', 'in').eq('absent', false).eq('matches.status', 'played').eq('matches.community_id', communityId)
       .order('match_id').order('profile_id').range(a, b)),
-    fetchAll<any>((a, b) => sb.from('match_events').select('id,profile_id,kind,matches!inner(status)')
+    fetchAll<any>((a, b) => sb.from('match_events').select('id,profile_id,kind,matches!inner(status,starts_at)')
       .eq('community_id', communityId).eq('matches.status', 'played')
       .order('id').range(a, b)),
   ]);
-  const apps: Appearance[] = signups.map(r => {
-    const m = one<any>(r.matches);
-    return { match_id: r.match_id, profile_id: r.profile_id, team: r.team, score_a: m?.score_a ?? null, score_b: m?.score_b ?? null };
-  });
-  return aggregateStats(apps, events);
+  return {
+    appearances: signups.map(r => {
+      const m = one<any>(r.matches);
+      return { match_id: r.match_id, profile_id: r.profile_id, team: r.team, score_a: m?.score_a ?? null, score_b: m?.score_b ?? null, starts_at: m?.starts_at ?? '' };
+    }),
+    events: events.map(r => ({ profile_id: r.profile_id, kind: r.kind, starts_at: one<any>(r.matches)?.starts_at ?? '' })),
+  };
 }
 
 // ---------- Evolución del OVR ----------
@@ -67,6 +72,12 @@ async function loadSignups(communityId: string): Promise<Signup[]> {
     .eq('status', 'in').eq('matches.status', 'played').eq('matches.community_id', communityId)
     .order('match_id').order('profile_id').range(a, b));
   return rows.map(r => ({ match_id: r.match_id, profile_id: r.profile_id, team: r.team ?? null, absent: !!r.absent }));
+}
+
+/** Figura de cada partido jugado, con el momento del partido (si hay empate de votos, una fila por cada empatado). */
+export async function loadMvpWins(communityId: string): Promise<MvpWin[]> {
+  const data = must(await sb.rpc('community_mvp_matches', { p_community: communityId }));
+  return ((data ?? []) as any[]).map(r => ({ match_id: r.match_id, profile_id: r.profile_id, starts_at: r.starts_at }));
 }
 
 /** Veces que cada uno fue figura (empate en votos = figura los dos). */

@@ -145,3 +145,36 @@ export function groupMatchEvents(events: MatchEvent[], teamOf: (profileId: strin
 
 /** Número con coma decimal (es-AR), sin ceros de más: 1.5 -> "1,5". */
 export const fmtAvg = (n: number) => String(n).replace('.', ',');
+
+// ---------- Por fechas (temporadas) ----------
+
+/** Rango de días de Argentina ('AAAA-MM-DD'), inclusivo. `null` en un extremo = sin tope. */
+export interface DateRange { from: string | null; to: string | null }
+
+/** Día de Argentina ('AAAA-MM-DD') de un instante. Argentina es UTC-3 todo el año (sin horario de verano). '' si la fecha no es válida. */
+export function argDay(at: string | number | Date): string {
+  const t = at instanceof Date ? at.getTime() : typeof at === 'number' ? at : Date.parse(at);
+  return Number.isNaN(t) ? '' : new Date(t - 3 * 3600_000).toISOString().slice(0, 10);
+}
+
+/** ¿El día cae dentro del rango? Sin rango (null) entra todo; un día inválido ('') no entra a ningún rango. */
+export function inRange(day: string, range: DateRange | null): boolean {
+  if (!range) return true;
+  if (!day) return false;
+  return (range.from == null || day >= range.from) && (range.to == null || day <= range.to);
+}
+
+/** Se queda con lo que pasó en partidos del rango (por el día de Argentina de `starts_at`). Sin rango devuelve todo. */
+export function filterByRange<T extends { starts_at: string }>(items: T[], range: DateRange | null): T[] {
+  return range ? items.filter(i => inRange(argDay(i.starts_at), range)) : items;
+}
+
+/** Lo mismo que Appearance / MatchEvent pero con el momento del partido, para poder filtrar por fechas. */
+export type DatedAppearance = Appearance & { starts_at: string };
+export type DatedEvent = Pick<MatchEvent, 'profile_id' | 'kind'> & { starts_at: string };
+export interface StatsData { appearances: DatedAppearance[]; events: DatedEvent[] }
+
+/** Estadísticas por jugador de los partidos del rango (null = históricas, todos los partidos jugados). */
+export function statsInRange(data: StatsData, range: DateRange | null): Map<string, PlayerStats> {
+  return aggregateStats(filterByRange(data.appearances, range), filterByRange(data.events, range));
+}

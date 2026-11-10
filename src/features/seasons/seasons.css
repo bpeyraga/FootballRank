@@ -1,0 +1,58 @@
+/* Temporadas y campeones. Solo usa las variables de styles.css (claro y oscuro). Las reglas de PC están en desktop.css. */
+
+/* Selector de temporada del ranking (se desliza en el celular) */
+.sn-pick{margin-bottom:12px}
+.sn-chips{display:flex;gap:6px;overflow-x:auto;scroll-snap-type:x proximity;scrollbar-width:none;-webkit-overflow-scrolling:touch;
+  margin-inline:-16px;padding:0 16px 2px;scroll-padding-inline:16px}
+.sn-chips::-webkit-scrollbar{display:none}
+.sn-chips button{flex:none;min-height:40px;padding:0 16px;border:1px solid var(--line);border-radius:99px;background:var(--surface);color:inherit;
+  font:600 .9rem var(--f-body);white-space:nowrap;cursor:pointer;scroll-snap-align:center}
+.sn-chips button.on{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.sn-info{margin:8px 2px 0;font-size:.85rem;color:var(--muted)}
+.sn-info b{color:var(--fg)}
+.sn-note{margin:0 4px 10px}
+
+/* Vitrina de campeones (plegable) */
+.sn-champs{padding:0;overflow:hidden}
+.sn-champs summary{display:flex;align-items:center;gap:12px;min-height:60px;padding:10px 16px;cursor:pointer;list-style:none}
+.sn-champs summary::-webkit-details-marker{display:none}
+.sn-champs[open] summary{border-bottom:1px solid var(--line)}
+.sn-cup{flex:none;font-size:1.7rem;line-height:1}
+.sn-sum{flex:1;min-width:0;display:grid;gap:2px}
+.sn-sum b{font:700 1.2rem/1.1 var(--f-display);letter-spacing:.01em}
+.sn-sum small{font-size:.85rem}
+.sn-faces{display:flex;flex:none}
+.sn-faces .avatar{margin-left:-8px;box-shadow:0 0 0 2px var(--surface)}
+.sn-faces .avatar:first-child{margin-left:0}
+.sn-chev{flex:none;width:8px;height:8px;margin:0 4px 3px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);
+  transform:rotate(45deg);transition:transform .15s}
+.sn-champs[open] .sn-chev{transform:rotate(-135deg);margin:3px 4px 0}
+.sn-season{padding:14px 16px 6px}
+.sn-season+.sn-season{border-top:1px solid var(--line)}
+.sn-season-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:6px;font-size:1.2rem}
+.sn-season-h small{flex:none;font:400 .8rem var(--f-body)}
+.sn-none{margin:6px 0 10px;font-size:.9rem}
+.sn-aw{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line)}
+.sn-ico{flex:none;width:1.6em;text-align:center;font-size:1.35rem}
+.sn-aw-main{flex:1;min-width:0}
+.sn-aw-label{font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.sn-winners{display:flex;flex-wrap:wrap;gap:0 16px}
+.sn-win{display:flex;align-items:center;gap:8px;min-width:0;min-height:40px;font-weight:600;color:inherit;text-decoration:none}
+.sn-val{flex:none;max-width:38%;text-align:right;font-size:.85rem;line-height:1.2}
+
+/* Trofeos en el perfil del jugador */
+.sn-tlist{display:flex;flex-wrap:wrap;gap:8px;margin:0;padding:0;list-style:none}
+.sn-tcard{display:grid;gap:2px;min-width:0;max-width:100%;padding:8px 14px;border-radius:12px;background:var(--gold-1);color:var(--gold-f)}
+.sn-tcard b{font-weight:700}
+.sn-tcard small{font-size:.78rem;opacity:.8}
+
+/* Panel de admin (pestaña Miembros) */
+.sn-open{display:grid;gap:2px;margin-bottom:12px;padding:12px 14px;border:1px solid var(--accent);border-radius:12px;background:var(--accent-soft)}
+.sn-open-tag{font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.sn-open-name{font:700 1.6rem/1.1 var(--f-display)}
+.sn-open-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.sn-open-acts .btn.primary{flex:1 1 180px}
+.sn-past{margin-top:16px}
+.sn-past-row{gap:10px;padding:8px 0;border-top:1px solid var(--line)}
+.sn-past-main{flex:1;min-width:0}
+.sn-ok{margin:10px 0 0;color:var(--accent);font-weight:600;font-size:.92rem}

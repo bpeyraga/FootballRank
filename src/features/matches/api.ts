@@ -6,6 +6,7 @@ import { SCHEDULE_COLS, type Schedule } from './schedule';
 import type { EventKind, MatchEvent } from '../stats/statsCore';
 import type { LiveAction, LiveState } from './live';
 import type { Match, MatchListItem, Mvp, Score, Signup, Suspension, Team } from './model';
+import type { WeekEvent, WeekVote } from './weeklyCore';
 
 const rpc = async (fn: string, args: Record<string, unknown>) => { must(await sb.rpc(fn, args)); };
 
@@ -20,6 +21,16 @@ export async function loadMatchList(communityId: string, meId: string): Promise<
     taken: x.match_signups.filter((s: any) => s.status === 'in').length,
     mine: x.match_signups.find((s: any) => s.profile_id === meId && s.status !== 'out')?.status ?? null,
   }));
+}
+
+/** Goles, asistencias y votos de figura (por partido) de esos partidos: lo que necesita "Resumen de la semana". */
+export async function loadWeekExtras(matchIds: string[]): Promise<{ events: WeekEvent[]; votes: WeekVote[] }> {
+  if (!matchIds.length) return { events: [], votes: [] };
+  const [e, v] = await Promise.all([
+    sb.from('match_events').select('match_id,profile_id,kind').in('match_id', matchIds).in('kind', ['goal', 'assist']),
+    sb.from('match_mvp').select('match_id,profile_id,votes').in('match_id', matchIds),
+  ]);
+  return { events: must(e) ?? [], votes: must(v) ?? [] };
 }
 
 export type ProfileName = Pick<Profile, 'id' | 'name' | 'nickname' | 'photo_url'>;

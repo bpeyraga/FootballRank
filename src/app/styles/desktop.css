@@ -197,3 +197,21 @@
   .fee-row{min-height:46px}
   .wx-chip{font-size:.95rem}
 }
+
+/* ---------- Temporadas y campeones (seasons.css) ---------- */
+@media (min-width:900px){
+  .sn-pick{max-width:860px;margin-bottom:16px}
+  .sn-chips{overflow:visible;flex-wrap:wrap;margin-inline:0;padding:0}
+  .sn-chips button{transition:border-color .15s,background .15s}
+  .sn-chips button:not(.on):hover{border-color:var(--accent);background:var(--accent-soft)}
+  .sn-info{font-size:.9rem}
+  .sn-champs{max-width:860px}
+  .sn-champs summary{padding:12px 20px}
+  .sn-champs summary:hover .sn-sum b{text-decoration:underline}
+  .sn-season{padding:18px 20px 8px}
+  .sn-aw{padding:10px 0}
+  .sn-win:hover span{text-decoration:underline}
+  .sn-val{font-size:.95rem;max-width:30%}
+  .sn-tlist{gap:10px}
+  .sn-tcard{padding:10px 16px}
+}

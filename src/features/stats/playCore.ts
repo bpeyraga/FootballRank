@@ -6,6 +6,8 @@ export interface PlayedMatch { id: string; starts_at: string; score_a: number | 
 /** Anotado ('in') en un partido jugado. `absent`: figura anotado pero no se presentó. */
 export interface Signup { match_id: string; profile_id: string; team: Team | null; absent: boolean }
 export interface PlayerEvent { match_id: string; kind: EventKind }
+/** Figura de un partido jugado (si hubo empate de votos, una por cada empatado). */
+export interface MvpWin { match_id: string; profile_id: string; starts_at: string }
 
 export const ms = (iso: string): number => { const t = Date.parse(iso); return Number.isNaN(t) ? 0 : t; };
 

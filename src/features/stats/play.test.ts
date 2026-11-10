@@ -3,7 +3,7 @@ import { aggregateStats } from './statsCore';
 import { attendanceFrom, playerAttendance, playerStatsFrom, signupMap, type PlayedMatch, type PlayerEvent, type Signup } from './playCore';
 import { computeAchievements, sortAchievements, type Achievement, type AchievementInput } from './achievements';
 import { computeDuos } from './duos';
-import { mvpBoard, presenceBoard } from '../ranking/boards';
+import { mvpBoard, mvpTimes, presenceBoard } from '../ranking/boards';
 
 const day = (n: number) => new Date(Date.UTC(2026, 0, 1 + n, 21)).toISOString();
 /** Partido número n (cronológico), con resultado opcional. */
@@ -273,5 +273,38 @@ describe('tablas', () => {
 
   it('presenceBoard sin partidos: vacía', () => {
     expect(presenceBoard(players, [], [], new Map())).toEqual([]);
+  });
+
+  it('presenceBoard con rango: cuenta solo los partidos de esos días (y no toca la lista original)', () => {
+    const matches = [4, 3, 2, 1].map(n => M(n));      // 5, 4, 3 y 2 de enero (en ese orden de entrada)
+    const signups = [
+      S(1, 'a'), S(2, 'a'), S(3, 'a'), S(4, 'a'),
+      S(3, 'b'), S(4, 'b'),
+      S(1, 'c'), S(2, 'c'), S(3, 'c', 'A', true), S(4, 'c'),
+    ];
+    const joined = new Map([['a', day(0)], ['b', day(3)], ['c', day(0)], ['d', day(0)]]);
+    const range = { from: '2026-01-03', to: '2026-01-04' };  // partidos 2 y 3
+    const rows = presenceBoard(players, matches, signups, joined, range);
+    expect(rows.map(r => [r.name, r.pct, r.played, r.total])).toEqual([
+      ['Ana', 100, 2, 2], ['Beto', 100, 1, 1], ['Cris', 50, 1, 2],
+    ]);
+    expect(matches.map(m => m.id)).toEqual(['m4', 'm3', 'm2', 'm1']);
+    expect(presenceBoard(players, matches, signups, joined, { from: '2027-01-01', to: null })).toEqual([]);
+  });
+
+  it('mvpTimes: cuenta las veces figura dentro del rango (empates = una por cada empatado)', () => {
+    const wins = [
+      { match_id: 'm1', profile_id: 'a', starts_at: day(1) },
+      { match_id: 'm2', profile_id: 'a', starts_at: day(2) },
+      { match_id: 'm2', profile_id: 'b', starts_at: day(2) },   // empate en el partido 2
+      { match_id: 'm3', profile_id: 'b', starts_at: day(3) },
+    ];
+    const times = (r: Parameters<typeof mvpTimes>[1]) => Object.fromEntries(mvpTimes(wins, r).map(x => [x.profile_id, x.times]));
+    expect(times(null)).toEqual({ a: 2, b: 2 });
+    expect(times({ from: '2026-01-03', to: '2026-01-03' })).toEqual({ a: 1, b: 1 });   // solo el partido 2
+    expect(times({ from: '2026-01-04', to: null })).toEqual({ b: 1 });
+    expect(mvpTimes(wins, { from: '2030-01-01', to: null })).toEqual([]);
+    // y alimenta mvpBoard
+    expect(mvpBoard(players, mvpTimes(wins, { from: null, to: '2026-01-03' })).map(r => [r.name, r.value])).toEqual([['Ana', 2], ['Beto', 1]]);
   });
 });

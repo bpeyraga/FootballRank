@@ -45,7 +45,7 @@ export function PushPanel({ onClose, onInstall }: { onClose: () => void; onInsta
       {st === 'unsupported' && <p class="muted">Este navegador no soporta avisos. Probá con Chrome (Android) o con la app instalada (iPhone).</p>}
       {st === 'denied' && <p class="muted">Bloqueaste los avisos para esta página. Habilitalos en los ajustes del navegador (candadito al lado de la dirección → Notificaciones) y volvé a entrar.</p>}
       {st === 'off' && <>
-        <p class="muted">Enterate de los partidos nuevos, el día que jugás, cuando entrás desde la lista de espera, cuando se arman los equipos y del chat.</p>
+        <p class="muted">Enterate de los partidos nuevos, el día que jugás, cuando entrás desde la lista de espera, cuando se arman los equipos, del chat y el resumen de la semana.</p>
         <button class="btn primary block" disabled={busy} onClick={on}>{busy ? 'Activando…' : 'Activar avisos'}</button>
       </>}
       {st === 'on' && <>

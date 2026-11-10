@@ -11,6 +11,7 @@ import { createMatch, loadMatchList, loadProfileNames, type ProfileName } from '
 import { fmtDate, splitUpcoming, statusLabel, type MatchListItem } from './model';
 import { SchedulesSection } from './ScheduleCard';
 import { DebtsCard } from './DebtsCard';
+import { WeekCard } from './WeekCard';
 import { Loading, page } from '../../app/lazy';
 const QuickMatch = page(() => import('./QuickMatchPage'), m => m.QuickMatch);
 
@@ -103,6 +104,7 @@ export function Matches({ communityId, slug, meId, isAdmin, rows }:
       {err && <p class="err">{err}</p>}
       <Tip />
       {list && <DebtsCard debts={debts} meId={meId} isAdmin={isAdmin} slug={slug} whoIs={whoIs} />}
+      {list && <WeekCard list={list} whoIs={whoIs} />}
       <SchedulesSection communityId={communityId} meId={meId} isAdmin={isAdmin} venues={venues} defaultVenue={lastVenue}
         addVenue={addVenue} onChanged={loadList} />
       {list === null && !err && <p class="muted">Cargando…</p>}

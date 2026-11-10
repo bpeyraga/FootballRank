@@ -1,0 +1,525 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cómo se usa · Ranking Fútbol</title>
+<meta name="description" content="Guía paso a paso de Ranking Fútbol para jugadores y admins: votar, anotarse, equipos parejos, partido en vivo, ranking, cuotas y más.">
+<meta name="theme-color" content="#0a2c17">
+<link rel="icon" href="/icon.png" type="image/png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --green:#1f8a4c;--green-d:#0f5d31;--ink:#12241a;--muted:#55695c;--line:#d3e0d6;--bg:#f1f6f2;--paper:#ffffff;--soft:#e4f1e8;
+  --hz1:#0a2c17;--hz2:#104526;--gold:#f4bd2c;--gold-l:#ffe9a3;--gold-d:#b97a0c;--note:#fff3cf;--note-ink:#5a4300;
+  --f-display:"Barlow Condensed","Arial Narrow",Impact,sans-serif;
+  --f-body:"Barlow",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth;scroll-padding-top:16px}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.55 var(--f-body)}
+a{color:var(--green-d)}
+h1,h2,h3{font-family:var(--f-display);font-weight:700;line-height:1.1;letter-spacing:.01em;margin:0}
+p{margin:0}
+ul,ol{margin:0;padding:0}
+.wrap{width:100%;max-width:980px;margin:0 auto;padding:0 18px}
+
+/* ---------- Portada ---------- */
+.hero{position:relative;isolation:isolate;overflow:hidden;color:#fff;
+  background:radial-gradient(70% 90% at 100% 0,rgba(244,189,44,.28),transparent 66%),linear-gradient(150deg,var(--hz2),var(--hz1))}
+.hero::before{content:"";position:absolute;inset:0;z-index:-1;background:repeating-linear-gradient(90deg,rgba(255,255,255,.045) 0 44px,transparent 44px 88px)}
+.hero .wrap{display:grid;gap:22px;padding-top:30px;padding-bottom:34px}
+.brand{display:flex;align-items:center;gap:10px;font:700 1.3rem var(--f-display);letter-spacing:.02em}
+.brand img{width:34px;height:34px;border-radius:8px}
+.hero-copy{display:grid;gap:12px;max-width:620px}
+.kicker{font:700 .8rem var(--f-body);letter-spacing:.12em;text-transform:uppercase;color:var(--gold-l)}
+.hero h1{font-size:clamp(2.5rem,9vw,4.1rem);text-transform:uppercase}
+.hero h1 em{font-style:normal;background:linear-gradient(180deg,var(--gold-l) 8%,var(--gold) 58%,#c8870f);-webkit-background-clip:text;background-clip:text;color:transparent}
+.lead{font-size:1.1rem;color:rgba(255,255,255,.9)}
+.actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:6px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:46px;padding:0 20px;border-radius:12px;border:1.5px solid transparent;font:700 1rem var(--f-body);text-decoration:none;cursor:pointer}
+.btn.gold{background:linear-gradient(180deg,var(--gold-l),var(--gold));color:#123d24;box-shadow:0 8px 18px -8px rgba(0,0,0,.55)}
+.btn.ghost{background:transparent;color:#fff;border-color:rgba(255,255,255,.4)}
+.btn:focus-visible,a:focus-visible,summary:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.card-art{display:none}
+
+/* Carta de adorno (solo pantalla ancha) */
+@media (min-width:760px){
+  .hero .wrap{grid-template-columns:minmax(0,1fr) 230px;align-items:center;gap:40px;padding-top:40px;padding-bottom:46px}
+  .hero .brand{grid-column:1/-1}
+  .card-art{display:grid;justify-self:end;width:200px;aspect-ratio:3/4;padding:18px 16px;border-radius:20px 20px 46px 46px;color:#3b2b00;transform:rotate(4deg);
+    background:linear-gradient(135deg,#f8e394,#d9aa2e);box-shadow:0 26px 40px -18px rgba(0,0,0,.65),inset 0 0 0 3px rgba(255,255,255,.35);align-content:start;gap:4px}
+  .card-art b{font:700 3.2rem/1 var(--f-display)}
+  .card-art span{font:700 .95rem var(--f-body);letter-spacing:.1em}
+  .card-art i{display:block;align-self:end;font:700 1.35rem var(--f-display);font-style:normal;text-transform:uppercase;border-top:2px solid rgba(59,43,0,.35);padding-top:6px}
+  .card-art .ball{font-size:3.6rem;line-height:1;text-align:center;margin:10px 0 6px}
+  .card-art .st{display:flex;justify-content:space-between;font:700 .8rem var(--f-body);letter-spacing:.05em}
+}
+
+/* ---------- Índice ---------- */
+.toc{background:var(--paper);border-bottom:1px solid var(--line)}
+.toc .wrap{display:flex;gap:8px;overflow-x:auto;padding-top:12px;padding-bottom:12px;scrollbar-width:none}
+.toc a{flex:none;display:inline-flex;align-items:center;min-height:40px;padding:0 16px;border-radius:99px;background:var(--soft);color:var(--green-d);font-weight:600;text-decoration:none;white-space:nowrap}
+.toc a:hover{background:var(--green);color:#fff}
+
+/* ---------- Secciones ---------- */
+main .wrap{padding-top:8px;padding-bottom:40px}
+section.big{padding-top:34px}
+.sec-head{display:grid;gap:6px;margin-bottom:18px}
+.sec-head .kicker{color:var(--green)}
+.sec-head h2{font-size:clamp(1.9rem,6vw,2.6rem)}
+.sec-head p{color:var(--muted);max-width:660px}
+.grid{display:grid;gap:14px}
+.who{display:inline-block;margin-bottom:6px;padding:2px 10px;border-radius:99px;background:var(--soft);color:var(--green-d);font:700 .72rem var(--f-body);letter-spacing:.08em;text-transform:uppercase}
+.who.admin{background:var(--note);color:var(--note-ink)}
+
+.topic,.role{background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:18px 18px 16px;break-inside:avoid}
+.topic h3{display:flex;align-items:center;gap:10px;font-size:1.45rem;margin-bottom:8px}
+.topic h3 .ic{flex:none;display:grid;place-items:center;width:38px;height:38px;border-radius:12px;background:var(--soft);font-size:1.25rem}
+.topic>p{color:var(--muted);margin-bottom:8px}
+.topic.soon{border-style:dashed;background:transparent}
+.role h3{font-size:1.35rem;margin-bottom:6px}
+.role p,.role li{color:var(--muted);font-size:.98rem}
+.role ul{padding-left:1.1em;margin-top:6px}
+.role.owner{border-top:4px solid var(--gold)}
+.role.admin{border-top:4px solid var(--green)}
+.role.member{border-top:4px solid var(--line)}
+
+ol.steps{list-style:none;counter-reset:s;display:grid;gap:8px;margin:10px 0 0}
+ol.steps li{counter-increment:s;position:relative;padding-left:34px;min-height:26px}
+ol.steps li::before{content:counter(s);position:absolute;left:0;top:0;display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--green);color:#fff;font:700 .85rem var(--f-body)}
+ul.dots{list-style:none;display:grid;gap:6px;margin-top:8px}
+ul.dots li{position:relative;padding-left:20px}
+ul.dots li::before{content:"";position:absolute;left:2px;top:.62em;width:8px;height:8px;border-radius:50%;background:var(--gold)}
+.tip{margin-top:12px;padding:10px 12px;border-radius:12px;background:var(--note);color:var(--note-ink);font-size:.94rem}
+.tip b{font-weight:700}
+kbd,.k{display:inline-block;padding:0 7px;border-radius:7px;border:1px solid var(--line);background:#f7faf8;font:600 .88em var(--f-body);white-space:nowrap}
+.attrs{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 2px;padding:0;list-style:none}
+.attrs li{padding:3px 10px;border-radius:99px;background:var(--soft);font:700 .8rem var(--f-body);letter-spacing:.05em;color:var(--green-d)}
+
+/* Pasos de arranque */
+.start{display:grid;gap:12px;list-style:none;counter-reset:st}
+.start li{counter-increment:st;display:grid;grid-template-columns:auto 1fr;gap:4px 14px;align-items:start;align-content:start;padding:16px;border-radius:18px;background:var(--paper);border:1px solid var(--line);break-inside:avoid}
+.start li::before{content:counter(st);grid-row:span 2;display:grid;place-items:center;width:42px;height:42px;border-radius:50%;background:linear-gradient(180deg,var(--gold-l),var(--gold));color:#123d24;font:700 1.35rem var(--f-display)}
+.start b{font:700 1.3rem var(--f-display);align-self:end}
+.start span{color:var(--muted);grid-column:2}
+
+/* Preguntas frecuentes */
+.faq{display:grid;gap:12px}
+.faq div{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:14px 16px;break-inside:avoid}
+.faq h3{font-size:1.2rem;margin-bottom:4px;color:var(--green-d)}
+.faq p{color:var(--muted)}
+
+footer{border-top:1px solid var(--line);background:var(--paper);color:var(--muted);font-size:.9rem}
+footer .wrap{display:grid;gap:6px;padding-top:20px;padding-bottom:30px;text-align:center}
+
+@media (min-width:760px){
+  .grid.two{grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}
+  .grid.three{grid-template-columns:repeat(3,minmax(0,1fr));align-items:start}
+  .start{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .faq{grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}
+  .topic.wide{grid-column:1/-1}
+}
+@media (min-width:900px){
+  body{font-size:17px}
+  .wrap{padding:0 28px}
+}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+
+/* ---------- Impresión / PDF (A4) ---------- */
+@page{size:A4;margin:15mm 14mm}
+@media print{
+  html{scroll-behavior:auto}
+  body{background:#fff;font-size:10.5pt;line-height:1.45;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .no-print,.toc,.actions,.card-art{display:none!important}
+  .wrap{max-width:none;padding:0}
+  .hero{background:none;color:var(--ink);border-bottom:3px solid var(--gold);padding-bottom:10px}
+  .hero::before{display:none}
+  .hero .wrap{display:block;padding:0}
+  .hero h1{font-size:30pt}
+  .hero h1 em{background:none;-webkit-text-fill-color:var(--green-d);color:var(--green-d)}
+  .hero .kicker{color:var(--green)}
+  .lead{color:var(--muted);font-size:11pt}
+  .brand{margin-bottom:6px}
+  main .wrap{padding-top:0;padding-bottom:0}
+  section.big{padding-top:16pt}
+  section.pb{break-before:page;padding-top:0}
+  section.big:first-of-type{padding-top:14pt}
+  .grid,.faq,.start{gap:8pt}
+  .grid.two,.faq{grid-template-columns:1fr 1fr}
+  .grid.three{grid-template-columns:repeat(3,1fr)}
+  .start{grid-template-columns:1fr 1fr}
+  .topic.wide{grid-column:1/-1}
+  .topic,.role,.start li,.faq div{border-radius:10pt;padding:10pt 11pt;box-shadow:none;break-inside:avoid;page-break-inside:avoid}
+  .topic h3{font-size:14pt;margin-bottom:5pt}
+  .topic h3 .ic{width:26pt;height:26pt;font-size:12pt}
+  .sec-head{break-after:avoid;margin-bottom:10pt}
+  .sec-head h2{font-size:22pt}
+  .sec-head h2,.topic h3{break-after:avoid}
+  ol.steps{gap:4pt}
+  .tip{margin-top:7pt;padding:6pt 8pt}
+  a{color:inherit;text-decoration:none}
+  footer{border-top:1px solid var(--line);background:none;margin-top:14pt}
+  footer .wrap{padding:8pt 0 0}
+}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="brand"><img src="/icon.png" width="34" height="34" alt=""><span>Ranking Fútbol</span></div>
+    <div class="hero-copy">
+      <span class="kicker">Guía paso a paso</span>
+      <h1>Cómo se <em>usa</em></h1>
+      <p class="lead">Todo lo que necesitás para sacarle el jugo a la app: votar a tus compañeros, anotarte, armar equipos parejos, cargar el partido en vivo y ver quién es el crack del grupo.</p>
+      <div class="actions no-print">
+        <button type="button" class="btn gold" id="pdf">📄 Guardar como PDF</button>
+        <a class="btn ghost" href="/">← Volver a la app</a>
+      </div>
+    </div>
+    <div class="card-art" aria-hidden="true">
+      <b>84</b><span>DEL</span>
+      <div class="ball">⚽</div>
+      <i>Tu nombre</i>
+      <div class="st"><span>RIT 86</span><span>TIR 88</span><span>PAS 79</span></div>
+    </div>
+  </div>
+</header>
+
+<nav class="toc no-print" aria-label="Contenido">
+  <div class="wrap">
+    <a href="#empezar">Para empezar</a>
+    <a href="#jugadores">Para jugadores</a>
+    <a href="#admins">Para owner y admin</a>
+    <a href="#faq">Preguntas frecuentes</a>
+  </div>
+</nav>
+
+<main>
+<div class="wrap">
+
+  <!-- Qué es + roles -->
+  <section class="big" id="que-es">
+    <div class="sec-head">
+      <span class="kicker">Lo básico</span>
+      <h2>Qué es Ranking Fútbol</h2>
+      <p>La app de tu grupo de fútbol amateur. Tus compañeros te votan y se arma tu carta estilo FIFA; se convocan los partidos, la app reparte equipos parejos, se carga el resultado y todo queda guardado: ranking, goleadores, figuras y cuotas. Es gratis, sin publicidad y se instala como app.</p>
+    </div>
+    <div class="grid three">
+      <div class="role member">
+        <span class="who">Miembro</span>
+        <h3>Jugador</h3>
+        <p>Cualquiera que entra a una comunidad. Puede:</p>
+        <ul><li>votar a sus compañeros</li><li>anotarse a los partidos</li><li>calificar y votar la figura</li><li>chatear y ver el ranking</li></ul>
+      </div>
+      <div class="role admin">
+        <span class="who admin">Admin</span>
+        <h3>Administrador</h3>
+        <p>Además de lo anterior, organiza el grupo:</p>
+        <ul><li>convoca y edita partidos</li><li>arma equipos y carga resultados</li><li>maneja el partido en vivo y las cuotas</li><li>agrega jugadores e invita</li></ul>
+      </div>
+      <div class="role owner">
+        <span class="who admin">Owner</span>
+        <h3>Creador</h3>
+        <p>Quien creó la comunidad. Además de ser admin:</p>
+        <ul><li>hace y quita admins</li><li>aprueba los pedidos de "¿Sos vos?"</li><li>puede transferir la comunidad</li><li>puede eliminarla</li></ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- Para empezar -->
+  <section class="big" id="empezar">
+    <div class="sec-head">
+      <span class="kicker">Todos</span>
+      <h2>Para empezar</h2>
+      <p>En un par de minutos tenés tu carta lista y estás adentro del grupo.</p>
+    </div>
+    <ol class="start">
+      <li><b>Entrá a la app</b><span>Con tu cuenta de Google (un toque) o con tu correo y una contraseña. Si te pasaron un link de invitación, abrilo primero y después entrá.</span></li>
+      <li><b>Armá tu carta</b><span>Cargá tu nombre, posición, foto, apodo, número y el club del que sos hincha. También te ponés una autoevaluación en los seis atributos: es tu punto de partida.</span></li>
+      <li><b>Sumate a tu comunidad</b><span>Abrí el link de invitación que te mandó el admin, o en Inicio tocá <span class="k">Unirme con un link</span> y pegalo.</span></li>
+      <li><b>¿Ya te cargaron con tu nombre?</b><span>Si el admin te cargó antes de que tuvieras cuenta, entrá a <span class="k">Miembros</span>, abrí tu perfil y tocá <span class="k">Reclamar este perfil</span> (¿Sos vos?). El owner lo aprueba y te quedás con tus votos, partidos y estadísticas.</span></li>
+    </ol>
+  </section>
+
+  <!-- Jugadores -->
+  <section class="big pb" id="jugadores">
+    <div class="sec-head">
+      <span class="kicker">Para jugadores</span>
+      <h2>Tu día a día en la app</h2>
+      <p>Dentro de cada comunidad tenés cinco pestañas: <b>Partidos</b>, <b>Chat</b>, <b>Ranking</b>, <b>Votar</b> y <b>Miembros</b>.</p>
+    </div>
+    <div class="grid two">
+
+      <article class="topic">
+        <h3><span class="ic">🏠</span>Tu Inicio</h3>
+        <p>Al abrir la app ves lo más importante de un vistazo.</p>
+        <ul class="dots">
+          <li><b>Tu próximo partido</b> de todas tus comunidades, con cuenta regresiva y si ya estás anotado.</li>
+          <li><b>Tu carta</b> y los accesos rápidos: anotarte, crear partido y ver el ranking.</li>
+          <li><b>Tus comunidades</b>, y botones para crear una o unirte con un link.</li>
+          <li>El <b>menú de tu foto</b> (arriba a la derecha): perfil, tema y colores, instalar la app, avisos, este tutorial y esta guía.</li>
+        </ul>
+      </article>
+
+      <article class="topic">
+        <h3><span class="ic">⭐</span>Votar a tus compañeros</h3>
+        <p>Así se arma el OVR de cada carta.</p>
+        <ol class="steps">
+          <li>Entrá a la pestaña <span class="k">Votar</span>. Vas de a un compañero.</li>
+          <li>Mové cada barra de 1 a 99 según cómo lo ves.</li>
+          <li>Tocá <span class="k">Guardar y seguir</span>. Podés cambiar tu voto cuando quieras.</li>
+        </ol>
+        <ul class="attrs" aria-label="Atributos"><li>RIT ritmo</li><li>TIR tiro</li><li>PAS pase</li><li>REG regate</li><li>DEF defensa</li><li>FIS físico</li></ul>
+        <p class="tip"><b>OVR</b> es el promedio de los seis atributos con los votos del grupo. Por encima de 75 la carta es de oro, desde 65 de plata y el resto de bronce. Votá con honestidad.</p>
+      </article>
+
+      <article class="topic">
+        <h3><span class="ic">✅</span>Anotarte a un partido</h3>
+        <ol class="steps">
+          <li>En <span class="k">Partidos</span> abrí la convocatoria.</li>
+          <li>Tocá <span class="k">Anotarme</span>. Si ya no hay cupos, quedás en la lista de espera.</li>
+          <li>Si alguien se baja, entrás solo desde la lista de espera y te avisamos.</li>
+          <li>Si no podés ir, tocá <span class="k">Bajarme</span> con tiempo para que entre otro.</li>
+        </ol>
+        <p class="tip">Podés agendarlo en Google Calendar o con un archivo <b>.ics</b> (te avisa 1 hora antes) y compartir la convocatoria por WhatsApp. Si faltás sin avisar, el admin puede suspenderte para el próximo partido.</p>
+      </article>
+
+      <article class="topic">
+        <h3><span class="ic">⚖️</span>Equipos parejos</h3>
+        <p>Con la lista armada, el admin toca <span class="k">Armar equipos</span> y la app propone varias opciones equilibradas según el nivel de cada uno. Cuando elige una, te llega el aviso y ves en la convocatoria tu equipo (A o B) y la cancha con la formación. Cada equipo puede tener su <b>capitán</b>.</p>
+      </article>
+
+      <article class="topic">
+        <h3><span class="ic">📡</span>Partido en vivo</h3>
+        <p>Cuando el admin inicia el partido en vivo, todos ven el cronómetro, el marcador y la línea de tiempo con los goles, faltas y tarjetas con su minuto, actualizándose al instante. Abrí el partido desde Inicio o desde la pestaña Partidos.</p>
+      </article>
+
+      <article class="topic">
+        <h3><span class="ic">🏆</span>Después del partido</h3>
+        <ol class="steps">
+          <li><b>Calificá a tu equipo:</b> poné de 1 a 10 cómo jugó cada compañero.</li>
+          <li><b>Votá la figura (MVP):</b> votan los que jugaron.</li>
+          <li><b>Tercer tiempo 🍺:</b> cualquiera puede cargar cuántas se tomó cada uno.</li>
+        </ol>
+      </article>
+
+      <article class="topic">
+        <h3><span class="ic">💸</span>Cuotas de la cancha</h3>
+        <p>Si el admin cargó lo que sale la cancha, en el partido ves el total, lo que te toca y quién ya pagó. Cuando transferís, tocá <span class="k">Ya pagué</span>. En <span class="k">Partidos</span> ves cuánto debés de partidos anteriores.</p>
+      </article>
+
+      <article class="topic">
+        <h3><span class="ic">📊</span>Ranking</h3>
+        <p>En la pestaña <span class="k">Ranking</span> alternás entre seis vistas:</p>
+        <ul class="attrs" aria-label="Vistas del ranking"><li>OVR</li><li>Goleadores</li><li>Asistencias</li><li>Tarjetas y faltas</li><li>Figura</li><li>Presentismo</li></ul>
+        <p style="margin-top:8px">Si te quedan compañeros sin votar, arriba te lo avisa.</p>
+      </article>
+
+      <article class="topic">
+        <h3><span class="ic">🪪</span>Tu ficha y logros</h3>
+        <p>Entrá a tu perfil desde Miembros o el ranking para ver tus estadísticas, la evolución de tu OVR, tus <b>logros</b>, tu presentismo y las <b>duplas</b> con las que mejor te va. Con <span class="k">📤 Compartir ficha</span> armás tu carta como imagen para tus historias. Para editar tu foto, posición, apodo o club: menú de tu foto → <span class="k">Editar perfil</span>.</p>
+      </article>
+
+      <article class="topic">
+        <h3><span class="ic">💬</span>Chat y encuestas</h3>
+        <p>Cada comunidad tiene su chat. Con el botón de <b>encuesta</b> (al lado de donde escribís) armás una pregunta con varias opciones, y si querés permitís elegir más de una, para definir día, hora o quién se anota.</p>
+      </article>
+
+      <article class="topic">
+        <h3><span class="ic">🇦🇷</span>Fútbol argentino</h3>
+        <p>En Inicio, tocá <span class="k">Fútbol argentino</span> para ver la tabla, los partidos y las noticias de la Liga. El club del que sos hincha aparece con su escudo en tu carta.</p>
+      </article>
+
+      <article class="topic">
+        <h3><span class="ic">🎨</span>Tema y colores</h3>
+        <p>Menú de tu foto → <span class="k">Tema y colores</span>. Elegí modo automático, claro u oscuro y una paleta de colores (hasta podés usar los de tu club). Se guarda en ese dispositivo.</p>
+      </article>
+
+      <article class="topic wide">
+        <h3><span class="ic">🔔</span>Avisos e instalar la app</h3>
+        <div class="grid two" style="margin-top:6px">
+          <div>
+            <b>Activar los avisos</b>
+            <ol class="steps">
+              <li>Menú de tu foto → <span class="k">Avisos</span>.</li>
+              <li>Tocá <span class="k">Activar avisos</span> y aceptá el permiso.</li>
+              <li>Elegí cuáles querés: partidos nuevos, recordatorios, equipos armados, chat y el resumen semanal.</li>
+            </ol>
+          </div>
+          <div>
+            <b>Instalarla en el celular</b>
+            <ul class="dots">
+              <li><b>Android (Chrome):</b> menú ⋮ → <span class="k">Instalar app</span> o <span class="k">Agregar a la pantalla principal</span>.</li>
+              <li><b>iPhone (Safari):</b> botón Compartir → <span class="k">Agregar a inicio</span>.</li>
+              <li><b>Compu:</b> el ícono de instalar en la barra de direcciones.</li>
+            </ul>
+          </div>
+        </div>
+        <p class="tip">En iPhone los avisos solo funcionan con la app instalada y abierta desde su ícono. Si abriste el link dentro de WhatsApp o Instagram, abrilo en Chrome o Safari para instalarla.</p>
+      </article>
+
+    </div>
+  </section>
+
+  <!-- Admins -->
+  <section class="big pb" id="admins">
+    <div class="sec-head">
+      <span class="kicker">Para owner y admin</span>
+      <h2>Organizá tu grupo</h2>
+      <p>De crear la comunidad a cerrar el partido y cobrar la cancha. Los pasos marcados <span class="who">Owner</span> los hace solo quien creó la comunidad; el resto lo puede hacer cualquier admin.</p>
+    </div>
+    <div class="grid two">
+
+      <article class="topic">
+        <h3><span class="ic">🏟️</span>1. Crear la comunidad</h3>
+        <ol class="steps">
+          <li>En Inicio tocá <span class="k">+ Crear comunidad</span> y ponele nombre (por ejemplo "Fútbol de los jueves").</li>
+          <li>Te lleva al asistente <b>Armá tu grupo</b>, en tres pasos: jugadores, canchas e invitación. Podés saltear cualquiera y volver después.</li>
+        </ol>
+      </article>
+
+      <article class="topic">
+        <h3><span class="ic">📝</span>2. Cargar jugadores</h3>
+        <ol class="steps">
+          <li>En <span class="k">Miembros</span> tocá <span class="k">➕ Agregar jugadores</span>.</li>
+          <li>Cargalos de a uno o pegá la lista del grupo de WhatsApp, <b>un nombre por línea</b>.</li>
+          <li>Todavía no necesitan tener la app: ya pueden anotarse, jugar y sumar estadísticas. Cuando entren, reclaman su ficha.</li>
+        </ol>
+        <p class="tip">Podés corregir el nombre o la posición de un jugador sin cuenta con <b>Editar</b>, o sacarlo con <b>Sacar</b>.</p>
+      </article>
+
+      <article class="topic">
+        <h3><span class="ic">🔗</span>3. Invitar al grupo</h3>
+        <ol class="steps">
+          <li>En la tarjeta <span class="k">Invitar</span> tocá <span class="k">Compartir</span> (WhatsApp) o <span class="k">Copiar link</span>.</li>
+          <li>Si el link se filtró o venció, elegí cuándo vence el nuevo (nunca, 24 horas o 7 días) y tocá <span class="k">Regenerar link</span>.</li>
+        </ol>
+      </article>
+
+      <article class="topic">
+        <h3><span class="ic">📍</span>4. Canchas</h3>
+        <p>Guardá dónde juegan para elegirla con un toque en cada partido: pegá el link de Google Maps y el nombre y la ubicación se completan solos. En cada partido se ve el mapa, cómo llegar y el pronóstico del clima. Las administrás desde <span class="k">Partidos → Canchas</span>.</p>
+      </article>
+
+      <article class="topic">
+        <h3><span class="ic">📣</span>5. Convocar un partido</h3>
+        <ol class="steps">
+          <li>En <span class="k">Partidos</span> tocá <span class="k">+ Nueva convocatoria</span>.</li>
+          <li>Completá título, fecha y hora, cancha y cupos (de 2 a 40). Opcional: el costo de la cancha.</li>
+          <li>Se manda un aviso a los miembros y la lista se arma sola a medida que se anotan.</li>
+        </ol>
+        <p class="tip">En <b>Administrar</b> podés sumar jugadores a mano, editar el partido, <b>cerrar la lista</b>, reabrirla o cancelarlo. Si subís los cupos, entran los primeros de la lista de espera.</p>
+      </article>
+
+      <article class="topic">
+        <h3><span class="ic">📅</span>6. Partido fijo semanal</h3>
+        <p>¿Juegan siempre el mismo día? En Partidos buscá <span class="k">📅 Partido fijo</span> y tocá <span class="k">Configurar</span>.</p>
+        <ol class="steps">
+          <li>Elegí título, día, hora, cancha, cupos y costo.</li>
+          <li>Indicá cuántos días antes se abre la convocatoria (de 0 a 13).</li>
+          <li>Desde ahí la convocatoria se crea sola cada semana. Podés <b>pausarlo</b> o borrarlo cuando quieras.</li>
+        </ol>
+      </article>
+
+      <article class="topic">
+        <h3><span class="ic">⚖️</span>7. Armar los equipos</h3>
+        <ol class="steps">
+          <li>Con dos o más anotados, en <b>Administrar</b> tocá <span class="k">Armar equipos</span>.</li>
+          <li>Mirá las opciones con ‹ y ›: cada una muestra el OVR promedio de los dos equipos.</li>
+          <li>Tocá <span class="k">Usar estos equipos</span>. Si cambia la lista, usá <span class="k">Rearmar equipos</span>.</li>
+        </ol>
+        <p class="tip">Cada equipo puede tener su capitán: lo elige un admin o cualquiera de ese equipo.</p>
+      </article>
+
+      <article class="topic">
+        <h3><span class="ic">📡</span>8. Partido en vivo</h3>
+        <ol class="steps">
+          <li>Armá los equipos antes, así el marcador suma solo.</li>
+          <li>Desde 2 horas antes de la hora del partido, tocá <span class="k">Iniciar partido en vivo</span>. Arranca el reloj.</li>
+          <li>Con <b>un toque</b> por jugador cargás <span class="k">⚽ gol</span>, <span class="k">👟 asistencia</span>, <span class="k">🦵 falta</span>, <span class="k">🟨 amarilla</span> o <span class="k">🟥 roja</span>, con su minuto. <span class="k">↶ Deshacer</span> borra el último.</li>
+          <li>Controlás el reloj con <span class="k">Pausar</span>, <span class="k">Reanudar</span>, <span class="k">2º tiempo</span> y <span class="k">Terminar</span>.</li>
+          <li>Al terminar, confirmá el marcador (se calcula con los goles; si no es el real, corregilo) y queda guardado el resultado.</li>
+        </ol>
+        <p class="tip">Todos los del grupo ven el cronómetro y el marcador en tiempo real desde su celular.</p>
+      </article>
+
+      <article class="topic">
+        <h3><span class="ic">🧾</span>9. Resultado a mano o partido ya jugado</h3>
+        <ul class="dots">
+          <li><b>Sin usar el modo en vivo:</b> ya empezado el partido, en <span class="k">Cargar resultado</span> poné los goles de cada equipo. Después cargás goles, asistencias, faltas y tarjetas con − y +. Lo podés corregir cuando quieras.</li>
+          <li><b>Un partido que no se convocó en la app:</b> en Partidos tocá <span class="k">Cargar partido jugado</span> (carga rápida). Marcás quiénes jugaron en cada equipo, el resultado y los eventos.</li>
+        </ul>
+      </article>
+
+      <article class="topic">
+        <h3><span class="ic">🚫</span>10. Ausentes y suspensiones</h3>
+        <p>Cuando el partido empieza, marcá <span class="k">Ausente</span> a quien no vino. Si querés, tocá <span class="k">Suspender</span> y queda afuera del próximo partido. La suspensión se levanta con <span class="k">Levantar</span>. El presentismo de cada uno se ve en su perfil y en el ranking.</p>
+      </article>
+
+      <article class="topic">
+        <h3><span class="ic">💸</span>11. Cuota de la cancha</h3>
+        <ol class="steps">
+          <li>En el partido, en la tarjeta <b>💸 Cancha</b>, tocá <span class="k">Cargar costo de la cancha</span> y poné el total.</li>
+          <li>Se divide entre los anotados y ves cuánto le toca a cada uno.</li>
+          <li>Cada uno toca <span class="k">Ya pagué</span> o vos marcás <span class="k">Pagó</span>. La barra muestra cuánto falta juntar.</li>
+        </ol>
+      </article>
+
+      <article class="topic">
+        <h3><span class="ic">👑</span>12. Roles y miembros <span class="who admin" style="margin:0 0 0 auto">Owner</span></h3>
+        <ul class="dots">
+          <li>En Miembros, <span class="k">Hacer admin</span> o <span class="k">Quitar admin</span>.</li>
+          <li>Aprobá o rechazá los pedidos de <b>"¿Sos vos?"</b> de quienes reclaman un jugador que cargaste.</li>
+          <li><span class="k">Transferir la comunidad</span> le pasa el rol de owner a otro miembro (vos quedás como admin).</li>
+          <li><span class="k">Eliminar comunidad</span> borra todo y no se puede deshacer: te pide escribir el nombre para confirmar.</li>
+        </ul>
+      </article>
+
+      <article class="topic soon wide">
+        <h3><span class="ic">🗓️</span>Temporadas y campeones <span class="who admin" style="margin:0 0 0 auto">Owner / admin</span></h3>
+        <p>En <b>Miembros → Temporadas</b> empezás una temporada (por ejemplo "Apertura 2026") con su fecha de inicio. Mientras dura, el ranking se puede ver por temporada o en el histórico. Al tocar <b>Cerrar temporada</b> la app calcula los campeones: 🥇 goleador, 🎯 asistidor, ⭐ figura, 📅 más presente y 🤝 fair play. Quedan en la vitrina de Campeones del ranking y como trofeos en la ficha de cada jugador.</p>
+      </article>
+
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="big pb" id="faq">
+    <div class="sec-head">
+      <span class="kicker">Dudas</span>
+      <h2>Preguntas frecuentes</h2>
+    </div>
+    <div class="faq">
+      <div><h3>¿Es gratis? ¿Tiene publicidad?</h3><p>Es gratis y no tiene publicidad. Entrás con Google o con tu correo y usás todo sin pagar.</p></div>
+      <div><h3>¿Cómo se calcula el OVR?</h3><p>Es el promedio de los seis atributos (ritmo, tiro, pase, regate, defensa y físico) con los votos de tus compañeros. Cuantos más te voten, más parejo es el número.</p></div>
+      <div><h3>¿Puedo estar en más de una comunidad?</h3><p>Sí. Tu Inicio muestra el próximo partido de todas, y entrás a cada una desde "Tus comunidades".</p></div>
+      <div><h3>No tengo a todos mis amigos con la app, ¿sirve igual?</h3><p>Sí. El admin los carga con nombre y posición, juegan y suman estadísticas. Cuando cada uno entra, reclama su ficha y se queda con todo su historial.</p></div>
+      <div><h3>El link de invitación no funciona</h3><p>Puede haber vencido o haber sido regenerado. Pedile al admin que te mande uno nuevo desde la tarjeta Invitar.</p></div>
+      <div><h3>Quedé en lista de espera, ¿qué hago?</h3><p>Nada: si alguien se baja o se suben los cupos, entrás solo y te llega un aviso. Mientras, podés ver tu lugar en la lista.</p></div>
+      <div><h3>No me llegan los avisos</h3><p>Activalos en el menú de tu foto → Avisos. Si los bloqueaste, habilitalos en los ajustes del navegador (candadito junto a la dirección → Notificaciones). En iPhone primero instalá la app desde Safari.</p></div>
+      <div><h3>Me equivoqué cargando un resultado o un gol</h3><p>El admin puede corregirlo: en el partido, <b>Corregir resultado</b> y los botones − / + de goles, faltas y tarjetas. En el modo en vivo, la × de la línea de tiempo borra un evento.</p></div>
+      <div><h3>¿Cómo salgo de una comunidad?</h3><p>En la pestaña Miembros, abajo de todo, tocá <b>Salir de la comunidad</b>. Para volver vas a necesitar un link de invitación.</p></div>
+      <div><h3>¿Se puede usar desde la compu?</h3><p>Sí, funciona en el navegador de la compu, en Android y en iPhone, con la misma cuenta.</p></div>
+      <div><h3>¿Cómo borro mi cuenta o reporto un problema?</h3><p>Escribinos a <a href="mailto:aebief@gmail.com">aebief@gmail.com</a> y lo resolvemos.</p></div>
+    </div>
+  </section>
+
+</div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>Ranking Fútbol · Guía actualizada el 10 de noviembre de 2026</span>
+    <span class="no-print"><a href="/">Volver a la app</a> · <a href="/terminos.html">Términos</a> · <a href="/privacidad.html">Privacidad</a></span>
+  </div>
+</footer>
+
+<script>
+document.getElementById('pdf').addEventListener('click', function () { window.print(); });
+</script>
+</body>
+</html>
