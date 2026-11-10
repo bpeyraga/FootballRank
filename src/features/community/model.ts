@@ -1,6 +1,6 @@
 // Comunidad: tipos y reglas puras (sin Supabase ni Preact). Lo de cargar jugadores está en players.ts.
 
-export interface Community { id: string; name: string; slug: string; invite_code: string; owner_id: string; invite_expires_at?: string | null; photo_url?: string | null }
+export interface Community { id: string; name: string; slug: string; invite_code: string; owner_id: string; invite_expires_at?: string | null; photo_url?: string | null; logo_url?: string | null }
 export type Role = 'owner' | 'admin' | 'member';
 
 /** Un pedido de "Soy yo" sobre un jugador cargado a mano. */

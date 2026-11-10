@@ -22,7 +22,7 @@ export function isAppAdmin(uid: string): Promise<boolean> {
 
 /** Mis comunidades, por nombre. */
 export async function loadMyCommunities(meId: string): Promise<MyComm[]> {
-  const data = must(await sb.from('memberships').select('role, community:communities(id,name,slug,photo_url)').eq('profile_id', meId));
+  const data = must(await sb.from('memberships').select('role, community:communities(id,name,slug,photo_url,logo_url)').eq('profile_id', meId));
   const list = ((data ?? []) as any[]).filter(r => r.community) as MyComm[];
   return list.sort((a, b) => a.community.name.localeCompare(b.community.name));
 }

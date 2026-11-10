@@ -148,7 +148,7 @@ export function MvpVote({ canVote, meId, mine, tally, players, busy, vote }: {
             <b class={t === 'A' ? 'ta' : 'tb'} style="font-size:.85rem">Equipo {t}</b>
             {ps.map(({ p }) => (
               <button type="button" class={`row rank-row mvp-opt${sel === p.id ? ' on' : ''}`} onClick={() => setSel(p.id)} aria-pressed={sel === p.id}>
-                <Avatar p={p} size={28} /><span class="ellipsis" style="flex:1;text-align:left">{displayName(p)}</span>
+                <Avatar p={p} size={28} zoom={false} /><span class="ellipsis" style="flex:1;text-align:left">{displayName(p)}</span>
                 {tally.get(p.id) ? <span class="muted">{tally.get(p.id)}</span> : null}
                 <span aria-hidden="true">{sel === p.id ? '🏆' : ''}</span>
               </button>

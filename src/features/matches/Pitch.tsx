@@ -29,7 +29,7 @@ export function Pitch({ placed, href, showAlts = false, captainId }: {
           <>
             <span class={`pc-card ${tier(p.ovr)}`}>
               <span class="pc-top"><b>{p.ovr ?? '—'}</b><i>{s.slot.pos}</i></span>
-              <Avatar p={p.profile} size={34} />
+              <Avatar p={p.profile} size={34} zoom={false} />
               {p.profile.shirt_number && <span class="pc-num">#{p.profile.shirt_number}</span>}
               {p.id === captainId && <span class="pc-cap" title="Capitán">C</span>}
             </span>

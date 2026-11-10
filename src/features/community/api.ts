@@ -84,3 +84,25 @@ export async function setCommunityPhoto(communityId: string, next: string | null
   const old = previous?.split('/communities/')[1]?.split('?')[0];
   if (old) await sb.storage.from('communities').remove([old]);
 }
+
+// ---------- Escudo ----------
+
+/** Recorta al centro en cuadrado (hasta 320 px) y la sube como JPEG: va dentro de la forma del escudo. Devuelve el link público. */
+export async function uploadCommunityLogo(communityId: string, file: File): Promise<string> {
+  const img = await createImageBitmap(file);
+  const side = Math.min(img.width, img.height), out = Math.min(320, side);
+  const c = document.createElement('canvas');
+  c.width = c.height = out;
+  c.getContext('2d')!.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, out, out);
+  const blob = await new Promise<Blob>((ok, ko) => c.toBlob(b => (b ? ok(b) : ko(new Error('No se pudo procesar la imagen'))), 'image/jpeg', 0.88));
+  const path = `${communityId}/logo-${crypto.randomUUID()}.jpg`;
+  must(await sb.storage.from('communities').upload(path, blob, { contentType: 'image/jpeg' }));
+  return sb.storage.from('communities').getPublicUrl(path).data.publicUrl;
+}
+
+/** Cambia (o con null quita) la imagen del escudo y borra la anterior del almacenamiento (si eso falla, no importa). */
+export async function setCommunityLogo(communityId: string, next: string | null, previous: string | null) {
+  await rpc('set_community_logo', { p_community: communityId, p_url: next });
+  const old = previous?.split('/communities/')[1]?.split('?')[0];
+  if (old) await sb.storage.from('communities').remove([old]);
+}

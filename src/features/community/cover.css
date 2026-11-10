@@ -42,3 +42,16 @@
   .cover-actions{top:16px;right:18px}
 }
 @media (min-width:1200px){.cover{height:340px}}
+
+/* Imagen del escudo (dentro de la misma forma) y botón para editarla (owner/admin) */
+.cover-crest.has-logo{background-size:cover;background-position:center;background-repeat:no-repeat}
+.cover-crest-btn{position:relative;flex:none;display:block;padding:0;border:0;background:none;cursor:pointer;border-radius:6px}
+.cover-crest-btn:focus-visible{outline:2px solid #fff;outline-offset:3px}
+.cover-crest-edit{position:absolute;right:-6px;bottom:-4px;width:20px;height:20px;display:grid;place-items:center;border-radius:50%;
+  background:#fff;color:#1d1d1d;font-size:.7rem;text-shadow:none;box-shadow:0 1px 4px rgba(0,0,0,.4)}
+.cover.compact .cover-crest-edit{width:16px;height:16px;font-size:.6rem;right:-5px;bottom:-3px}
+.logo-sheet{display:grid;gap:12px;justify-items:center;text-align:center;padding:4px 0 8px}
+.logo-sheet .btn{width:100%}
+.logo-sheet .err{margin:0}
+.cover-crest.logo-preview{width:96px;height:108px;font-size:2rem;padding-bottom:16px}
+.btn.disabled{opacity:.6;pointer-events:none}
