@@ -11,16 +11,10 @@ import { countdown, slotsLine } from './nextMatch';
 import { fmtDate as when, initials } from '../../shared/text';
 import { signOut } from '../auth/api';
 import { createCommunity } from './api';
-import { ROLE, inviteCode, quickActions, tierOf, type Comm } from './model';
+import { ROLE, inviteCode, quickActions, tierOf } from './model';
 import { useHome } from './useHome';
 import { useTour } from './useTour';
 import { ZoneEntry } from '../zone/ZoneEntry';
-
-/** Escudo de la comunidad: la imagen del escudo si la cargaron; si no, la portada; si no, las iniciales. */
-function CommCrest({ c }: { c: Comm }) {
-  const img = c.logo_url || c.photo_url;
-  return <span class={`comm-crest${img ? ' photo' : ''}`} style={`--h:${hue(c.id)}${img ? `;background-image:url("${img}")` : ''}`}>{initials(c.name)}</span>;
-}
 
 const Chev = () => <svg class="chev" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>;
 const QIco = ({ d }: { d: string }) => (
@@ -83,7 +77,7 @@ export function Home({ me }: { me: Profile }) {
       <header class="home-top">
         <div class="brand"><img src="/icon.png" width={28} height={28} alt="" /><b>Ranking Fútbol</b></div>
         <details class="menu" ref={menu}>
-          <summary aria-label="Menú de la cuenta"><Avatar p={me} size={36} zoom={false} /></summary>
+          <summary aria-label="Menú de la cuenta"><Avatar p={me} size={36} /></summary>
           <div class="menu-pop">
             <div class="menu-who"><b class="ellipsis">{displayName(me)}</b><span class="muted">{posLine(me)}</span></div>
             <a href="#/perfil">Editar perfil</a>
@@ -135,7 +129,7 @@ export function Home({ me }: { me: Profile }) {
           <b class="nx-title ellipsis">{hero.title}</b>
           <div class="nx-meta">
             <span class="nx-comm">
-              <CommCrest c={heroComm.community} />
+              <span class={`comm-crest${heroComm.community.photo_url ? ' photo' : ''}`} style={`--h:${hue(heroComm.community.id)}${heroComm.community.photo_url ? `;background-image:url("${heroComm.community.photo_url}")` : ''}`}>{initials(heroComm.community.name)}</span>
               <span class="ellipsis">{heroComm.community.name}</span>
             </span>
             {hero.location && <span class="nx-place ellipsis">📍 {hero.location}</span>}
@@ -219,7 +213,7 @@ export function Home({ me }: { me: Profile }) {
         const c = r.community, n = next[c.id], h = hue(c.id);
         return (
           <a class="comm" href={`#/c/${c.slug}`}>
-            <CommCrest c={c} />
+            <span class={`comm-crest${c.photo_url ? ' photo' : ''}`} style={`--h:${h}${c.photo_url ? `;background-image:url("${c.photo_url}")` : ''}`}>{initials(c.name)}</span>
             <div class="comm-body">
               <b class="ellipsis">{c.name}</b>
               <span class="muted comm-meta">

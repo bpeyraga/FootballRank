@@ -27,7 +27,7 @@ export function MemberChecklist({ members, picked, onChange, busy, onSubmit }: {
       {members.map(m => (
         <label class={`qm-pick ${m.blocked ? 'off' : ''}`}>
           <input type="checkbox" checked={picked.includes(m.id)} disabled={!!m.blocked || busy} onChange={() => toggle(m.id)} />
-          <Avatar p={m.profile} size={32} zoom={false} />
+          <Avatar p={m.profile} size={32} />
           <span class="ellipsis qm-pick-name">{m.name}{m.blocked && <span class="muted"> ({m.blocked})</span>}</span>
           {m.sub && <span class="muted qm-pick-sub">{m.sub}</span>}
         </label>

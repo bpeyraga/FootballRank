@@ -362,18 +362,3 @@ a{color:var(--accent)}
 @keyframes sheet-bg{from{opacity:0}to{opacity:1}}
 @media (max-width:359px){.composer-box .icon-btn{width:34px}}
 @media (prefers-reduced-motion:reduce){.sheet,.sheet-bg{animation:none}.poll-bar i,.poll-mark,.poll-mark svg{transition:none}}
-
-/* Foto de perfil ampliada (tocando el avatar) */
-.avatar-zoom{cursor:zoom-in}
-.avatar-zoom:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.zoom-bg{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:24px;background:rgba(0,0,0,.82);
-  backdrop-filter:blur(4px);cursor:zoom-out;animation:zoom-fade .15s ease-out}
-.zoom-fig{margin:0;display:grid;gap:12px;justify-items:center}
-.zoom-img{width:min(82vw,82vh,440px);height:min(82vw,82vh,440px);border-radius:50%;object-fit:cover;
-  box-shadow:0 10px 40px rgba(0,0,0,.5);animation:zoom-pop .18s ease-out}
-.zoom-fig figcaption{color:#fff;font:700 1.15rem var(--f-display)}
-.zoom-close{position:absolute;top:14px;right:14px;width:40px;height:40px;border-radius:50%;border:0;cursor:pointer;
-  background:rgba(255,255,255,.16);color:#fff;font-size:1.1rem}
-@keyframes zoom-fade{from{opacity:0}}
-@keyframes zoom-pop{from{transform:scale(.85);opacity:.4}}
-@media (prefers-reduced-motion:reduce){.zoom-bg,.zoom-img{animation:none}}

@@ -7,7 +7,6 @@ import { loadRanking } from '../ranking/api';
 import { Avatar } from '../../shared/ui/Avatar';
 import { Crest } from '../../shared/ui/Crest';
 import { CommunityPhoto } from './CommunityPhoto';
-import { CommunityLogo } from './CommunityLogo';
 import { Matches } from '../matches/MatchesPage';
 import { seenKey } from '../chat/model';
 import { Loading, page } from '../../app/lazy';
@@ -285,7 +284,7 @@ export function Community({ slug, sub, me }: { slug: string; sub: string[]; me: 
         compact={tab !== 'partidos' && tab !== 'miembros'}>
         <a href="#/" class="cover-back">← Comunidades</a>
         <h2 class="cover-title">
-          <CommunityLogo id={c.id} name={c.name} url={c.logo_url ?? null} isAdmin={isAdmin} changed={load} />
+          <span class="cover-crest" aria-hidden="true" style={`--h:${hue(c.id)}`}>{initials(c.name)}</span>
           <span class="cover-name">{c.name}</span>
         </h2>
       </CommunityPhoto>

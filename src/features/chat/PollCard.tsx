@@ -40,7 +40,7 @@ export function PollCard({ poll, byProfile, meId, who, onVote, meta }: {
               <span class="poll-label">{label}</span>
               <span class="poll-side" aria-hidden="true">
                 {voters.length > 0 && (
-                  <span class="poll-av">{voters.slice(0, 3).map(id => <Avatar p={who(id)} size={20} zoom={false} />)}</span>
+                  <span class="poll-av">{voters.slice(0, 3).map(id => <Avatar p={who(id)} size={20} />)}</span>
                 )}
                 <span class="poll-n">{t.counts[i]}</span>
               </span>
