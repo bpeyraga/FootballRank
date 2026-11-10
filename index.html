@@ -1,11 +1,32 @@
 <!doctype html>
-<html lang="es">
+<html lang="es-AR">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Ranking Fútbol</title>
+<title>Ranking Fútbol · Votos estilo FIFA y equipos parejos</title>
+<meta name="description" content="App gratis para tu fútbol 5: se votan estilo FIFA, cada uno tiene su carta, convocás partidos y salen equipos parejos. Sin publicidad.">
+<meta name="robots" content="index,follow,max-image-preview:large">
+<link rel="canonical" href="https://futbol-rank.vercel.app/">
+<meta name="application-name" content="Ranking Fútbol">
+<!-- Vista previa al compartir (WhatsApp, Instagram, X, Facebook); también la usan los links de invitación -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Ranking Fútbol">
+<meta property="og:locale" content="es_AR">
+<meta property="og:url" content="https://futbol-rank.vercel.app/">
+<meta property="og:title" content="Ranking Fútbol · Tu picado, nivel FIFA">
+<meta property="og:description" content="Tus amigos te votan, la app arma tu carta y los equipos salen parejos. Gratis y sin publicidad.">
+<meta property="og:image" content="https://futbol-rank.vercel.app/og.jpg">
+<meta property="og:image:type" content="image/jpeg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Ranking Fútbol: Tu picado, nivel FIFA. Una carta de jugador estilo FIFA con sus atributos.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Ranking Fútbol · Tu picado, nivel FIFA">
+<meta name="twitter:description" content="Tus amigos te votan, la app arma tu carta y los equipos salen parejos. Gratis y sin publicidad.">
+<meta name="twitter:image" content="https://futbol-rank.vercel.app/og.jpg">
 <meta name="theme-color" content="#f1f6f2" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0e1712" media="(prefers-color-scheme: dark)">
+<meta name="format-detection" content="telephone=no">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Ranking Fútbol">
@@ -13,7 +34,36 @@
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" href="/icon.png" type="image/png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="preconnect" href="%VITE_SUPABASE_URL%" crossorigin>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": "https://futbol-rank.vercel.app/#web",
+      "name": "Ranking Fútbol",
+      "url": "https://futbol-rank.vercel.app/",
+      "inLanguage": "es-AR"
+    },
+    {
+      "@type": "WebApplication",
+      "name": "Ranking Fútbol",
+      "url": "https://futbol-rank.vercel.app/",
+      "image": "https://futbol-rank.vercel.app/og.jpg",
+      "description": "App para organizar el fútbol con amigos: votos estilo FIFA, cartas de jugador, convocatorias, equipos parejos, partido en vivo, ranking, temporadas y reserva de canchas.",
+      "applicationCategory": "SportsApplication",
+      "operatingSystem": "Android, iOS, Windows, macOS",
+      "inLanguage": "es-AR",
+      "isAccessibleForFree": true,
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "ARS" }
+    }
+  ]
+}
+</script>
 <script>
 try {
   // Aplica el tema ya resuelto por la app (src/features/theme/theme.ts → bootOf), sin lógica propia, para que no parpadee.
@@ -26,5 +76,11 @@ try {
 } catch (_) {}
 </script>
 </head>
-<body><div id="app"></div><script type="module" src="/src/app/main.tsx"></script></body>
+<body><div id="app"></div><noscript>
+<main style="max-width:680px;margin:0 auto;padding:24px 16px;font:16px/1.55 system-ui,sans-serif">
+<h1>Ranking Fútbol: tu picado, nivel FIFA</h1>
+<p>Tus amigos te votan en ritmo, tiro, pase, regate, defensa y físico, la app arma tu carta y los equipos salen parejos. Convocá partidos, anotate, cargá goles y asistencias, seguí el ranking y las temporadas, y buscá canchas para reservar. Gratis y sin publicidad.</p>
+<p>Para usar la app activá JavaScript. <a href="/como-se-usa.html">Cómo se usa</a> · <a href="/privacidad.html">Privacidad</a> · <a href="/terminos.html">Términos</a></p>
+</main>
+</noscript><script type="module" src="/src/app/main.tsx"></script></body>
 </html>

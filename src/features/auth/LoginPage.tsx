@@ -124,6 +124,7 @@ const AUTH_ERRORS: Record<string, string> = {
   'Invalid login credentials': 'Correo o contraseña incorrectos.',
   'User already registered': 'Ya hay una cuenta con ese correo. Entrá con tu contraseña.',
   'Email not confirmed': 'Todavía no confirmaste el correo. Revisá tu bandeja de entrada.',
+  'Password should be at least 8 characters.': 'La contraseña tiene que tener al menos 8 caracteres.',
 };
 
 /** Alta y entrada con correo y contraseña. Con la sesión iniciada, main.tsx se entera por onAuthStateChange. */
@@ -140,7 +141,7 @@ function EmailAuth({ id = 'ld-email', owner = false }: { id?: string; owner?: bo
     e.preventDefault();
     setErr(''); setMsg('');
     rememberOwner(owner);
-    if (mode === 'up' && pass.length < 6) { setErr('La contraseña tiene que tener al menos 6 caracteres.'); return; }
+    if (mode === 'up' && pass.length < 8) { setErr('La contraseña tiene que tener al menos 8 caracteres.'); return; }
     setBusy(true);
     if (mode === 'in') {
       try { await signInWithPassword(email.trim(), pass); }
@@ -166,7 +167,7 @@ function EmailAuth({ id = 'ld-email', owner = false }: { id?: string; owner?: bo
       )}
       <input type="email" placeholder="Correo" autocomplete="email" required
         value={email} onInput={e => setEmail(e.currentTarget.value)} />
-      <input type="password" placeholder="Contraseña" autocomplete={mode === 'in' ? 'current-password' : 'new-password'} required
+      <input type="password" placeholder={mode === 'up' ? 'Contraseña (mínimo 8)' : 'Contraseña'} autocomplete={mode === 'in' ? 'current-password' : 'new-password'} required
         value={pass} onInput={e => setPass(e.currentTarget.value)} />
       <button class="ld-email-go" disabled={busy}>
         {busy ? 'Un momento…' : mode === 'in' ? 'Entrar' : 'Crear cuenta'}
@@ -383,6 +384,7 @@ export function Login() {
         <div class="ld-in">
           <span><a href="/como-se-usa.html">Cómo se usa</a> · <button class="ld-foot-link" onClick={() => scrollTo('ld-duenios')}>Para dueños de cancha</button> · <a href="/terminos.html">Términos</a> · <a href="/privacidad.html">Privacidad</a></span>
           <p>Al entrar aceptás los términos y la política de privacidad.</p>
+          <p>Ranking Fútbol no está afiliada a FIFA, EA Sports, la AFA ni a ningún club.</p>
         </div>
       </footer>
     </div>
