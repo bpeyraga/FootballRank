@@ -4,9 +4,10 @@ import { go } from '../../app/router';
 import { displayName, ovr, posLine, type Profile, type Stats } from '../../shared/supabase';
 import { balance, type BPlayer } from './balance';
 import { Avatar } from '../../shared/ui/Avatar';
-import { lineup } from './formation';
-import { Pitch, type PitchPlayer } from './Pitch';
-import type { Ranked } from '../ranking/ranking';
+import type { PitchPlayer } from './Pitch';
+import { TeamLineup } from './TeamLineup';
+import { ManualTeams } from './ManualTeams';
+import { gkOf, type Ranked } from '../ranking/ranking';
 import { addedNotice, editNotice, fmtDate, roster, statusLabel } from './model';
 import { useMatch } from './useMatch';
 import { LivePanel } from './LivePanel';
@@ -31,6 +32,7 @@ export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: str
   const { m, su, susp, scores, myRatings, mvp, events, busy } = x;
   const [splits, setSplits] = useState<ReturnType<typeof balance<BP>> | null>(null);
   const [opt, setOpt] = useState(0);
+  const [manual, setManual] = useState<Record<string, 'A' | 'B' | null> | null>(null); // armado a mano abierto (con el punto de partida)
   const [picked, setPicked] = useState<string[]>([]); // miembros tildados para anotar de una
   const [res, setRes] = useState({ a: '', b: '' });
   const [editing, setEditing] = useState(false);
@@ -88,13 +90,24 @@ export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: str
   const toBP = (pid: string): BP => {
     const r = byId.get(pid)!;
     const attrs = r?.votes ?? r?.base ?? NEUTRAL;
-    return { id: pid, pos: r?.profile.pos ?? 'MED', ovr: ovr(attrs), attrs, r };
+    const pos = r?.profile.pos ?? 'MED', gk = gkOf(r);
+    // OVR ponderado por su posición (para ARQ cuenta el 🧤, que puede venir de votos o de la autoevaluación)
+    return { id: pid, pos, ovr: ovr({ ...attrs, arq: gk }, pos), attrs: { ...attrs, arq: gk }, gk, r };
   };
-  const doBalance = () => { setSplits(balance(inList.map(s => toBP(s.profile_id)))); setOpt(0); };
+  const doBalance = () => { setSplits(balance(inList.map(s => toBP(s.profile_id)))); setOpt(0); setManual(null); };
   const saveTeams = async () => {
     const s = splits![opt];
     if (await x.saveTeams(s.A.map(p => p.id), s.B.map(p => p.id))) setSplits(null);
   };
+  // Armar a mano: arranca con los equipos de una opción automática, o con los que ya están guardados.
+  const openManual = (from?: { A: BP[]; B: BP[] }) => {
+    const init: Record<string, 'A' | 'B' | null> = {};
+    for (const s of inList) init[s.profile_id] = from ? null : s.team;
+    from?.A.forEach(p => { init[p.id] = 'A'; });
+    from?.B.forEach(p => { init[p.id] = 'B'; });
+    setManual(init); setSplits(null);
+  };
+  const saveManual = async (a: string[], b: string[]) => { if (await x.saveTeams(a, b)) setManual(null); };
 
   const avgOvr = (ps: BP[]) => ps.length ? Math.round(ps.reduce((t, p) => t + p.ovr, 0) / ps.length) : 0;
   const evHas = (pid: string) => (events ?? []).some(e => e.profile_id === pid); // un ausente con goles cargados sigue apareciendo
@@ -146,15 +159,12 @@ export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: str
 
   const Team = ({ t, label }: { t: 'A' | 'B'; label: string }) => {
     const ps = inList.filter(s => s.team === t);
-    const lu = lineup<PitchPlayer>(ps.map(s => { const b = toBP(s.profile_id); return { id: b.id, pos: b.pos, ovr: b.ovr, profile: prof(s.profile_id) }; }));
+    const pitch: PitchPlayer[] = ps.map(s => { const b = toBP(s.profile_id); return { id: b.id, pos: b.pos, ovr: b.ovr, gk: b.gk, stats: b.attrs, profile: prof(s.profile_id) }; });
     return (
       <div class={`card team ${t}`}>
-        <div class="row" style="justify-content:space-between">
-          <h3>{label}</h3>
-          <span class="muted">OVR {avgOvr(ps.map(s => toBP(s.profile_id)))}</span>
-        </div>
-        {ps.length > 0 && <div style="margin:10px 0 6px"><Pitch placed={lu.placed} captainId={ps.find(s => s.captain)?.profile_id} /></div>}
-        {lu.bench.length > 0 && <p class="muted pitch-bench">Suplentes: {lu.bench.map(b => displayName(b.profile)).join(', ')}</p>}
+        <TeamLineup key={t} title={label} players={pitch} saved={new Map(ps.map(s => [s.profile_id, s.slot ?? null]))}
+          formation={t === 'A' ? m.formation_a : m.formation_b} captainId={ps.find(s => s.captain)?.profile_id}
+          canEdit={isAdmin && m.status !== 'cancelled'} busy={busy} onSave={(f, slots) => x.setLineup(t, f, slots)} />
         {ps.map(s => PlayerRow({ pid: s.profile_id, right: <>{captainBtn(s.profile_id)}{actions(s.profile_id)}</> }))}
       </div>
     );
@@ -296,6 +306,7 @@ export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: str
           )}
           <div class="row" style="flex-wrap:wrap">
             {inList.length >= 2 && <button class="btn primary" disabled={busy} onClick={doBalance}>{hasTeams ? 'Rearmar equipos' : 'Armar equipos'}</button>}
+            {inList.length >= 2 && <button class="btn" disabled={busy} onClick={() => (manual ? setManual(null) : openManual())}>{manual ? 'Cerrar armado a mano' : 'Armar a mano'}</button>}
             <button class="btn" disabled={busy} onClick={() => setEditing(e => !e)}>{editing ? 'Cerrar edición' : 'Editar partido'}</button>
             {!started && (m.status === 'open'
               ? <button class="btn" disabled={busy} onClick={() => x.setStatus('closed')}>Cerrar lista</button>
@@ -328,11 +339,18 @@ export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: str
             </div>
             <div class="row" style="margin-top:12px">
               <button class="btn primary" style="flex:1" disabled={busy} onClick={saveTeams}>Usar estos equipos</button>
+              <button class="btn" disabled={busy} onClick={() => openManual(s)}>Ajustar a mano</button>
               <button class="btn" onClick={() => setSplits(null)}>Cerrar</button>
             </div>
           </div>
         );
       })()}
+
+      {isAdmin && editable && manual && (
+        <ManualTeams key={Object.entries(manual).map(e => e.join(':')).join(',')} initial={manual} busy={busy}
+          players={inList.map(s => { const b = toBP(s.profile_id); return { id: b.id, profile: prof(s.profile_id), pos: b.pos, ovr: b.ovr, gk: b.gk ?? null }; })}
+          onSave={saveManual} onCancel={() => setManual(null)} />
+      )}
 
       {/* Resultado: solo admins (owner incluido), una vez empezado (o en vivo: el servidor deja cerrarlo aunque lo hayan arrancado antes de la hora).
           Mientras el panel en vivo está, el resultado se guarda desde ahí. */}

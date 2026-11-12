@@ -234,5 +234,7 @@ export function useMatch(id: string, meId: string) {
     rate: (sc: Record<string, number>) => run(() => api.rateTeammates(id, sc), '¡Gracias por calificar!'),
     voteMvp: (pid: string) => run(async () => { await api.voteMvp(id, pid); await loadMvp(); }, '¡Voto de MVP guardado!'),
     saveTeams: (a: string[], b: string[]) => run(() => api.saveTeams(id, a, b), 'Equipos guardados'),
+    setLineup: (team: 'A' | 'B', formation: string | null, slots: Record<string, number>) =>
+      run(() => api.setLineup(id, team, formation, slots), `Formación del equipo ${team} guardada`),
   };
 }

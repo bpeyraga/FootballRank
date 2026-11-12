@@ -18,6 +18,13 @@ describe('buildRanking', () => {
     expect(out[1]).toMatchObject({ ovr: 60, nVotes: 2, mine: st(70), base: null });
     expect(out[2]).toMatchObject({ ovr: null, nVotes: 0, votes: null, base: st(55), mine: null });
   });
+  it('el OVR sale ponderado por la posición de cada uno (no del promedio simple)', () => {
+    const del = { ...p('d', 'Delan'), pos: 'DEL' as const }, def = { ...p('f', 'Defen'), pos: 'DEF' as const };
+    const stats = { rit: 80, tir: 85, pas: 70, reg: 80, def: 30, fis: 65 }; // promedio simple 68
+    const out = buildRanking([{ role: 'member', profile: def }, { role: 'member', profile: del }],
+      [{ profile_id: 'd', ...stats, ovr: 68, n_votes: 1 }, { profile_id: 'f', ...stats, ovr: 68, n_votes: 1 }], [], []);
+    expect(out.map(r => [r.profile.id, r.ovr])).toEqual([['d', 76], ['f', 58]]);
+  });
   it('a igual OVR, por nombre', () => {
     const out = buildRanking([{ role: 'member', profile: p('z', 'Zoe') }, { role: 'member', profile: p('y', 'Ale') }], [], [], []);
     expect(out.map(r => r.profile.name)).toEqual(['Ale', 'Zoe']);

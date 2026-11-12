@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
-import { ATTRS, displayName, posLine } from '../../shared/supabase';
+import { ATTRS, POS, displayName, posLine, posOvrs } from '../../shared/supabase';
 import { Radar } from '../../shared/ui/Radar';
 import { Avatar } from '../../shared/ui/Avatar';
 import { Crest } from '../../shared/ui/Crest';
-import { tier, type Ranked } from '../ranking/ranking';
+import { gkOf, tier, type Ranked } from '../ranking/ranking';
 import { fmtAvg, perMatch } from '../stats/statsCore';
 import { playerAttendance, playerStatsFrom } from '../stats/playCore';
 import { computeAchievements } from '../stats/achievements';
@@ -119,11 +119,22 @@ export function Player({ r, rows, slug, meId, communityId, isAdmin, communityNam
               ? <><i class="sw a" /> comunidad ({r.nVotes} {r.nVotes === 1 ? 'voto' : 'votos'}){r.base && <> <i class="sw b" /> autoevaluación</>}</>
               : 'Autoevaluación (todavía nadie lo votó)'}
           </p>
+          {(() => {
+            const by = posOvrs({ ...main, arq: gkOf(r) });
+            return (
+              <p class="pos-ovrs" aria-label="OVR en cada posición">
+                {POS.map(p => <span class={p === r.profile.pos ? 'on' : ''} title={p === r.profile.pos ? 'Su posición' : undefined}><i>{p}</i> <b>{by[p] ?? '—'}</b></span>)}
+              </p>
+            );
+          })()}
           <table class="stats">
             <thead><tr><th></th><th>Comunidad</th><th>Propia</th>{showMine && <th>Tu voto</th>}</tr></thead>
             <tbody>{ATTRS.map(([k, , full]) => (
               <tr><td>{full}</td><td>{r.votes?.[k] ?? '—'}</td><td>{r.base?.[k] ?? '—'}</td>{showMine && <td>{r.mine?.[k] ?? '—'}</td>}</tr>
             ))}</tbody>
+            <tbody>
+              <tr><td title="No suma al OVR">🧤 Arquero</td><td>{r.votes?.arq ?? '—'}</td><td>{r.base?.arq ?? '—'}</td>{showMine && <td>{r.mine?.arq ?? '—'}</td>}</tr>
+            </tbody>
             {house.length > 0 && <tbody class="house">
               <tr><th colSpan={showMine ? 4 : 3}>De la casa</th></tr>
               {house.map(h => (

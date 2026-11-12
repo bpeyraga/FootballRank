@@ -60,6 +60,13 @@ p{margin:0}
 .slider b{font-family:var(--f-display);font-size:1.1rem}
 .slider output{text-align:right;font-weight:600}
 .slider input{accent-color:var(--accent);width:100%}
+/* Arquero: aparte de los seis atributos (no suma al OVR) */
+.gk-slider{margin:10px 0 8px;padding-top:10px;border-top:1px dashed var(--line)}
+.gk-slider .slider{margin-bottom:2px}
+.slider.unset input{opacity:.45}
+.slider.unset output{color:var(--muted)}
+.gk-hint{margin:0;font-size:.8rem}
+.linkish{background:none;border:0;padding:0;color:var(--accent);font:inherit;text-decoration:underline;cursor:pointer}
 .radar{display:block;margin:0 auto;max-width:330px;width:100%}
 .radar .grid{fill:none;stroke:var(--line)}
 .radar .shape{fill:var(--accent);fill-opacity:.25;stroke:var(--accent);stroke-width:2}

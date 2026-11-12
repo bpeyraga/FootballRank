@@ -116,6 +116,13 @@ export async function saveTeams(id: string, a: string[], b: string[]) {
   results.forEach(r => must(r));
 }
 
+/**
+ * Guarda la formación de un equipo y el puesto de cada jugador (`slots`: id → puesto, 0 = arco). Solo admins.
+ * `formation` null = la de siempre para esa cantidad.
+ */
+export const setLineup = (id: string, team: Team, formation: string | null, slots: Record<string, number>) =>
+  rpc('set_lineup', { p_match: id, p_team: team, p_formation: formation, p_slots: slots });
+
 /** Borra el partido. Devuelve false si no se borró nada (sin permiso o ya no existía). */
 export async function deleteMatch(id: string): Promise<boolean> {
   return !!must(await sb.from('matches').delete().eq('id', id).select('id'))?.length;

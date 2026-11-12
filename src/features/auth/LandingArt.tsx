@@ -4,9 +4,10 @@ import { FutCard } from '../../shared/ui/FutCard';
 import { Crest } from '../../shared/ui/Crest';
 import type { Stats } from '../../shared/model';
 
-const VOS: Stats = { rit: 86, tir: 84, pas: 79, reg: 88, def: 45, fis: 76 };   // OVR 76 · oro
-const FACU: Stats = { rit: 72, tir: 68, pas: 80, reg: 74, def: 62, fis: 70 };  // OVR 71 · plata
-const NICO: Stats = { rit: 60, tir: 48, pas: 63, reg: 55, def: 78, fis: 74 };  // OVR 63 · bronce
+// OVR ponderado por posición (ver POS_WEIGHTS): uno de cada color.
+const VOS: Stats = { rit: 86, tir: 84, pas: 79, reg: 88, def: 45, fis: 76 };   // DEL · OVR 82 · oro
+const FACU: Stats = { rit: 72, tir: 68, pas: 80, reg: 74, def: 62, fis: 70 };  // MED · OVR 73 · plata
+const NICO: Stats = { rit: 55, tir: 45, pas: 58, reg: 50, def: 68, fis: 66 };  // DEF · OVR 62 · bronce
 
 const tier = (o: number) => o >= 75 ? 'gold' : o >= 65 ? 'silver' : 'bronze';
 

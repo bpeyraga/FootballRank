@@ -2,6 +2,7 @@ import { useId } from 'preact/hooks';
 import { ATTRS, POS, ovr, type Pos, type Stats } from '../../shared/model';
 import { TEAMS_ASCENSO, TEAMS_PRIMERA } from '../../shared/teams';
 import { Crest } from '../../shared/ui/Crest';
+import { GkSlider } from '../../shared/ui/GkSlider';
 import { NAME_MAX, NICK_MAX, type PlayerDraft } from './players';
 
 /** Posición: cuatro botones grandes (ARQ / DEF / MED / DEL). */
@@ -63,11 +64,11 @@ export function PlayerFields({ draft, onChange, nameRef, disabled }: {
 }
 
 /** Los seis atributos de 1 a 99 (como en "Tus stats" del perfil). */
-export function StatsSliders({ stats, onChange }: { stats: Stats; onChange: (s: Stats) => void }) {
+export function StatsSliders({ stats, pos, onChange }: { stats: Stats; pos: Pos; onChange: (s: Stats) => void }) {
   return (
     <div>
       <div class="row" style="justify-content:space-between;margin-bottom:8px">
-        <h3>Stats iniciales</h3><h3>OVR {ovr(stats)}</h3>
+        <h3>Stats iniciales</h3><h3 title={`OVR como ${pos}`}>OVR {ovr(stats, pos)}</h3>
       </div>
       {ATTRS.map(([k, l, full]) => (
         <label class="slider" title={full}>
@@ -77,6 +78,7 @@ export function StatsSliders({ stats, onChange }: { stats: Stats; onChange: (s: 
           <output>{stats[k]}</output>
         </label>
       ))}
+      <GkSlider value={stats.arq} onChange={arq => onChange({ ...stats, arq })} />
     </div>
   );
 }

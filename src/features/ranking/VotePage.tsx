@@ -3,6 +3,7 @@ import { Tip } from '../../shared/ui/Tip';
 import { ATTRS, displayName, ovr, posLine, type Stats } from '../../shared/supabase';
 import { saveVote } from './api';
 import { Radar } from '../../shared/ui/Radar';
+import { GkSlider } from '../../shared/ui/GkSlider';
 import { Avatar } from '../../shared/ui/Avatar';
 import type { Ranked } from './ranking';
 import { go } from '../../app/router';
@@ -19,7 +20,8 @@ export function Vote({ rows, communityId, slug, meId, startId, saved }:
   const others = order.map(id => rows.find(r => r.profile.id === id)).filter((r): r is Ranked => !!r);
   const [idx, setIdx] = useState(() => Math.max(0, others.findIndex(r => r.profile.id === startId)));
   const cur = others[idx];
-  const init = (r?: Ranked): Stats => r?.mine ?? r?.votes ?? r?.base ?? { rit: 50, tir: 50, pas: 50, reg: 50, def: 50, fis: 50 };
+  // El arquero arranca en mi voto (o sin calificar): no se copia el promedio de otros como si fuera mío.
+  const init = (r?: Ranked): Stats => ({ ...(r?.mine ?? r?.votes ?? r?.base ?? { rit: 50, tir: 50, pas: 50, reg: 50, def: 50, fis: 50 }), arq: r?.mine?.arq ?? null });
   const [stats, setStats] = useState<Stats>(() => init(cur));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -70,7 +72,7 @@ export function Vote({ rows, communityId, slug, meId, startId, saved }:
           <h3>{displayName(cur.profile)}</h3>
           <div class="muted">{posLine(cur.profile)} · {cur.mine ? 'ya lo votaste, podés cambiarlo' : 'sin tu voto'}</div>
         </div>
-        <h3>OVR {ovr(stats)}</h3>
+        <h3 title={`OVR como ${cur.profile.pos}`}>OVR {ovr(stats, cur.profile.pos)}</h3>
       </div>
       <Radar stats={stats} compare={cur.base} extra={radarHouse(house).map(h => ({ label: h.label, code: h.code, value: hv[h.key] ?? 50, compare: h.own }))} />
       {cur.base && <p class="muted legend"><i class="sw a" /> tu voto <i class="sw b" /> su autoevaluación</p>}
@@ -82,6 +84,7 @@ export function Vote({ rows, communityId, slug, meId, startId, saved }:
           <output>{stats[k]}</output>
         </label>
       ))}
+      <GkSlider value={stats.arq} onChange={arq => setStats({ ...stats, arq })} />
       {house.length > 0 && <>
         <p class="muted house-title">De la casa</p>
         {house.map(h => (

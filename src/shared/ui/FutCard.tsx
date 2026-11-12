@@ -7,7 +7,7 @@ const tierOf = (o: number | null) => o == null ? 'none' : o >= 75 ? 'gold' : o >
 /** Carta de jugador estilo FIFA: OVR, posición, foto, nombre y las 6 stats. */
 export function FutCard({ p, stats, size = 'md' }:
   { p: Pick<Profile, 'name' | 'photo_url' | 'pos'> & Partial<Pick<Profile, 'nickname' | 'shirt_number' | 'fav_team'>>; stats: Stats | null; size?: 'sm' | 'md' }) {
-  const o = stats ? ovr(stats) : null;
+  const o = stats ? ovr(stats, p.pos) : null;
   return (
     <div class={`futcard ${tierOf(o)} ${size}`} role="img"
       aria-label={`${displayName(p)}, ${p.pos}, OVR ${o ?? 'sin datos'}`}>

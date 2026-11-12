@@ -97,12 +97,12 @@ describe('textos', () => {
 });
 
 describe('ranking de la zona', () => {
-  it('el OVR sale del ovr() compartido, de los seis atributos que manda la base', () => {
+  it('el OVR sale del ovr() compartido, ponderado por la posición, de los seis atributos que manda la base', () => {
     const r = row('a', { rit: 80, tir: 70, pas: 60, reg: 50, def: 40, fis: 30 });
     expect(rowStats(r)).toEqual({ rit: 80, tir: 70, pas: 60, reg: 50, def: 40, fis: 30 });
     const [p] = buildZoneRanking([r], null);
-    expect(p.ovr).toBe(ovr({ rit: 80, tir: 70, pas: 60, reg: 50, def: 40, fis: 30 }));
-    expect(p.ovr).toBe(55); // (80+70+60+50+40+30)/6 = 55
+    expect(p.ovr).toBe(ovr({ rit: 80, tir: 70, pas: 60, reg: 50, def: 40, fis: 30 }, 'MED'));
+    expect(p.ovr).toBe(58); // MED: (15*80 + 15*70 + 30*60 + 20*50 + 10*40 + 10*30) / 100 = 57.5
     expect(p.tier).toBe('bronze');
   });
   it('color de carta por OVR (igual que el resto de la app)', () => {

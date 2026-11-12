@@ -86,7 +86,7 @@ export async function joinCommunity(code: string): Promise<string> {
 // ---------- Mi ficha ----------
 
 export async function loadBaseStats(profileId: string): Promise<Stats | null> {
-  return must(await sb.from('base_stats').select('rit,tir,pas,reg,def,fis').eq('profile_id', profileId).maybeSingle()) as Stats | null;
+  return must(await sb.from('base_stats').select('rit,tir,pas,reg,def,fis,arq').eq('profile_id', profileId).maybeSingle()) as Stats | null;
 }
 
 export type ProfileFields = Pick<Profile, 'name' | 'nickname' | 'shirt_number' | 'fav_team' | 'pos' | 'photo_url'>;

@@ -1,12 +1,15 @@
 import { POS, type Pos, type Stats } from '../../shared/model';
 
-export interface BPlayer { id: string; pos: Pos; ovr: number; attrs: Stats }
+export interface BPlayer { id: string; pos: Pos; ovr: number; attrs: Stats; /** Habilidad como arquero (null = sin calificar). */ gk?: number | null }
 export interface Split<T> { cost: number; A: T[]; B: T[] }
+
+/** Peso de la diferencia entre los arqueros de cada lado (por punto) y cuánto ataja un equipo sin nadie calificado. */
+const GK_W = 2, NO_GK = 40;
 
 /**
  * Port de balance() de la v1 (index.html). Devuelve las 5 mejores particiones.
  * n ≤ 22: enumeración completa (jugador 0 fijo en A); n > 22: 300 arranques + hill-climbing.
- * Costo: OVR (×3), atributos, arqueros repartidos y posiciones.
+ * Costo: OVR (×3), atributos, arqueros repartidos, posiciones y que el mejor arquero de cada lado ataje parecido.
  */
 export function balance<T extends BPlayer>(players: T[]): Split<T>[] {
   const n = players.length;
@@ -20,6 +23,18 @@ export function balance<T extends BPlayer>(players: T[]): Split<T>[] {
   const T = new Array(11).fill(0);
   V.forEach(v => v.forEach((x, k) => { T[k] += x; }));
   const sizes = n % 2 ? [n >> 1, (n >> 1) + 1] : [n / 2];
+
+  // Arquero de cada lado = el que mejor ataja (sin nadie calificado, NO_GK: nadie ataja bien).
+  // Solo cuenta si alguien tiene la habilidad de arquero calificada.
+  const G = players.map(p => p.gk ?? null);
+  const anyGk = G.some(g => g != null);
+  const gkCost = (inA: (i: number) => boolean) => {
+    if (!anyGk) return 0;
+    let ga = NO_GK, gb = NO_GK;
+    for (let i = 0; i < n; i++) { const g = G[i]; if (g == null) continue; if (inA(i)) ga = Math.max(ga, g); else gb = Math.max(gb, g); }
+    return GK_W * Math.abs(ga - gb);
+  };
+  const gkOfList = (A: number[]) => { const s = new Set(A); return gkCost(i => s.has(i)); };
 
   function cost(a: number[], na: number) {
     const nb = n - na, h = n / 2, odd = na !== nb;
@@ -48,7 +63,9 @@ export function balance<T extends BPlayer>(players: T[]): Split<T>[] {
       const a = V[0].slice();
       const rec = (i: number, cnt: number, mask: number) => {
         if (cnt === size) {
-          const c = cost(a, size);
+          let c = cost(a, size);
+          if (!ok(c)) return; // el costo del arquero solo suma: si ya no entra, no hace falta calcularlo
+          c += gkCost(j => ((mask >> j) & 1) === 1);
           if (ok(c)) { const A: number[] = []; for (let j = 0; j < n; j++) if ((mask >> j) & 1) A.push(j); add(c, String(mask), A); }
           return;
         }
@@ -68,7 +85,7 @@ export function balance<T extends BPlayer>(players: T[]): Split<T>[] {
       const A = idx.slice(0, size), B = idx.slice(size);
       const a = new Array(11).fill(0);
       A.forEach(i => { for (let k = 0; k < 11; k++) a[k] += V[i][k]; });
-      let cur = cost(a, size);
+      let cur = cost(a, size) + gkOfList(A);
       if (ok(cur)) { const cA = canon(A); add(cur, cA.join(','), cA); }
       let improved = true;
       while (improved) {
@@ -77,8 +94,9 @@ export function balance<T extends BPlayer>(players: T[]): Split<T>[] {
           for (let y = 0; y < B.length; y++) {
             const vx = V[A[x]], vy = V[B[y]];
             for (let k = 0; k < 11; k++) a[k] += vy[k] - vx[k];
-            const c = cost(a, size);
-            if (ok(c)) { const A2 = A.slice(); A2[x] = B[y]; const cA = canon(A2); add(c, cA.join(','), cA); }
+            const A2 = A.slice(); A2[x] = B[y];
+            const c = cost(a, size) + gkOfList(A2);
+            if (ok(c)) { const cA = canon(A2); add(c, cA.join(','), cA); }
             if (c < cur - 1e-9) { const t = A[x]; A[x] = B[y]; B[y] = t; cur = c; improved = true; }
             else for (let k = 0; k < 11; k++) a[k] -= vy[k] - vx[k];
           }

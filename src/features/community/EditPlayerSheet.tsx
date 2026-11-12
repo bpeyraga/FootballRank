@@ -45,7 +45,7 @@ export function EditPlayerSheet({ communityId, profile, base, onClose, onSaved }
       <form onSubmit={save}>
         <PlayerFields draft={draft} onChange={setDraft} disabled={busy} />
         {withStats
-          ? <div class="pl-stats"><StatsSliders stats={stats} onChange={setStats} /></div>
+          ? <div class="pl-stats"><StatsSliders stats={stats} pos={draft.pos} onChange={setStats} /></div>
           : <button type="button" class="btn block" style="margin-bottom:12px" onClick={() => setWithStats(true)}>Cargar stats iniciales</button>}
         {!check.ok && check.hint && <p class="err" role="alert">{check.hint}</p>}
         {err && <p class="err" role="alert">{err}</p>}

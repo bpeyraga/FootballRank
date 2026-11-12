@@ -72,7 +72,7 @@ export function Home({ me }: { me: Profile }) {
 
   const pick = (m: typeof mode) => { setErr(''); setMode(mode === m ? '' : m); };
 
-  const o = stats ? ovr(stats) : null;
+  const o = stats ? ovr(stats, me.pos) : null;
   const heroComm = hero ? rows?.find(r => r.community.id === hero.community_id) : undefined;
   const cd = hero ? countdown(hero.starts_at, now) : null;
   const adminOf = heroComm && heroComm.role !== 'member' ? heroComm : rows?.find(r => r.role !== 'member');

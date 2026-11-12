@@ -3,7 +3,7 @@ import { loadPlayedMatch } from './api';
 import { displayName, ovr, posLine, type Stats } from '../../shared/model';
 import { go } from '../../app/router';
 import { balance, type BPlayer, type Split } from './balance';
-import type { Ranked } from '../ranking/ranking';
+import { gkOf, type Ranked } from '../ranking/ranking';
 import { loadRanking } from '../ranking/api';
 import { Avatar } from '../../shared/ui/Avatar';
 import { EventRows, type EvPlayer } from './EventSteppers';
@@ -71,7 +71,8 @@ export function QuickMatch({ communityId, meId, slug, venues, defaultVenue, addV
   const toBP = (id: string): BP => {
     const r = byId.get(id)?.r;
     const attrs = r?.votes ?? r?.base ?? NEUTRAL;
-    return { id, pos: r?.profile.pos ?? 'MED', ovr: ovr(attrs), attrs };
+    const pos = r?.profile.pos ?? 'MED', gk = gkOf(r);
+    return { id, pos, ovr: ovr({ ...attrs, arq: gk }, pos), attrs, gk };
   };
 
   // "Armar parejos": reparte a los marcados en A y B; tocarlo de nuevo muestra la siguiente mejor combinación.

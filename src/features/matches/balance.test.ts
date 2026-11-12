@@ -14,6 +14,11 @@ describe('balance', () => {
     const sum = (x: BPlayer[]) => x.reduce((t, p) => t + p.ovr, 0);
     expect(Math.abs(sum(best.A) - sum(best.B))).toBeLessThanOrEqual(10);
   });
+  it('separa a los dos que mejor atajan', () => {
+    const ps = Array.from({ length: 10 }, (_, i) => ({ ...mk('p' + i, 'MED', 60), gk: i < 2 ? 85 : 30 }));
+    const [best] = balance(ps);
+    expect(best.A.filter(p => p.gk === 85).length).toBe(1);
+  });
   it('maneja impares y grupos grandes (heurística)', () => {
     expect(balance([mk('a', 'MED', 50), mk('b', 'MED', 60), mk('c', 'DEL', 70)])[0].A.length).toBeGreaterThan(0);
     const big = Array.from({ length: 24 }, (_, i) => mk('x' + i, 'MED', 40 + i));

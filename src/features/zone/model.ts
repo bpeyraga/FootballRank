@@ -124,7 +124,7 @@ export function buildZoneRanking(rows: ZoneRow[], meId: string | null, { km, pos
     if (pos && r.pos !== pos) continue;
     const stats = rowStats(r);
     if (!stats) continue;
-    const o = ovr(stats);
+    const o = ovr(stats, r.pos); // la zona no trae el 🧤: el arquero queda con el promedio simple (igual que en zone_ranking)
     list.push({
       id: r.profile_id, name: r.name, photo_url: r.photo_url, pos: r.pos, fav_team: r.fav_team, shirt_number: r.shirt_number,
       zoneLabel: r.zone_label, distanceBand: r.distance_band, stats, ovr: o, tier: tier(o) as ZonePlayer['tier'],

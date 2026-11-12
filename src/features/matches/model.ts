@@ -12,13 +12,19 @@ export interface Match {
   schedule_id?: string | null; // el partido fijo que la creó
   // Reloj del partido en vivo (live_clock). undefined = la base todavía no tiene las columnas; null = no se juega en vivo.
   live_state?: LiveState | null; live_half?: number | null; live_since?: string | null; live_elapsed?: number | null;
+  // Formación elegida para cada equipo ("2-1-1", sin el arquero). null/undefined = la de siempre para esa cantidad.
+  formation_a?: string | null; formation_b?: string | null;
 }
 
 /** Un partido de la lista, con lo necesario para los cupos, "Anotado/En espera" y las deudas. */
 export type MatchListItem = Match & { taken: number; mine: Signup['status'] | null; match_signups: PaySignup[] };
 
 export type Team = 'A' | 'B';
-export interface Signup { profile_id: string; status: 'in' | 'waitlist' | 'out'; team: Team | null; created_at: string; absent: boolean; captain: boolean; paid_at: string | null }
+export interface Signup {
+  profile_id: string; status: 'in' | 'waitlist' | 'out'; team: Team | null; created_at: string; absent: boolean; captain: boolean; paid_at: string | null;
+  /** Puesto en la formación de su equipo (0 = arco). null/undefined = lo ubica la app. */
+  slot?: number | null;
+}
 export interface Suspension { id: string; profile_id: string }
 export interface Score { avg: number; n: number }
 export interface Mvp { mine: string | null; tally: Map<string, number> }
@@ -92,6 +98,8 @@ export function matchError(m: string) {
   if (m.includes('bad_location')) return 'El lugar es demasiado largo (máximo 200 caracteres).';
   if (m.includes('bad_slots')) return 'Los cupos tienen que ser entre 2 y 40.';
   if (m.includes('bad_venue')) return 'Esa cancha no es de esta comunidad. Elegí otra.';
+  if (m.includes('bad_formation') || m.includes('bad_lineup')) return 'La formación no es válida. Probá de nuevo.';
+  if (/Could not find the function public\.set_lineup|set_lineup.*schema cache/i.test(m)) return 'Cambiar la formación todavía no está activo en el servidor. Avisale a quien administra la app.';
   if (m.includes('cancelled')) return 'El partido está cancelado.';
   if (m.includes('closed')) return 'La lista está cerrada.';
   if (m.includes('not_started')) return 'El partido todavía no empezó.';

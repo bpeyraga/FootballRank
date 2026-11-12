@@ -9,6 +9,7 @@ import {
   type RoleChoice, type RoleFlags,
 } from './roles';
 import { Radar } from '../../shared/ui/Radar';
+import { GkSlider } from '../../shared/ui/GkSlider';
 import { TEAMS_ASCENSO, TEAMS_PRIMERA } from '../../shared/teams';
 import { Crest } from '../../shared/ui/Crest';
 import { ZonePicker } from '../zone/ZonePicker';
@@ -176,7 +177,7 @@ export function Onboarding({ me, done, cancel }: { me: Profile; done: () => void
       </div>
       <div class="card">
         <div class="row" style="justify-content:space-between;margin-bottom:8px">
-          <h3>Tus stats</h3><h3>OVR {ovr(stats)}</h3>
+          <h3>Tus stats</h3><h3 title={`OVR como ${pos}`}>OVR {ovr(stats, pos)}</h3>
         </div>
         <p class="muted" style="margin-bottom:12px">Sé honesto: después tus compañeros también te votan.</p>
         <Radar stats={stats} />
@@ -188,6 +189,7 @@ export function Onboarding({ me, done, cancel }: { me: Profile; done: () => void
             <output>{stats[k]}</output>
           </label>
         ))}
+        <GkSlider value={stats.arq} onChange={arq => setStats({ ...stats, arq })} />
       </div>
       <div class="card zn-where">
         <h3>¿Dónde jugás? <span class="muted" style="font:500 .85rem var(--f-body)">(opcional)</span></h3>

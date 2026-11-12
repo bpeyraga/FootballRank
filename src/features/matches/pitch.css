@@ -13,6 +13,7 @@
 .pc-top{position:absolute;top:4px;left:6px;display:flex;flex-direction:column;align-items:flex-start;line-height:1}
 .pc-top b{font:700 1.15rem/1 var(--f-display)}
 .pc-top i{font:700 .62rem/1.2 var(--f-display);font-style:normal;letter-spacing:.03em}
+.pc-top i.off{padding:0 2px;border-radius:3px;background:rgba(0,0,0,.55);color:#ffd166}
 .pc-card.empty .pc-top{left:50%;transform:translateX(-50%);align-items:center}
 .pc-q{font:700 1.6rem/1 var(--f-display);margin-bottom:8px}
 .pc-num{position:absolute;top:4px;right:5px;font:700 .7rem/1 var(--f-display)}
@@ -30,4 +31,45 @@
 .pc-cap,.cap{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:4px;
   background:#f6c400;color:#1d1d1d;font:700 .68rem/1 var(--f-display);box-shadow:0 0 0 1px rgba(0,0,0,.35)}
 .pc-cap{position:absolute;left:4px;bottom:6px}
+
+/* Muchos jugadores: cartas más chicas para que no se pisen */
+.pitch.sm .pc{width:24%}
+.pitch.sm .pc-card{width:52px;height:64px;padding-bottom:5px}
+.pitch.sm .pc-top b{font-size:.95rem}
+.pitch.sm .pc-name{font-size:.68rem}
+.pitch.xs .pc{width:19%}
+.pitch.xs .pc-card{width:42px;height:52px;padding-bottom:4px;border-radius:8px 8px 11px 11px}
+.pitch.xs .pc-top{top:3px;left:4px}
+.pitch.xs .pc-top b{font-size:.8rem}
+.pitch.xs .pc-top i{font-size:.5rem}
+.pitch.xs .pc-num{font-size:.55rem;top:3px;right:3px}
+.pitch.xs .pc-name{font-size:.6rem;padding:1px 4px}
+.pitch.xs .pc-name .crest{display:none}
+.pitch.xs .pc-cap{width:12px;height:12px;font-size:.55rem;left:2px;bottom:3px}
+
+/* Editar formación: cada puesto es un botón; el elegido se marca */
+.pc-btn{background:none;border:0;padding:0;font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.pitch.editing .pc-card{transition:transform .12s,box-shadow .12s}
+.pc-btn:hover .pc-card,.pc-btn:focus-visible .pc-card{transform:translateY(-2px)}
+.pc-btn:focus-visible{outline:none}
+.pc-btn:focus-visible .pc-card{box-shadow:0 0 0 3px #fff,0 2px 6px rgba(0,0,0,.35)}
+.pc-btn.sel .pc-card{transform:scale(1.08);box-shadow:0 0 0 3px #ffe14d,0 0 14px 2px rgba(255,225,77,.7)}
+.pc-btn.sel .pc-name{background:#ffe14d;color:#1d1d1d}
+
+/* Formación y armado a mano */
+.fm-chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.fm-chips button{min-height:36px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:var(--bg);color:inherit;font:600 .9rem var(--f-display);cursor:pointer}
+.fm-chips button.on{background:var(--accent);border-color:var(--accent);color:var(--accent-fg,#fff)}
+.fm-hint{font-size:.85rem;margin:4px 0 8px}
+.mt-head{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0 10px}
+.mt-head>div{padding:8px 10px;border-radius:10px;border:1px solid var(--line);font-size:.9rem}
+.mt-head b{display:block;font-family:var(--f-display)}
+.mt-row{display:flex;align-items:center;gap:10px;padding:6px 0;border-top:1px solid var(--line)}
+.mt-row .mt-name{flex:1;min-width:0}
+.mt-seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;flex:none}
+.mt-seg button{min-width:44px;min-height:40px;border:0;background:var(--bg);color:inherit;font:700 .95rem var(--f-display);cursor:pointer}
+.mt-seg button+button{border-left:1px solid var(--line)}
+.mt-seg button.on.A{background:var(--ta);color:#fff}
+.mt-seg button.on.B{background:var(--tb);color:#fff}
+.mt-head .A{border-left:4px solid var(--ta)}.mt-head .B{border-left:4px solid var(--tb)}
 .cap{margin-left:6px;vertical-align:middle}
