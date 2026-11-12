@@ -1,5 +1,11 @@
-import { useId } from 'preact/hooks';
-import { CREST, KITS, type Shape } from '../teams';
+import { useId, useState } from 'preact/hooks';
+import { CREST, ESPN_ID, espnCrestUrl, KITS, type Shape } from '../teams';
+
+/** Tema de la app (data-theme) o, si no eligió, el del celular: para el escudo claro u oscuro de ESPN. */
+const appIsDark = () => {
+  const t = typeof document === 'undefined' ? undefined : document.documentElement.dataset.theme;
+  return t ? t === 'dark' : typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches;
+};
 
 /** Contornos en un lienzo de 24×28 (el diseño de la camiseta se recorta adentro). */
 export const SHAPES: Record<Shape, string> = {
@@ -17,13 +23,27 @@ const light = (hex: string) => {
 };
 
 /**
- * Escudito propio con la forma, los colores y el diseño de la camiseta del club (no es el escudo oficial).
- * Las iniciales aparecen desde 24 px, donde se pueden leer. Nada si el equipo no está en la lista.
+ * Escudo del club: el oficial de ESPN si el club tiene id (Primera); si no, o si la imagen no carga, el escudito propio
+ * con la forma, los colores y el diseño de la camiseta. Las iniciales del propio aparecen desde 24 px. Nada si el equipo
+ * no está en la lista. Ocupa siempre el mismo lugar (size × size·28/24) para no mover el diseño.
  */
-export function Crest({ team, size = 18 }: { team: string | null | undefined; size?: number }) {
+export function Crest({ team, size = 18, onLight = false }: {
+  team: string | null | undefined; size?: number;
+  /** Va sobre un fondo claro fijo (la carta dorada o plateada): siempre el escudo de ESPN para fondo claro. */
+  onLight?: boolean;
+}) {
   const id = useId();
+  const [bad, setBad] = useState<string | null>(null);
   const k = team ? KITS[team] : undefined;
   if (!k) return null;
+  const espn = bad !== team ? espnCrestUrl(ESPN_ID[team!] ?? '', !onLight && appIsDark()) : null;
+  if (espn) {
+    // Tamaño por atributos (no style) para que el CSS de cada pantalla lo pueda agrandar, igual que con el SVG.
+    return (
+      <img class="crest crest-espn" src={espn} width={size} height={size * 28 / 24} alt={team!} title={team!}
+        loading="lazy" decoding="async" referrerpolicy="no-referrer" onError={() => setBad(team!)} />
+    );
+  }
   const d = CREST[team!] ?? {};
   const outline = SHAPES[d.f ?? 'shield'];
   const [c0, c1 = c0, c2] = k.c;

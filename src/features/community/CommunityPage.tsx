@@ -94,7 +94,7 @@ export function Community({ slug, sub, me }: { slug: string; sub: string[]; me: 
     try { await navigator.clipboard.writeText(link); setMsg('Link copiado'); } catch { setMsg(link); }
   };
   const share = () => {
-    const text = `Sumate a "${c.name}" en Ranking Fútbol: ${link}`;
+    const text = `Sumate a "${c.name}" en El Partidito: ${link}`;
     if (navigator.share) navigator.share({ text }).catch(() => {});
     else open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };

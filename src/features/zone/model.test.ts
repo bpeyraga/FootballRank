@@ -81,7 +81,7 @@ describe('textos', () => {
     expect(ovrSource({ nVotes: 7 })).toBe('OVR según 7 votos de compañeros');
   });
   it('invitación y errores en español', () => {
-    expect(inviteText('Palermo, CABA', 'https://x.app')).toBe('⚽ Sumate al ranking de Palermo, CABA en Ranking Fútbol y mirá quién es el mejor del barrio: https://x.app/');
+    expect(inviteText('Palermo, CABA', 'https://x.app')).toBe('⚽ Sumate al ranking de Palermo, CABA en El Partidito y mirá quién es el mejor del barrio: https://x.app/');
     expect(inviteText(UNNAMED_ZONE, 'https://x.app')).toContain('mi zona');
     expect(zoneErrorText(new Error('bad_coords'))).toMatch(/ubicación no es válida/);
     expect(zoneErrorText(new Error('bad_label'))).toMatch(/nombre/);

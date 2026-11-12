@@ -73,7 +73,7 @@ export const ovrSource = (p: Pick<ZonePlayer, 'nVotes'>) =>
 
 /** Mensaje para invitar amigos a la zona (WhatsApp / compartir). */
 export const inviteText = (label: string, origin: string) =>
-  `⚽ Sumate al ranking de ${isUnnamed(label) ? 'mi zona' : label} en Ranking Fútbol y mirá quién es el mejor del barrio: ${origin}/`;
+  `⚽ Sumate al ranking de ${isUnnamed(label) ? 'mi zona' : label} en El Partidito y mirá quién es el mejor del barrio: ${origin}/`;
 
 // ---------- Ranking ----------
 

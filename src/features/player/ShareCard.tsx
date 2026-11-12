@@ -43,8 +43,8 @@ export function ShareCardButton({ card, communityId, communityName }:
   }, [key]);
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview.url); }, [preview]);
 
-  const title = `${card.name} en Ranking Fútbol`;
-  const text = `Mi ficha en Ranking Fútbol: OVR ${card.ovr ?? '—'}`;
+  const title = `${card.name} en El Partidito`;
+  const text = `Mi ficha en El Partidito: OVR ${card.ovr ?? '—'}`;
   const file = cardFileName(card.name);
 
   const share = async () => {

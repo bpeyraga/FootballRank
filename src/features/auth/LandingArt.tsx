@@ -69,9 +69,9 @@ export function ArtNotifs() {
   );
   return (
     <div class="a-notifs" aria-hidden="true">
-      {n('Ranking Fútbol', 'Hoy jugás a las 21:00. ¡Nos vemos en la cancha!', 'ahora')}
-      {n('Ranking Fútbol', 'Falta 1 hora para el partido.', 'hace 1 h')}
-      {n('Ranking Fútbol', 'Se liberó un lugar: entraste de la lista de espera.', 'hace 3 h')}
+      {n('El Partidito', 'Hoy jugás a las 21:00. ¡Nos vemos en la cancha!', 'ahora')}
+      {n('El Partidito', 'Falta 1 hora para el partido.', 'hace 1 h')}
+      {n('El Partidito', 'Se liberó un lugar: entraste de la lista de espera.', 'hace 3 h')}
     </div>
   );
 }

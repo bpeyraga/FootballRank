@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { buildIcs, calStamp, gcalUrl, icsEscape, icsFold, matchUrl, shareText, whatsappUrl, type ShareMatch } from './share';
 
 const m: ShareMatch = { id: 'abc-123', title: 'Jueves, con amigos', starts_at: '2026-11-12T00:00:00Z', location: 'Cancha 5; Palermo', slots: 10 };
-const url = matchUrl('https://futbol-rank.vercel.app', 'amigos', m.id);
+const url = matchUrl('https://elpartidito.vercel.app', 'amigos', m.id);
 
 describe('matchUrl', () => {
   it('arma el link a la pantalla del partido', () => {
-    expect(url).toBe('https://futbol-rank.vercel.app/#/c/amigos/m/abc-123');
+    expect(url).toBe('https://elpartidito.vercel.app/#/c/amigos/m/abc-123');
   });
 });
 

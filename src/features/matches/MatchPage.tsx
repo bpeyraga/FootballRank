@@ -136,14 +136,14 @@ export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: str
   };
   const kick = (pid: string) => isAdmin && editable && pid !== meId && !canMarkAbsent &&
     <button class="btn sm" disabled={busy} onClick={() => x.kick(pid)}>Sacar</button>;
-  // Una vez empezado: cualquiera marca ausente/presente; un admin puede suspender al ausente 1 partido.
+  // Una vez empezado: un admin marca ausente/presente y puede suspender al ausente 1 partido.
   const absence = (pid: string) => {
-    if (!canMarkAbsent) return null;
+    if (!canMarkAbsent || !isAdmin) return null;
     const s = su.find(x => x.profile_id === pid && x.status === 'in');
     if (!s) return null;
     return <>
       <button class="btn sm" disabled={busy} onClick={() => x.setAbsent(pid, !s.absent)}>{s.absent ? 'Presente' : 'Ausente'}</button>
-      {s.absent && isAdmin && <button class="btn sm danger" disabled={busy}
+      {s.absent && <button class="btn sm danger" disabled={busy}
         onClick={() => x.suspend(pid, `${displayName(prof(pid))} queda suspendido para el próximo partido`)}>Suspender</button>}
     </>;
   };

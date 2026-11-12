@@ -39,7 +39,7 @@ export function OwnerPage({ me }: { me: Profile }) {
     <div class="wrap ow">
       <div class="ow-top">
         <a class="brand" href={me.is_player === false ? '#/duenio' : '#/'}>
-          <img src="/icon.png" width={30} height={30} alt="" /> Ranking Fútbol
+          <img src="/icon.png" width={30} height={30} alt="" /> El Partidito
         </a>
         <details class="menu" ref={menu}>
           <summary aria-label="Mi cuenta"><Avatar p={me} size={38} zoom={false} /></summary>

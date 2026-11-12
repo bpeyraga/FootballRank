@@ -22,6 +22,7 @@ const Community = page(() => import('../features/community/CommunityPage'), m =>
 const Futbol = page(() => import('../features/futbol/FutbolPage'), m => m.Futbol);
 const Admin = page(() => import('../features/admin/AdminPage'), m => m.Admin);
 const Zone = page(() => import('../features/zone/ZonePage'), m => m.Zone);
+const CareerGame = page(() => import('../features/career/CareerPage'), m => m.CareerPage);
 const Courts = page(() => import('../features/courts/CourtsPage'), m => m.Courts);
 const MyBookings = page(() => import('../features/courts/MyBookingsPage'), m => m.MyBookings);
 const OwnerPage = page(() => import('../features/owner/OwnerPage'), m => m.OwnerPage);
@@ -42,6 +43,7 @@ import '../features/community/cover.css';
 import '../features/seasons/seasons.css';
 import '../features/zone/zone.css';
 import '../features/courts/courts.css';
+import '../features/career/career.css';
 import '../features/admin/superadmin.css';
 import './styles/desktop.css';
 import './styles/themes.css';
@@ -106,6 +108,7 @@ function App() {
   if (route[0] === 'join' && route[1]) return <Join code={route[1]} />;
   if (route[0] === 'futbol') return <Futbol me={me} />;
   if (route[0] === 'zona') return <Zone me={me} />;
+  if (route[0] === 'juegos' && route[1] === 'carrera') return <CareerGame me={me} />;
   // Canchas: la lista y la ficha son la misma pantalla (en la compu van lado a lado y no se pierde la búsqueda al elegir otra)
   if (route[0] === 'canchas') return <Courts />;
   if (route[0] === 'cancha' && route[1]) return <Courts id={route[1]} />;

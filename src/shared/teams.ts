@@ -115,3 +115,24 @@ export const CREST: Record<string, CrestDetail> = {
   'San Martín de Tucumán': { f: 'shield', b: R, l: 'CASM' },
   'Temperley': { f: 'round', b: W, l: 'CAT' },
 };
+
+// ---------- Escudo oficial (ESPN) ----------
+/**
+ * Id de cada club en ESPN (sale de la tabla y los partidos de "Fútbol argentino"). Con id se muestra el escudo oficial;
+ * sin id (Ascenso, o si la imagen no carga) queda el escudito propio de <Crest>.
+ */
+export const ESPN_ID: Record<string, string> = {
+  'Aldosivi': '9739', 'Argentinos Juniors': '3', 'Atlético Tucumán': '9785', 'Banfield': '235', 'Barracas Central': '10060',
+  'Belgrano': '4', 'Boca Juniors': '5', 'Central Córdoba (SdE)': '11989', 'Defensa y Justicia': '8950', 'Deportivo Riestra': '17702',
+  'Estudiantes de La Plata': '8', 'Estudiantes de Río Cuarto': '19685', 'Gimnasia de La Plata': '9', 'Gimnasia de Mendoza': '11972',
+  'Huracán': '10', 'Independiente': '11', 'Independiente Rivadavia': '9744', 'Instituto': '2975', 'Lanús': '12',
+  "Newell's Old Boys": '14', 'Platense': '7764', 'Racing Club': '15', 'River Plate': '16', 'Rosario Central': '17',
+  'San Lorenzo': '18', 'Sarmiento': '10158', 'Talleres': '19', 'Tigre': '7767', 'Unión': '20', 'Vélez Sarsfield': '21',
+};
+
+/** URL del escudo oficial en ESPN, ya achicado (unos 5 KB), por id numérico. `dark`: versión para fondo oscuro. */
+export function espnCrestUrl(id: string, dark = false): string | null {
+  return /^\d{1,8}$/.test(id)
+    ? `https://a.espncdn.com/combiner/i?img=/i/teamlogos/soccer/${dark ? '500-dark' : '500'}/${id}.png&w=72&h=72`
+    : null;
+}

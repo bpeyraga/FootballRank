@@ -31,7 +31,7 @@ export function ComplexDetail({ id }: { id: string }) {
   const where = placeLine(c);
   const loc = { name: c.name, address: where || null, lat: c.lat, lng: c.lng };
   const hasPlace = c.lat != null || !!where || !!c.maps_url;
-  const wa = contactWhatsapp(c, `Hola, vi ${c.name} en Ranking Fútbol y quería consultar por un turno.`);
+  const wa = contactWhatsapp(c, `Hola, vi ${c.name} en El Partidito y quería consultar por un turno.`);
 
   return (
     <article class="cn-detail">

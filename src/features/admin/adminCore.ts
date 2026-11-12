@@ -31,6 +31,7 @@ export const platformLabel = (p: string | null | undefined) => PLATFORM_LABEL[p 
 
 const SECTION_LABEL: Record<string, string> = {
   inicio: 'Inicio', c: 'Comunidad', futbol: 'Fútbol argentino', tema: 'Tema', perfil: 'Perfil', join: 'Invitación', admin: 'Panel de la app',
+  juegos: 'Juegos',
 };
 export const sectionLabel = (k: string | null | undefined) => (k ? SECTION_LABEL[k] ?? k : '—');
 

@@ -5,6 +5,8 @@
 .wx-chip{display:flex;align-items:center;gap:6px;width:fit-content;max-width:100%;margin-top:8px;padding:4px 12px 4px 8px;border-radius:99px;
   background:var(--accent-soft);font-size:.88rem;font-weight:600;line-height:1.25}
 .wx-ico{flex:none;font-size:1.2rem;line-height:1}
+.wx-src{flex:none;margin-left:4px;padding:4px 0;font-size:.75rem;font-weight:500;color:inherit;opacity:.75;text-decoration:underline;text-underline-offset:2px}
+.wx-src:hover,.wx-src:focus-visible{opacity:1}
 
 /* ---------- Cuota de la cancha ---------- */
 .fee-head{display:flex;align-items:center;justify-content:space-between;gap:8px}

@@ -7,10 +7,10 @@ self.addEventListener('fetch', () => { /* pasa directo a la red */ });
 self.addEventListener('push', e => {
   let n = {};
   try { n = e.data ? e.data.json() : {}; } catch { n = { body: e.data && e.data.text() }; }
-  e.waitUntil(self.registration.showNotification(n.title || 'Ranking Fútbol', {
+  e.waitUntil(self.registration.showNotification(n.title || 'El Partidito', {
     body: n.body || '',
-    icon: '/icon-192.png',
-    badge: '/icon-192.png',
+    icon: '/icon-192.png?v=2',
+    badge: '/icon-192.png?v=2',
     tag: n.tag,
     renotify: !!n.tag && !String(n.tag).startsWith('chat-'), // el chat se agrupa sin volver a sonar
     data: { url: n.url || '/' },

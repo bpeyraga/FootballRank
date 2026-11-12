@@ -26,6 +26,7 @@
 .pc-card.none{background:linear-gradient(135deg,var(--none-1),var(--none-2));color:var(--none-f)}
 .pc-name{display:flex;align-items:center;gap:3px}
 .crest{flex:none;vertical-align:middle}
+.crest-espn{object-fit:contain}
 .pc-name .ellipsis{min-width:0}
 /* Brazalete de capitán */
 .pc-cap,.cap{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:4px;

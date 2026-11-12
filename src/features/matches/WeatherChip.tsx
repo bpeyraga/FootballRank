@@ -18,6 +18,7 @@ export function WeatherChip({ lat, lng, startsAt }: { lat: number | null | undef
     <p class="wx-chip" title={`Pronóstico: ${label}`} aria-label={`Pronóstico: ${label}, ${weatherText(w)}`}>
       <span class="wx-ico" aria-hidden="true">{emoji}</span>
       <span>{weatherText(w)}</span>
+      <a class="wx-src" href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer" title="Datos del clima: Open-Meteo (CC BY 4.0)">Open-Meteo</a>
     </p>
   );
 }

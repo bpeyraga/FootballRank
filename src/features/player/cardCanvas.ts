@@ -21,7 +21,7 @@ export interface CardData {
 
 const DISPLAY = '"Barlow Condensed","Arial Narrow",Impact,sans-serif';
 const BODY = '"Barlow",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
-export const SITE = 'futbol-rank.vercel.app';
+export const SITE = 'elpartidito.vercel.app';
 
 type Ctx = CanvasRenderingContext2D;
 const font = (px: number, weight = 700, family = DISPLAY) => `${weight} ${px}px ${family}`;

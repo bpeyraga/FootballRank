@@ -2,6 +2,15 @@
 // Tiran Error con el mensaje del servidor (las pantallas lo traducen).
 import { must, sb, type Profile, type Stats } from '../../shared/supabase';
 import { pushOff } from '../push/push';
+import { parseChallenge, type PowChallenge, type PowSolution } from './pow';
+
+/** Desafío anti-bots para el registro (pow_challenge). null si la base no lo tiene o falla: el alta sigue sin él. */
+export async function getPowChallenge(): Promise<PowChallenge | null> {
+  try {
+    const { data, error } = await sb.rpc('pow_challenge');
+    return error ? null : parseChallenge(data);
+  } catch { return null; }
+}
 
 // ---------- Sesión ----------
 
@@ -27,10 +36,10 @@ export async function signInWithPassword(email: string, password: string) {
  * Crea la cuenta. `existed`: el correo ya estaba registrado (Supabase no lo avisa: devuelve un usuario sin identidades).
  * `confirm`: hay que confirmar el correo antes de entrar.
  */
-export async function signUp(email: string, password: string, name: string): Promise<{ existed: boolean; confirm: boolean }> {
+export async function signUp(email: string, password: string, name: string, pow?: PowSolution | null): Promise<{ existed: boolean; confirm: boolean }> {
   const { data, error } = await sb.auth.signUp({
     email, password,
-    options: { data: { full_name: name }, emailRedirectTo: location.origin + location.pathname },
+    options: { data: { full_name: name, ...(pow ? { pow } : {}) }, emailRedirectTo: location.origin + location.pathname },
   });
   if (error) throw new Error(error.message);
   return { existed: !!data.user && !data.user.identities?.length, confirm: !data.session };

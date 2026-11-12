@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import type { ComponentChildren } from 'preact';
-import { signInWithGoogle, signInWithPassword, signUp } from './api';
+import { getPowChallenge, signInWithGoogle, signInWithPassword, signUp } from './api';
 import { CardFan, ArtChat, ArtFixed, ArtFut, ArtMatch, ArtNotifs, ArtRank, ArtStats, ArtTeams } from './LandingArt';
 import { clearIntent, writeIntent } from './roles';
+import { challengeExpiry, powErrorText, solve, type PowSolution } from './pow';
 
 /** Ruta a la que volver después del login con Google (ver main.tsx). */
 import { NEXT_KEY } from '../../app/router';
@@ -39,7 +40,7 @@ const Ico = ({ children }: { children: ComponentChildren }) => (
 
 const TILES: { k: string; t: string; d: string; i: ComponentChildren; art: ComponentChildren }[] = [
   {
-    k: 'card', t: 'Tu carta FIFA, votada por el grupo',
+    k: 'card', t: 'Tu carta de jugador, votada por el grupo',
     d: 'Ritmo, tiro, pase, regate, defensa y físico. Tus compañeros te votan y el promedio arma tu OVR. Según tu nivel, la carta sale de bronce, plata u oro.',
     i: <path d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z" />, art: <ArtStats />,
   },
@@ -136,6 +137,36 @@ function EmailAuth({ id = 'ld-email', owner = false }: { id?: string; owner?: bo
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [msg, setMsg] = useState('');
+  // Anti-bots del registro (pow.ts): mientras completás el formulario se resuelve un desafío de la base en segundo plano.
+  // Cada solución sirve una vez y vence a los 10 minutos: después de cada intento (o si venció) se pide otra.
+  const pow = useRef<{ p: Promise<PowSolution | null>; exp: number | null; dead: boolean } | null>(null);
+  const startPow = () => {
+    if (pow.current) pow.current.dead = true;
+    const job = { p: Promise.resolve<PowSolution | null>(null), exp: null as number | null, dead: false };
+    job.p = getPowChallenge().then(c => {
+      if (!c) return null;
+      job.exp = challengeExpiry(c.salt);
+      return solve(c, undefined, () => job.dead);
+    }).catch(() => null);
+    pow.current = job;
+  };
+  useEffect(() => {
+    if (mode === 'up' && !pow.current) startPow();
+    if (mode === 'in' && pow.current) { pow.current.dead = true; pow.current = null; } // volvió a "Entrar": no gastar batería
+  }, [mode]);
+  useEffect(() => () => { if (pow.current) pow.current.dead = true; }, []);
+  /** La solución vigente (o una nueva si venció o nunca se pidió); null si la base no tiene el desafío activo. */
+  const powSolution = async (): Promise<PowSolution | null> => {
+    const fresh = (j: NonNullable<typeof pow.current>) => !j.dead && (j.exp == null || j.exp - Date.now() > 30_000);
+    if (!pow.current || !fresh(pow.current)) startPow();
+    const job = pow.current!; // la tarea de este intento (pow.current puede cambiar mientras se espera)
+    const sol = await job.p;
+    if (sol && job.exp != null && job.exp - Date.now() <= 30_000) { // venció mientras se resolvía: otra, una sola vez
+      startPow();
+      return pow.current!.p;
+    }
+    return sol;
+  };
 
   const submit = async (e: Event) => {
     e.preventDefault();
@@ -143,16 +174,20 @@ function EmailAuth({ id = 'ld-email', owner = false }: { id?: string; owner?: bo
     rememberOwner(owner);
     if (mode === 'up' && pass.length < 8) { setErr('La contraseña tiene que tener al menos 8 caracteres.'); return; }
     setBusy(true);
+    const fail = (e: any) => setErr(AUTH_ERRORS[e.message] ?? powErrorText(e.message) ?? e.message);
     if (mode === 'in') {
       try { await signInWithPassword(email.trim(), pass); }
-      catch (e: any) { setErr(AUTH_ERRORS[e.message] ?? e.message); }
+      catch (e: any) { fail(e); }
     } else {
       if (!owner) saveNext(); // si hay que confirmar el correo, el link vuelve a la app y retomamos la invitación
       try {
-        const r = await signUp(email.trim(), pass, name.trim());
-        if (r.existed) setErr(AUTH_ERRORS['User already registered']);
+        const sol = await powSolution();
+        if (pow.current) pow.current.dead = true; // la que se manda ya no sirve para otro intento
+        pow.current = null;
+        const r = await signUp(email.trim(), pass, name.trim(), sol);
+        if (r.existed) { setErr(AUTH_ERRORS['User already registered']); startPow(); } // puede probar con otro correo
         else if (r.confirm) setMsg(`Te mandamos un correo a ${email.trim()}. Abrí el link para confirmar la cuenta.`);
-      } catch (e: any) { setErr(AUTH_ERRORS[e.message] ?? e.message); }
+      } catch (e: any) { fail(e); startPow(); } // para el próximo intento (el botón de cambiar de modo está bloqueado mientras tanto)
     }
     setBusy(false);
   };
@@ -174,7 +209,7 @@ function EmailAuth({ id = 'ld-email', owner = false }: { id?: string; owner?: bo
       </button>
       {err && <p class="ld-email-err" role="alert">{err}</p>}
       {msg && <p class="ld-email-ok">{msg}</p>}
-      <button type="button" class="ld-link" onClick={flip}>
+      <button type="button" class="ld-link" onClick={flip} disabled={busy}>
         {mode === 'in' ? '¿No tenés cuenta? Registrate' : '¿Ya tenés cuenta? Entrá'}
       </button>
     </form>
@@ -227,7 +262,7 @@ export function Login() {
     <div class="landing">
       <header class="ld-bar">
         <div class="ld-in ld-bar-in">
-          <span class="ld-brand"><img src="/icon.png" width={34} height={34} alt="" /><b>Ranking Fútbol</b></span>
+          <span class="ld-brand"><img src="/icon.png" width={34} height={34} alt="" /><b>El Partidito</b></span>
           <button class="ld-enter" onClick={go} disabled={busy}>{busy ? 'Abriendo…' : 'Entrar'}</button>
         </div>
         {err && <div class="ld-alert" role="alert">{err}</div>}
@@ -240,7 +275,7 @@ export function Login() {
           <div class="ld-in ld-hero-in">
             <div class="ld-copy">
               <span class="ld-kicker">{invited ? '💌 Te invitaron a una comunidad' : 'Fútbol amateur · nivel pro'}</span>
-              <h1>Tu picado,<br /><span class="ld-gold">nivel FIFA.</span></h1>
+              <h1>Tu picado,<br /><span class="ld-gold">nivel crack.</span></h1>
               <p class="ld-sub">
                 Tus amigos te votan, la app arma tu carta y los equipos salen parejos. Convocá, jugá y
                 fijate quién es el crack del grupo.
@@ -383,8 +418,8 @@ export function Login() {
       <footer class="ld-foot">
         <div class="ld-in">
           <span><a href="/como-se-usa.html">Cómo se usa</a> · <button class="ld-foot-link" onClick={() => scrollTo('ld-duenios')}>Para dueños de cancha</button> · <a href="/terminos.html">Términos</a> · <a href="/privacidad.html">Privacidad</a></span>
-          <p>Al entrar aceptás los términos y la política de privacidad.</p>
-          <p>Ranking Fútbol no está afiliada a FIFA, EA Sports, la AFA ni a ningún club.</p>
+          <p>Al entrar aceptás los términos y la política de privacidad, incluido que tus datos se guarden en servidores de Estados Unidos.</p>
+          <p>El Partidito no está afiliado a FIFA, EA Sports, la AFA ni a ningún club.</p>
         </div>
       </footer>
     </div>

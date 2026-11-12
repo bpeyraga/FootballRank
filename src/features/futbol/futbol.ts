@@ -1,6 +1,7 @@
 // Lógica de "Fútbol argentino" para la app: fechas en hora argentina, agrupar partidos por día, escudos,
 // resultado de un club y noticias de "tu club". Lo compartido con la Edge Function está en futbolCore.ts.
 import { arParts, clubForTeam, finishNews, mentionsClub, SOURCES, type Club, type Match, type NewsItem } from './futbolCore';
+import { espnCrestUrl } from '../../shared/teams';
 
 export * from './futbolCore';
 
@@ -66,11 +67,7 @@ export function groupByDay(ms: Match[], nowMs: number): DayGroup[] {
 }
 
 /** Escudo oficial desde ESPN, ya achicado (unos 5 KB). Solo ids numéricos. */
-export function crestUrl(id: string, dark = false): string | null {
-  return /^\d{1,8}$/.test(id)
-    ? `https://a.espncdn.com/combiner/i?img=/i/teamlogos/soccer/${dark ? '500-dark' : '500'}/${id}.png&w=72&h=72`
-    : null;
-}
+export const crestUrl = espnCrestUrl;
 
 /** Nombre para mostrar: el de la lista de clubes de la app ("Gimnasia de La Plata") o el de ESPN sin la ciudad entre paréntesis. */
 export const prettyName = (espn: string): string => clubForTeam(espn)?.name ?? espn.replace(/\s*\([^)]*\)\s*$/, '');

@@ -16,6 +16,7 @@ import { useHome } from './useHome';
 import { useTour } from './useTour';
 import { ZoneEntry } from '../zone/ZoneEntry';
 import { CourtsEntry } from '../courts/CourtsEntry';
+import { CareerEntry } from '../career/CareerEntry';
 
 /** Escudo de la comunidad: la imagen del escudo si la cargaron; si no, la portada; si no, las iniciales. */
 function CommCrest({ c }: { c: Comm }) {
@@ -82,7 +83,7 @@ export function Home({ me }: { me: Profile }) {
   return (
     <div class="wrap home">
       <header class="home-top">
-        <div class="brand"><img src="/icon.png" width={28} height={28} alt="" /><b>Ranking Fútbol</b></div>
+        <div class="brand"><img src="/icon.png" width={28} height={28} alt="" /><b>El Partidito</b></div>
         <details class="menu" ref={menu}>
           <summary aria-label="Menú de la cuenta"><Avatar p={me} size={36} zoom={false} /></summary>
           <div class="menu-pop">
@@ -201,6 +202,7 @@ export function Home({ me }: { me: Profile }) {
         {me.fav_team && <Crest team={me.fav_team} size={30} />}
         <Chev />
       </a>
+      <CareerEntry uid={me.id} />
       <div class="section-head">
         <h3>Tus comunidades</h3>
         {rows && rows.length > 0 && <span class="muted">{rows.length}</span>}
@@ -255,7 +257,7 @@ export function Home({ me }: { me: Profile }) {
       {mode === 'join' && (
         <form class="card" onSubmit={join}>
           <label class="field"><span>Link de invitación</span>
-            <input value={link} placeholder="https://futbol-rank.vercel.app/#/join/…" autoFocus inputMode="url"
+            <input value={link} placeholder="https://elpartidito.vercel.app/#/join/…" autoFocus inputMode="url"
               onInput={e => setLink((e.target as HTMLInputElement).value)} /></label>
           <button class="btn primary block" disabled={!link.trim()}>Ver invitación</button>
         </form>

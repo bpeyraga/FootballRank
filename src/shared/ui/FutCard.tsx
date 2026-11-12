@@ -15,7 +15,7 @@ export function FutCard({ p, stats, size = 'md' }:
         <b>{o ?? '—'}</b><span>{p.pos}</span>
         {(p.shirt_number || p.fav_team) && (
           <div class="fc-badges">
-            <Crest team={p.fav_team} size={size === 'sm' ? 11 : 16} />
+            <Crest team={p.fav_team} size={size === 'sm' ? 11 : 16} onLight={o != null} />
             {p.shirt_number && <span>{p.shirt_number}</span>}
           </div>
         )}
