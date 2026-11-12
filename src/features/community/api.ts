@@ -3,6 +3,8 @@
 import { must, sb, type Stats } from '../../shared/supabase';
 import { addPlayerParams, statsParams, updatePlayerParams, type PlayerValue } from './players';
 import type { Claim, Community, Role } from './model';
+import type { CrestDesign } from './crestCore';
+import { crestJpeg, crestPng } from './crestRender';
 
 const rpc = async (fn: string, args: Record<string, unknown>) => must(await sb.rpc(fn, args));
 
@@ -117,4 +119,40 @@ export async function setCommunityLogo(communityId: string, next: string | null,
   }
   const old = storagePath(previous);
   if (old) await sb.storage.from('communities').remove([old]);
+}
+
+// ---------- Escudo diseñado ("Crear escudo") ----------
+
+/** ¿La base todavía no tiene la función? (migración sin aplicar o esquema sin recargar). */
+const missingFn = (e: { code?: string; message?: string }) =>
+  e.code === 'PGRST202' || e.code === '42883' || /could not find the function|schema cache/i.test(e.message ?? '');
+
+const publicUrl = (path: string) => sb.storage.from('communities').getPublicUrl(path).data.publicUrl;
+const dropFile = (url: string | null) => {
+  const p = storagePath(url);
+  return p ? sb.storage.from('communities').remove([p]).then(() => {}, () => {}) : Promise.resolve();
+};
+
+/**
+ * Guarda el escudo diseñado: lo dibuja en un PNG transparente de 512 px, lo sube a <comunidad>/crest-<uuid>.png y lo
+ * deja como escudo junto con el diseño (para poder editarlo después). Borra el anterior (si eso falla, no importa) y, si
+ * no se pudo guardar, el PNG recién subido.
+ * Si la base todavía no tiene `set_community_crest` (migración sin aplicar), cae a un JPEG sobre el color de la comunidad
+ * por el camino de siempre: se ve, pero sin forma propia y sin poder reeditar el diseño (`editable: false`).
+ */
+export async function saveCommunityCrest(
+  communityId: string, design: CrestDesign, previous: string | null, background: string,
+): Promise<{ editable: boolean }> {
+  const png = await crestPng(design);
+  const path = `${communityId}/crest-${crypto.randomUUID()}.png`;
+  must(await sb.storage.from('communities').upload(path, png, { contentType: 'image/png' }));
+  const url = publicUrl(path);
+  const { error } = await sb.rpc('set_community_crest', { p_community: communityId, p_url: url, p_design: design });
+  if (!error) { await dropFile(previous); return { editable: true }; }
+  await dropFile(url);
+  if (!missingFn(error)) throw new Error(error.message);
+  const jpg = `${communityId}/logo-${crypto.randomUUID()}.jpg`;
+  must(await sb.storage.from('communities').upload(jpg, await crestJpeg(design, background), { contentType: 'image/jpeg' }));
+  await setCommunityLogo(communityId, publicUrl(jpg), previous);
+  return { editable: false };
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  addDays, blockDurations, bookingsOfDay, competingPending, complexError, copyDay, dayCounts, dayHours, dayRevenue, dayWindow, draftToRows,
+  addDays, blockDurations, bookingsOfDay, cancelledByLabel, cancelledLine, fmtAgo, fmtSlotWhen, recentCancellations, competingPending, complexError, copyDay, dayCounts, dayHours, dayRevenue, dayWindow, draftToRows,
   emptyComplex, emptyField, fieldError, fieldLine, fmtDayChip, fmtDuration, fmtHHMM, fmtPrice, fmtRange, freeRanges, groupByDay,
   hoursError, hoursSummary, hoursToDraft, isDate, isPublished, layoutLanes, localParts, normalizeWhatsapp, openRequests, ownerErrorText,
   minuteToLocal, parseHHMM, parsePrice, pendingConflict, placeBooking, setupChecklist, snapMinute, startOfWeek, weekdayOf, whatsappLink, zonedToUtc,
@@ -186,6 +186,63 @@ describe('turnos en la agenda', () => {
     const list = [bk({ from: '21:00', to: '22:00', status: 'pending' }), bk({ from: '10:00', to: '11:00', status: 'pending' }),
       bk({ from: '19:00', to: '20:00', status: 'pending' }), bk({ from: '19:00', to: '20:00', status: 'confirmed' })];
     expect(openRequests(list, now).map(b => b.starts_at)).toEqual([list[2].starts_at, list[0].starts_at]);
+  });
+});
+
+describe('quién canceló', () => {
+  const NOW = Date.parse(at('2026-11-12', '12:00'));
+  /** Reserva cancelada hace `agoMin` minutos por `role`; el turno es el de las 21:00 de `date`. */
+  const cancelled = (role: 'requester' | 'staff' | null, o: Partial<Booking> & { agoMin?: number; date?: string } = {}): Booking => ({
+    ...bk({ date: o.date ?? '2026-11-12', from: '21:00', to: '22:00', status: 'cancelled', kind: o.kind }),
+    cancelled_by: 'u1', cancelled_by_name: 'Beto', cancel_role: role,
+    decided_at: new Date(NOW - (o.agoMin ?? 120) * 60_000).toISOString(), ...o,
+  });
+
+  it('hace cuánto: minutos, horas, días y después la fecha', () => {
+    expect(fmtAgo(NOW - 20_000, NOW)).toBe('recién');
+    expect(fmtAgo(NOW + 5_000, NOW)).toBe('recién');
+    expect(fmtAgo(NOW - 5 * 60_000, NOW)).toBe('hace 5 min');
+    expect(fmtAgo(NOW - 3 * 3_600_000, NOW)).toBe('hace 3 h');
+    expect(fmtAgo(NOW - 25 * 3_600_000, NOW)).toBe('hace 1 día');
+    expect(fmtAgo(NOW - 3 * 86_400_000, NOW)).toBe('hace 3 días');
+    expect(fmtAgo(Date.parse(at('2026-11-02', '15:00')), NOW)).toMatch(/^2 nov/);
+  });
+  it('día y hora del turno en la zona del complejo', () => {
+    const s = Date.parse(at('2026-11-12', '21:00')), e = Date.parse(at('2026-11-12', '22:30'));
+    expect(fmtSlotWhen(s, e, TZ)).toMatch(/^Jue 12 nov · 21:00 – 22:30$/);
+  });
+  it('la frase dice quién y con qué rol, o "vos"', () => {
+    expect(cancelledByLabel(cancelled('requester'), 'otro')).toBe('Cancelada por Beto (quien la pidió)');
+    expect(cancelledByLabel(cancelled('staff', { cancelled_by_name: 'Ana' }), 'otro')).toBe('Cancelada por Ana (del complejo)');
+    expect(cancelledByLabel(cancelled('staff', { cancelled_by: 'yo' }), 'yo')).toBe('Cancelada por vos');
+    expect(cancelledByLabel(cancelled('staff', { cancelled_by: 'yo', kind: 'block' }), 'yo')).toBe('Liberado por vos');
+  });
+  it('sin nombre queda el rol; sin ningún dato no se inventa nada; solo las canceladas', () => {
+    expect(cancelledByLabel(cancelled('requester', { cancelled_by: null, cancelled_by_name: null }), 'yo')).toBe('Cancelada por quien la pidió');
+    expect(cancelledByLabel(cancelled('staff', { cancelled_by: null, cancelled_by_name: null }), 'yo')).toBe('Cancelada por el complejo');
+    expect(cancelledByLabel(cancelled(null, { cancelled_by: null, cancelled_by_name: null }), 'yo')).toBeNull();
+    expect(cancelledByLabel(bk({ from: '21:00', to: '22:00' }), 'yo')).toBeNull(); // la base todavía no manda los campos
+    expect(cancelledByLabel({ ...cancelled('requester'), status: 'confirmed' }, 'yo')).toBeNull();
+  });
+  it('con cuándo, si se sabe', () => {
+    expect(cancelledLine(cancelled('requester', { agoMin: 120 }), 'yo', NOW)).toBe('Cancelada por Beto (quien la pidió) · hace 2 h');
+    expect(cancelledLine(cancelled('requester', { decided_at: null }), 'yo', NOW)).toBe('Cancelada por Beto (quien la pidió)');
+    expect(cancelledLine(cancelled(null, { cancelled_by: null, cancelled_by_name: null }), 'yo', NOW)).toBeNull();
+  });
+  it('cancelaciones recientes: solo las de quien pidió, de la última semana y de turnos que no pasaron; las nuevas primero', () => {
+    const a = cancelled('requester', { agoMin: 600, date: '2026-11-14' });
+    const b = cancelled('requester', { agoMin: 30, date: '2026-11-20' });
+    const mismoDia = cancelled('requester', { agoMin: 200, date: '2026-11-12' });
+    const turnoDeAyerNoche = cancelled('requester', { agoMin: 100, date: '2026-11-11' }); // 21:00 de ayer: empezó hace 15 h
+    const turnoViejo = cancelled('requester', { agoMin: 100, date: '2026-11-10' });
+    const hechaPorElComplejo = cancelled('staff', { agoMin: 10, date: '2026-11-15' });
+    const haceUnMes = cancelled('requester', { agoMin: 60 * 24 * 8, date: '2026-11-15' });
+    const sinDato = cancelled(null, { agoMin: 10, date: '2026-11-15', decided_at: null });
+    const bloqueo = cancelled('staff', { agoMin: 10, date: '2026-11-15', kind: 'block' });
+    const confirmada = bk({ date: '2026-11-15', from: '21:00', to: '22:00' });
+    const list = [a, hechaPorElComplejo, turnoViejo, b, haceUnMes, sinDato, bloqueo, confirmada, mismoDia, turnoDeAyerNoche];
+    expect(recentCancellations(list, NOW).map(x => x.id)).toEqual([b.id, turnoDeAyerNoche.id, mismoDia.id, a.id]);
+    expect(recentCancellations([], NOW)).toEqual([]);
   });
 });
 

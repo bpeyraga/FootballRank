@@ -7,6 +7,7 @@ import { challengeExpiry, powErrorText, solve, type PowSolution } from './pow';
 
 /** Ruta a la que volver después del login con Google (ver main.tsx). */
 import { NEXT_KEY } from '../../app/router';
+import { openConsent } from '../../app/consent';
 
 const GoogleG = () => (
   <svg viewBox="0 0 48 48" width="20" height="20" aria-hidden="true">
@@ -417,7 +418,7 @@ export function Login() {
 
       <footer class="ld-foot">
         <div class="ld-in">
-          <span><a href="/como-se-usa.html">Cómo se usa</a> · <button class="ld-foot-link" onClick={() => scrollTo('ld-duenios')}>Para dueños de cancha</button> · <a href="/terminos.html">Términos</a> · <a href="/privacidad.html">Privacidad</a></span>
+          <span><a href="/como-se-usa.html">Cómo se usa</a> · <button class="ld-foot-link" onClick={() => scrollTo('ld-duenios')}>Para dueños de cancha</button> · <a href="/terminos.html">Términos</a> · <a href="/privacidad.html">Privacidad</a> · <a href="/cookies.html">Cookies</a> · <button class="ld-foot-link" onClick={openConsent}>Preferencias de cookies</button></span>
           <p>Al entrar aceptás los términos y la política de privacidad, incluido que tus datos se guarden en servidores de Estados Unidos.</p>
           <p>El Partidito no está afiliado a FIFA, EA Sports, la AFA ni a ningún club.</p>
         </div>

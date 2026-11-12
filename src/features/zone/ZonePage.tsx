@@ -7,8 +7,8 @@ import { Sheet } from '../../shared/ui/Sheet';
 import { whatsappUrl } from '../matches/share';
 import { ZonePicker } from './ZonePicker';
 import {
-  DEFAULT_RADIUS, RADII, SHOW_MAX, buildZoneRanking, fmtDistance, inviteText, isUnnamed, miniStats, ovrSource, posCounts, shortZone, splitPodium, visibleRanking, widerRadius, zoneErrorText, zoneLine,
-  type ZoneDraft, type ZonePlayer,
+  DEFAULT_RADIUS, RADII, SHOW_MAX, ZONE_SORTS, GPM_MIN_PJ, buildZoneRanking, sortValueText, fmtDistance, inviteText, isUnnamed, miniStats, ovrSource, posCounts, shortZone, splitPodium, visibleRanking, widerRadius, zoneErrorText, zoneLine,
+  type ZoneDraft, type ZonePlayer, type ZoneSort,
 } from './model';
 import { useMyZone, useZoneRanking } from './useZone';
 
@@ -20,24 +20,26 @@ const press = (fn: () => void) => ({
 
 const cardOf = (p: ZonePlayer) => ({ name: p.name, photo_url: p.photo_url, pos: p.pos, shirt_number: p.shirt_number, fav_team: p.fav_team });
 
-/** Ranking de tu zona: los jugadores del barrio que decidieron aparecer, ordenados por OVR. */
+/** Ranking de tu zona: los jugadores del barrio que decidieron aparecer, ordenados por OVR, goles, asistencias, figuras o partidos. */
 export function Zone({ me }: { me: Profile }) {
   const mz = useMyZone();
   const zone = mz.zone;
   const rk = useZoneRanking(!!zone, zone ? `${zone.lat},${zone.lng},${zone.public}` : '');
   const [km, setKm] = useState(DEFAULT_RADIUS);
   const [pos, setPos] = useState<Pos | null>(null);
+  const [sort, setSort] = useState<ZoneSort>('ovr');
   const [sel, setSel] = useState<ZonePlayer | null>(null);
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
   const rows = rk.rows;
-  const list = useMemo(() => (rows ? buildZoneRanking(rows, me.id, { km, pos }) : []), [rows, me.id, km, pos]);
+  const list = useMemo(() => (rows ? buildZoneRanking(rows, me.id, { km, pos, sort }) : []), [rows, me.id, km, pos, sort]);
   const counts = useMemo(() => (rows ? posCounts(rows, km) : null), [rows, km]);
   const { shown, mine, hidden } = useMemo(() => visibleRanking(list), [list]);
-  const { podium, rest } = useMemo(() => splitPodium(shown), [shown]);
-  const anySelfRated = list.some(p => !p.voted);
+  const { podium, rest } = useMemo(() => splitPodium(shown, sort), [shown, sort]);
+  const anySelfRated = sort === 'ovr' && list.some(p => !p.voted);
+  const sortLabel = ZONE_SORTS.find(x => x.key === sort)!.label;
   const label = zone && !isUnnamed(zone.label) ? zone.label : 'Tu zona';
 
   const save = async (z: ZoneDraft | null) => {
@@ -117,6 +119,14 @@ export function Zone({ me }: { me: Profile }) {
         })}
       </div>
 
+      <div class="zn-sort" role="radiogroup" aria-label="Ordenar el ranking por">
+        <span class="muted">Ordenar por</span>
+        {ZONE_SORTS.map(x => (
+          <button type="button" role="radio" class={sort === x.key ? 'on' : ''} aria-checked={sort === x.key} onClick={() => setSort(x.key)}>{x.label}</button>
+        ))}
+      </div>
+      {sort === 'gpm' && <p class="muted zn-sortnote">Goles por partido: solo cuenta a quienes jugaron {GPM_MIN_PJ} partidos o más.</p>}
+
       {rk.err && (
         <div class="card zn-empty" role="alert">
           <p class="err" style="margin:0 0 12px">{rk.err}</p>
@@ -157,9 +167,10 @@ export function Zone({ me }: { me: Profile }) {
           {podium.length > 0 && <div class="zn-podium" role="list" aria-label="Podio">
             {[podium[1], podium[0], podium[2]].filter(Boolean).map(p => (
               <div role="listitem" class={`zn-pod p${p.rank}${p.isMe ? ' me' : ''}`}>
-                <div class="zn-pod-hit" {...press(() => setSel(p))} aria-label={`Puesto ${p.rank}: ${p.name}, OVR ${p.ovr}. Ver detalle`}>
+                <div class="zn-pod-hit" {...press(() => setSel(p))} aria-label={`Puesto ${p.rank}: ${p.name}, ${sort === 'ovr' ? `OVR ${p.ovr}` : sortValueText(p, sort)}. Ver detalle`}>
                   {p.rank === 1 && <span class="zn-crown" aria-hidden="true">👑</span>}
                   <span class="zn-card"><FutCard p={cardOf(p)} stats={p.stats} size="sm" /></span>
+                  {sort !== 'ovr' && <span class="zn-pod-metric">{sortValueText(p, sort)}</span>}
                   <span class="zn-pod-sub">{p.isMe && <b>Vos</b>}{shortZone(p.zoneLabel) && !p.isMe && <b>{shortZone(p.zoneLabel)}</b>}<span>{p.isMe ? shortZone(p.zoneLabel) : fmtDistance(p.distanceBand)}</span></span>
                 </div>
                 <div class="zn-step" aria-hidden="true">{p.rank}</div>
@@ -169,10 +180,10 @@ export function Zone({ me }: { me: Profile }) {
 
           {(rest.length > 0 || mine) && (
             <div class="card zn-list">
-              {rest.map(p => <Row p={p} onOpen={() => setSel(p)} />)}
+              {rest.map(p => <Row p={p} sort={sort} onOpen={() => setSel(p)} />)}
               {mine && <>
                 <div class="zn-gap muted" aria-hidden="true">· · ·</div>
-                <Row p={mine} onOpen={() => setSel(mine)} />
+                <Row p={mine} sort={sort} onOpen={() => setSel(mine)} />
               </>}
               {hidden > 0 && <p class="muted zn-more">Mostramos los primeros {SHOW_MAX}. Y {hidden} {hidden === 1 ? 'jugador más' : 'jugadores más'}: filtrá por posición o elegí un radio más chico para ver otros.</p>}
             </div>
@@ -185,7 +196,7 @@ export function Zone({ me }: { me: Profile }) {
         </div>
       )}
 
-      {sel && <PlayerSheet p={sel} onClose={() => setSel(null)} />}
+      {sel && <PlayerSheet p={sel} sortLabel={sort === 'ovr' ? '' : sortLabel} onClose={() => setSel(null)} />}
     </div>
   );
 }
@@ -209,9 +220,10 @@ function ZoneSetup({ initial, busy, err, onSave, onCancel }: {
   );
 }
 
-function Row({ p, onOpen }: { p: ZonePlayer; onOpen: () => void }) {
+function Row({ p, sort, onOpen }: { p: ZonePlayer; sort: ZoneSort; onOpen: () => void }) {
+  const metric = sort === 'ovr' ? '' : sortValueText(p, sort);
   return (
-    <div class={`zn-row${p.isMe ? ' me' : ''}`} {...press(onOpen)} aria-label={`Puesto ${p.rank}: ${p.name}, OVR ${p.ovr}. Ver detalle`}>
+    <div class={`zn-row${p.isMe ? ' me' : ''}`} {...press(onOpen)} aria-label={`Puesto ${p.rank}: ${p.name}, ${metric || `OVR ${p.ovr}`}. Ver detalle`}>
       <span class="zn-rank">{p.rank}</span>
       <Avatar p={p} size={44} />
       <div class="zn-row-main">
@@ -224,13 +236,15 @@ function Row({ p, onOpen }: { p: ZonePlayer; onOpen: () => void }) {
         <div class="muted zn-row-mini">{!p.voted && <span class="zn-self" title="Todavía no lo votaron sus compañeros">autoevaluado</span>}<span>{miniStats(p)}</span></div>
       </div>
       <span class="zn-attrs" aria-hidden="true">{ATTRS.map(([k, l]) => <i><b>{p.stats[k]}</b>{l}</i>)}</span>
-      <span class={`ovr ${p.tier}`}>{p.ovr}</span>
+      {metric
+        ? <span class="zn-metric">{sort === 'gpm' && p.pj < GPM_MIN_PJ ? <><b>—</b><small>{p.pj} PJ</small></> : <><b>{metric.split(' ')[0]}</b><small>{metric.split(' ').slice(1).join(' ')}</small></>}</span>
+        : <span class={`ovr ${p.tier}`}>{p.ovr}</span>}
     </div>
   );
 }
 
 /** Ficha corta de un jugador de la zona: su carta, sus números y de dónde sale su OVR. No lleva a ninguna comunidad. */
-function PlayerSheet({ p, onClose }: { p: ZonePlayer; onClose: () => void }) {
+function PlayerSheet({ p, sortLabel, onClose }: { p: ZonePlayer; sortLabel: string; onClose: () => void }) {
   return (
     <Sheet title={p.name} onClose={onClose}>
       <div class="zn-sheet">
@@ -242,7 +256,7 @@ function PlayerSheet({ p, onClose }: { p: ZonePlayer; onClose: () => void }) {
             {p.shirt_number ? <span>#{p.shirt_number}</span> : null}
             {p.fav_team && <span class="zn-club"><Crest team={p.fav_team} size={14} /> {p.fav_team}</span>}
           </div>
-          <p>#{p.rank} de tu zona{p.isMe ? ' (vos)' : ''}</p>
+          <p>#{p.rank} de tu zona{sortLabel ? ` en ${sortLabel.toLowerCase()}` : ''}{p.isMe ? ' (vos)' : ''}</p>
           {zoneLine(p) && <p class="muted">📍 {zoneLine(p)}</p>}
           <p class="muted zn-sheet-src">{ovrSource(p)}</p>
         </div>

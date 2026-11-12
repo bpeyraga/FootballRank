@@ -85,8 +85,8 @@ export function ComplexPanel({ meId, id, tab }: { meId: string; id: string; tab:
 
       <div class={`ow-body ow-tab-${tab}`}>
         {err && <p class="err" role="alert">{err} <button class="linkbtn" onClick={reload}>Reintentar</button></p>}
-        {tab === 'agenda' && <AgendaView data={data} tick={tick} pending={pending} reloadAll={reloadAll} />}
-        {tab === 'pedidos' && <RequestsView data={data} tick={tick} reloadAll={reloadAll} />}
+        {tab === 'agenda' && <AgendaView meId={meId} data={data} tick={tick} pending={pending} reloadAll={reloadAll} />}
+        {tab === 'pedidos' && <RequestsView meId={meId} data={data} tick={tick} reloadAll={reloadAll} />}
         {tab === 'canchas' && <FieldsView data={data} patch={patch} />}
         {tab === 'horarios' && <HoursView data={data} patch={patch} />}
         {tab === 'datos' && <DetailsView data={data} patch={patch} />}

@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cookies · El Partidito</title>
+<meta name="description" content="Qué cookies y almacenamiento del navegador usa El Partidito, para qué y cómo cambiar tu elección.">
+<link rel="canonical" href="https://elpartidito.vercel.app/cookies.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="El Partidito">
+<meta property="og:locale" content="es_AR">
+<meta property="og:url" content="https://elpartidito.vercel.app/cookies.html">
+<meta property="og:title" content="Política de Cookies y Almacenamiento Local · El Partidito">
+<meta property="og:description" content="Qué cookies y almacenamiento del navegador usa El Partidito, para qué y cómo cambiar tu elección.">
+<meta property="og:image" content="https://elpartidito.vercel.app/og.jpg?v=3">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/icon.png?v=2" type="image/png">
+<style>
+:root{--bg:#f1f6f2;--fg:#12241a;--muted:#55695c;--accent:#1f8a4c;--line:#d5e2d9;color-scheme:light}
+@media (prefers-color-scheme: dark){:root{--bg:#0e1712;--fg:#e6f0e9;--muted:#93a89b;--accent:#5fd08a;--line:#24362b;color-scheme:dark}}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:24px 16px}
+main{max-width:680px;margin:0 auto}
+h1{font-size:1.8rem;margin:0 0 4px}h2{font-size:1.15rem;margin:28px 0 6px}h3{font-size:1rem;margin:18px 0 4px}
+p,li{color:var(--fg)}.muted{color:var(--muted)}a{color:var(--accent)}
+table{width:100%;border-collapse:collapse;font-size:.9rem;margin:8px 0}
+th,td{text-align:left;vertical-align:top;padding:8px 6px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);font-weight:600}
+code{font-size:.85em;word-break:break-all}
+.wrap{overflow-x:auto}
+</style>
+</head>
+<body>
+<main>
+<h1>Política de Cookies y Almacenamiento Local</h1>
+<p class="muted">El Partidito · Última actualización: 12 de noviembre de 2026</p>
+
+<p>Esta política explica qué cookies y qué almacenamiento del navegador usa El Partidito, para qué sirve cada cosa y cómo podés cambiar tu elección. Complementa la <a href="/privacidad.html">política de privacidad</a>.</p>
+
+<h2>1. Qué son</h2>
+<p>Una <b>cookie</b> es un dato chico que un sitio guarda en tu navegador. El <b>almacenamiento local</b> (localStorage) y el <b>de sesión</b> (sessionStorage) cumplen una función parecida: guardan datos en tu dispositivo para que la app recuerde cosas. El de sesión se borra solo al cerrar la pestaña. Nada de esto se usa para mostrarte publicidad.</p>
+
+<h2>2. Necesarias (siempre activas)</h2>
+<p>Sin estas la app no funciona o no recuerda lo que elegiste, por eso no se pueden desactivar desde el aviso:</p>
+<div class="wrap"><table>
+<tr><th>Nombre</th><th>Tipo</th><th>Para qué</th><th>Cuánto dura</th></tr>
+<tr><td><code>ep_consent</code></td><td>Cookie propia</td><td>Recuerda lo que elegiste en el aviso de cookies.</td><td>1 año</td></tr>
+<tr><td><code>sb-…-auth-token</code></td><td>localStorage</td><td>Tu sesión iniciada (la maneja Supabase, nuestro proveedor de autenticación).</td><td>Hasta que cierres sesión</td></tr>
+<tr><td><code>fr-consent</code></td><td>localStorage</td><td>Copia de tu elección del aviso, por si el navegador borra la cookie.</td><td>Hasta que la borres</td></tr>
+<tr><td><code>fr-theme</code></td><td>localStorage</td><td>El tema y los colores que elegiste.</td><td>Hasta que la borres</td></tr>
+<tr><td><code>fr-push-on</code></td><td>localStorage</td><td>Que activaste los avisos en este dispositivo, para volver a conectarlos solos si el navegador los pierde.</td><td>Hasta que desactives los avisos o cierres sesión</td></tr>
+<tr><td><code>futrank-next</code>, <code>fr-intent</code></td><td>localStorage</td><td>A qué pantalla volver después de entrar (por ejemplo, una invitación) y si entraste como jugador o dueño de cancha.</td><td>Se borran al usarse</td></tr>
+<tr><td><code>fr-tour-v1</code>, avisos vistos del chat y de la comunidad</td><td>localStorage</td><td>Si ya viste el tutorial y hasta dónde leíste el chat.</td><td>Hasta que la borres</td></tr>
+<tr><td><code>futrank-courts-origin</code></td><td>localStorage</td><td>Desde dónde buscás canchas.</td><td>Hasta que la borres</td></tr>
+<tr><td><code>futrank-career…</code></td><td>localStorage</td><td>Tu carrera en curso, tu mejor resultado y tus logros en “De potrero a leyenda” (la carrera queda solo en tu navegador).</td><td>Hasta que la borres</td></tr>
+<tr><td>Recarga de la app, clima del partido, aviso de dueños</td><td>sessionStorage</td><td>Estados temporales: recargar una vez si salió una versión nueva, no volver a pedir el pronóstico, no repetir un aviso.</td><td>Hasta cerrar la pestaña</td></tr>
+</table></div>
+
+<h2>3. Estadísticas de uso (opcionales)</h2>
+<p>Solo si tocás <b>“Aceptar todo”</b>, guardamos un identificador al azar en tu navegador (<code>fr-vid</code>, localStorage) para contar visitas: por día, la cantidad de visitas, el tipo de dispositivo, si tenés la app instalada, la sección abierta y, si tenés sesión, tu cuenta; y en “De potrero a leyenda”, cuándo empezás y terminás una carrera (temporadas, OVR final y dificultad). Lo usamos solo para estadísticas propias (por ejemplo, cuánta gente usa la app); se guarda en nuestra base y no lo compartimos.</p>
+<p><b>No usamos Google Analytics</b> ni otras herramientas de medición de terceros.</p>
+<p>Si elegís <b>“Solo necesarias”</b>, no contamos tus visitas y borramos ese identificador si ya estaba.</p>
+
+<h2>4. Contenido de otros sitios</h2>
+<p>Algunas partes cargan contenido de otros servicios, que pueden ver tu dirección IP o usar sus propias cookies en sus dominios, según sus políticas: las tipografías (Google Fonts), el mapa de las canchas (Google Maps, que puede guardar cookies propias dentro del mapa), el ingreso con Google, los escudos y logos (ESPN), las imágenes de las noticias (cada medio), el clima (Open-Meteo) y los nombres de barrios (OpenStreetMap). El Partidito no controla esas cookies.</p>
+
+<h2>5. Cómo cambiar tu elección</h2>
+<p>La primera vez que entrás aparece un aviso abajo con <b>“Solo necesarias”</b> y <b>“Aceptar todo”</b>. Mientras no elijas, no contamos visitas. Podés cambiar tu elección cuando quieras desde <a href="/#cookies">Preferencias de cookies</a> o desde el link al pie de la pantalla de inicio.</p>
+<p>Cada elección queda registrada en nuestra base (un código al azar de la elección, cuál fue, la versión de este aviso, la fecha y, si tenés sesión, tu cuenta) como constancia de tu consentimiento.</p>
+<p>También podés borrar o bloquear cookies y almacenamiento desde la configuración de tu navegador. Ojo: si borrás el almacenamiento se cierra tu sesión y se pierden tus preferencias y tu carrera del juego.</p>
+
+<h2>6. Lo que no usamos</h2>
+<p>No usamos cookies de publicidad, remarketing ni para seguirte en otros sitios, y no mostramos anuncios. Si eso cambia, actualizamos esta política y el aviso antes de activarlo, y te volvemos a preguntar.</p>
+
+<h2>7. Cambios</h2>
+<p>Si cambiamos lo que guardamos o para qué, actualizamos la fecha de arriba y, si hace falta, el aviso vuelve a aparecer para que elijas de nuevo.</p>
+
+<h2>8. Contacto</h2>
+<p>Consultas sobre cookies o almacenamiento: <a href="mailto:aebief@gmail.com">aebief@gmail.com</a>.</p>
+
+<p style="margin-top:32px"><a href="/privacidad.html">Política de privacidad</a> · <a href="/terminos.html">Términos y condiciones</a> · <a href="/">← Volver a la app</a></p>
+</main>
+</body>
+</html>

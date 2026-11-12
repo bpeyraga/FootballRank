@@ -5,7 +5,10 @@ import './install'; // registra el service worker y escucha "instalar app" desde
 import type { Profile } from '../shared/supabase';
 import { pushForget, pushSync } from '../features/push/push';
 import { loadMe, onAuthChange, signOut } from '../features/auth/api';
-import { startTracking, trackNow } from './track';
+import { logConsent, startTracking, stopTracking, trackNow } from './track';
+import { getConsent, onConsent, onConsentChange } from './consent';
+import { allowsStats } from './consentCore';
+import { ConsentBanner } from './ConsentBanner';
 import { Loading, page, prefetch } from './lazy';
 const Login = page(() => import('../features/auth/LoginPage'), m => m.Login);
 const Onboarding = page(() => import('../features/auth/OnboardingPage'), m => m.Onboarding);
@@ -121,5 +124,9 @@ function App() {
   return <Home me={me} />;
 }
 
-startTracking(); // visitas, en vivo e instalaciones (también en la landing, sin sesión)
-render(<Loading><App /></Loading>, document.getElementById('app')!);
+// Visitas, en vivo e instalaciones (también en la landing, sin sesión): solo si aceptó las estadísticas en el aviso de
+// cookies. Cada elección queda registrada en la base (logConsent).
+if (allowsStats(getConsent())) startTracking();
+onConsent(c => { if (c) void logConsent(c); });
+onConsentChange(c => { if (allowsStats(c)) startTracking(); else stopTracking(); });
+render(<><Loading><App /></Loading><ConsentBanner /></>, document.getElementById('app')!);

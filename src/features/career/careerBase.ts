@@ -1,6 +1,7 @@
 // "De potrero a leyenda": cuentas básicas (OVR por puesto, curva de edad, calendario). Puro, sin entorno.
 import { ATTRS, type Pos, type Stats } from '../../shared/model';
-import { POS_W } from './careerData';
+import { weightsOf } from './careerSetup';
+import type { DPos } from './careerTypes';
 
 export const clamp = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, x));
 export const round1 = (x: number) => Math.round(x * 10) / 10;
@@ -18,9 +19,15 @@ export const DEFAULT_YEAR = 2026;
 /** Año de calendario de la temporada que se juega a esa edad: marca los Mundiales, las Copas América y los Juegos Olímpicos. */
 export const seasonYear = (c: { y0: number; age: number }): number => c.y0 + (c.age - START_AGE);
 
-/** OVR (sin redondear) con el peso de cada stat según el puesto. */
-export const ovrF = (s: Stats, pos: Pos): number => ATTRS.reduce((t, [k]) => t + s[k] * POS_W[pos][k], 0);
-export const careerOvr = (s: Stats, pos: Pos): number => Math.round(ovrF(s, pos));
+/** OVR (sin redondear) con el peso de cada stat según el puesto (y la posición en la cancha, si se indica). */
+export const ovrF = (s: Stats, pos: Pos, dpos?: DPos): number => {
+  const w = weightsOf(pos, dpos);
+  return ATTRS.reduce((t, [k]) => t + s[k] * w[k], 0);
+};
+export const careerOvr = (s: Stats, pos: Pos, dpos?: DPos): number => Math.round(ovrF(s, pos, dpos));
+
+/** "1 partido", "3 partidos". */
+export const pl = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
 
 /** Color de la carta (misma regla que el resto de la app). */
 export const cardTier = (o: number): 'gold' | 'silver' | 'bronze' => (o >= 75 ? 'gold' : o >= 65 ? 'silver' : 'bronze');

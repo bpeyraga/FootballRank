@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  dayLong, fmtInt, niceMax, normalizeStats, pct, platformLabel, platformOf, plural, routeKey, sectionLabel, seriesTotal, shortDate, timeAgo,
+  dayLong, difficultyLabel, fmtDec, fmtInt, niceMax, normalizeStats, pct, platformLabel, platformOf, plural, routeKey, sectionLabel, seriesTotal, shortDate, timeAgo,
   type SeriesPoint,
 } from './adminCore';
 
@@ -137,8 +137,8 @@ describe('fechas cortas', () => {
 
 describe('series y eje', () => {
   const s: SeriesPoint[] = [
-    { d: '2026-11-10', visitors: 3, users_new: 1, communities_new: 0, matches_played: 2, goals: 9 },
-    { d: '2026-11-11', visitors: 4, users_new: 0, communities_new: 1, matches_played: 0, goals: 0 },
+    { d: '2026-11-10', visitors: 3, users_new: 1, communities_new: 0, matches_played: 2, goals: 9, game_starts: 0 },
+    { d: '2026-11-11', visitors: 4, users_new: 0, communities_new: 1, matches_played: 0, goals: 0, game_starts: 5 },
   ];
   it('seriesTotal suma una clave', () => {
     expect(seriesTotal(s, 'visitors')).toBe(7);
@@ -193,8 +193,29 @@ describe('normalizeStats', () => {
     expect(n.stat_votes).toBe(5);
     expect(n.visits.unique_today).toBe(7);
     expect(n.visits.platforms).toEqual([{ platform: 'ios', n: 2 }, { platform: 'otro', n: 1 }]);
-    expect(n.series[0]).toEqual({ d: '2026-11-12', visitors: 2, users_new: 0, communities_new: 0, matches_played: 0, goals: 0 });
+    expect(n.series[0]).toEqual({ d: '2026-11-12', visitors: 2, users_new: 0, communities_new: 0, matches_played: 0, goals: 0, game_starts: 0 });
     expect(n.top_communities[0]).toMatchObject({ name: 'Amigos', slug: 'amigos', members: 12, goals: 0, created_at: null });
     expect(n.recent_users[0]).toMatchObject({ name: 'Lu', communities: 2, last_sign_in_at: null });
+  });
+});
+
+describe('juegos en el panel', () => {
+  it('sin datos queda en cero', () => {
+    const g = normalizeStats({}).games;
+    expect(g.starts_total).toBe(0);
+    expect(g.difficulty).toEqual([]);
+  });
+  it('lee contadores y dificultades', () => {
+    const g = normalizeStats({ games: { starts_total: 12, finishes_total: 4, avg_seasons: 14.5, difficulty: [{ difficulty: 'experto', n: 3 }, { n: 1 }] } }).games;
+    expect(g).toMatchObject({ starts_total: 12, finishes_total: 4, avg_seasons: 14.5, players_total: 0 });
+    expect(g.difficulty).toEqual([{ difficulty: 'experto', n: 3 }, { difficulty: 'otra', n: 1 }]);
+  });
+  it('etiquetas y decimales', () => {
+    expect(difficultyLabel('intenso')).toBe('Intenso');
+    expect(difficultyLabel('otra')).toBe('Sin dato');
+    expect(difficultyLabel('leyenda')).toBe('Leyenda');
+    expect(fmtDec(14.5)).toBe('14,5');
+    expect(fmtDec(3)).toBe('3');
+    expect(fmtDec(2.06)).toBe('2,1');
   });
 });

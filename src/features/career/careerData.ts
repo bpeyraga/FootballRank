@@ -2,7 +2,11 @@
 // Todo con nombres reales de competencias y clubes; los únicos jugadores son los que crea el usuario.
 import type { Pos, Stats } from '../../shared/model';
 import type { LeagueId, StyleId } from './careerTypes';
+import { NAT_CUP_LIST, natStar } from './careerNations';
 import { CONTS, CONT_IDS, INTL, LEAGUES, LEAGUE_IDS } from './careerWorld';
+
+/** Aviso legal que se ve al pie de todas las pantallas del juego. */
+export const LEGAL_NOTICE = 'Los nombres, escudos y logos de clubes, selecciones, ligas y competencias se usan solo para identificarlos dentro de esta simulación y pertenecen a sus titulares. El Partidito no está afiliado, patrocinado ni avalado por ninguno de ellos. Todo lo que pasa en el juego es ficticio.';
 
 /** Goles por partido disponible que hacen falta, según la categoría del club, para pelear el "goleador" de la liga. */
 export const GOAL_RATE = [0.67, 0.53, 0.58, 0.52, 0.52, 0.56] as const;
@@ -22,7 +26,6 @@ export const AWARD = {
   olimpiaPlata: 'Olimpia de Plata',
   olimpiaOro: 'Olimpia de Oro',
   wcStar: 'Mejor jugador del Mundial',
-  caStar: 'Mejor jugador de la Copa América',
 } as const;
 
 /** Premios de cada liga: "Premier League: goleador". */
@@ -42,12 +45,13 @@ export const TROPHY_PTS: Record<string, number> = {};
 /** Puntos de Legado de cada premio individual. */
 export const AWARD_PTS: Record<string, number> = {
   [AWARD.ballon]: 55, [AWARD.ballon2]: 20, [AWARD.ballon3]: 12, [AWARD.boot]: 14, [AWARD.golden]: 12, [AWARD.puskas]: 6,
-  [AWARD.olimpiaPlata]: 8, [AWARD.olimpiaOro]: 18, [AWARD.wcStar]: 18, [AWARD.caStar]: 8,
+  [AWARD.olimpiaPlata]: 8, [AWARD.olimpiaOro]: 18, [AWARD.wcStar]: 18,
 };
 for (const id of LEAGUE_IDS) {
   const L = LEAGUES[id];
   TROPHY_PTS[L.name] = L.titlePts;
   if (L.cup) TROPHY_PTS[L.cup] = Math.max(TROPHY_PTS[L.cup] ?? 0, L.cupPts);
+  if (L.extra) TROPHY_PTS[L.extra.name] = L.extra.pts;
   const top = Math.round(3 + L.titlePts * 0.55);
   AWARD_PTS[lgAward.scorer(id)] = top; AWARD_PTS[lgAward.assist(id)] = top - 1;
   AWARD_PTS[lgAward.keeper(id)] = top; AWARD_PTS[lgAward.defender(id)] = top;
@@ -57,7 +61,8 @@ for (const id of CONT_IDS) {
   TROPHY_PTS[CONTS[id].name] = CONTS[id].pts;
   AWARD_PTS[contMvp(CONTS[id].name)] = Math.round(CONTS[id].pts * 0.4);
 }
-for (const t of [INTL.worldCup, INTL.copaAmerica, INTL.olympics, INTL.finalissima, INTL.clubWorldCup]) TROPHY_PTS[t.name] = t.pts;
+for (const t of [INTL.worldCup, INTL.olympics, INTL.finalissima, INTL.clubWorldCup, INTL.trofeo, INTL.recopa, INTL.u20]) TROPHY_PTS[t.name] = t.pts;
+for (const t of NAT_CUP_LIST) { TROPHY_PTS[t.name] = t.pts; AWARD_PTS[natStar(t.name)] = Math.round(t.pts * 0.4); }
 
 /** Puntos por haber llegado a cada categoría (la más alta de la carrera). */
 export const PEAK_TIER_PTS = [0, 4, 12, 30, 50, 80] as const;

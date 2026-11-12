@@ -54,3 +54,8 @@
 .logo-sheet .btn{width:100%}
 .logo-sheet .err{margin:0}
 .cover-crest.logo-preview{width:96px;height:108px;font-size:2rem;padding-bottom:16px}
+
+/* Escudo diseñado en la app: ya trae su propia forma, así que no se recorta dentro de la de siempre (ni acá ni en el listado). */
+.cover-crest.designed,.cover .cover-crest.designed,.comm-crest.designed{clip-path:none;background:none;box-shadow:none;padding:0;overflow:visible}
+.cover-crest.designed img,.comm-crest.designed img{display:block;width:100%;height:100%;object-fit:contain}
+.cover-crest.designed img{filter:drop-shadow(0 2px 6px rgba(0,0,0,.45))}

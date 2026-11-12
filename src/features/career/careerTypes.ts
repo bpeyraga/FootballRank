@@ -2,6 +2,14 @@
 import type { Pos, Stats } from '../../shared/model';
 
 export type StyleId = 'potrero' | 'tactico' | 'fisico';
+/** Qué tan difícil es la carrera: cambia el crecimiento, los minutos, las ofertas, los títulos, los premios y las lesiones (y multiplica el Legado). */
+export type Difficulty = 'normal' | 'intenso' | 'experto';
+/** Pie hábil. */
+export type Foot = 'der' | 'izq' | 'amb';
+/** País del jugador (id de careerNations). */
+export type NatId = string;
+/** Posición en la cancha: POR, DFC, LI, LD, MCD, MC, MI, MD, MCO, EI, ED, DC. Se juega como ARQ/DEF/MED/DEL (`Career.pos`). */
+export type DPos = 'POR' | 'DFC' | 'LI' | 'LD' | 'MCD' | 'MC' | 'MI' | 'MD' | 'MCO' | 'EI' | 'ED' | 'DC';
 /**
  * Categoría de un club según su fuerza (`Club.pw`): 0 inferiores · 1 Ascenso y ligas chicas · 2 Primera y ligas medianas · 3 grandes locales,
  * Brasil, México, MLS y Arabia · 4 Europa media y lo mejor de Brasil · 5 Europa élite.
@@ -13,6 +21,8 @@ export type Severity = 'leve' | 'media' | 'grave';
 export type LeagueId = 'inf' | 'ar1' | 'ar2' | 'br' | 'uy' | 'cl' | 'co' | 'py' | 'ec' | 'mx' | 'us' | 'sa' | 'en' | 'es' | 'it' | 'de' | 'fr' | 'pt' | 'nl' | 'tr';
 /** Copas continentales: Libertadores, Sudamericana, Champions, Europa League, Conference League, Concachampions y Champions de Asia. */
 export type ContId = 'lib' | 'sud' | 'cl' | 'el' | 'ecl' | 'ccc' | 'acl';
+/** Confederación de un club o de una selección ('none' = las inferiores). */
+export type Conf = 'conmebol' | 'uefa' | 'concacaf' | 'afc' | 'caf' | 'none';
 
 /** Un club real. `pw` es su fuerza: el OVR de un titular (60 = Ascenso, 70 = Primera, 77 = grande, 80 = Europa media, 87 = élite). */
 export interface Club { name: string; tier: Tier; pw: number; lg: LeagueId }
@@ -37,17 +47,29 @@ export interface Fx {
   oly?: boolean;
   /** Te quedás con la cinta de capitán. */
   captain?: boolean;
-  /** Cambia de puesto. */
+  /** Solo en el momento clave de una final: cuánto suma (o resta) a la fuerza de tu equipo en ese partido. */
+  fin?: number;
+  /** Cambia de puesto (y de posición en la cancha). */
   pos?: Pos;
+  dpos?: DPos;
   /** Cambio directo en las stats (+/−). */
   stat?: Partial<Stats>;
   /** Mudanza: traspaso, préstamo (volvés al club de origen) o regreso al club de las inferiores. */
   move?: { club: Club; kind: 'transfer' | 'loan' | 'return' };
-  /** Tirada de riesgo: con probabilidad p pasa `ok`, si no `bad`. `text` cuenta qué pasó (ok o bad según `okText`/`badText`). */
-  gamble?: { p: number; okText: string; badText: string; ok?: Fx; bad?: Fx };
+  /**
+   * Tirada de riesgo: con probabilidad p pasa `ok`, si no `bad`. `okText`/`badText` cuentan qué pasó; `okTag`/`badTag` son la etiqueta corta
+   * que se muestra con su probabilidad en la opción ("Titular 50 %").
+   */
+  gamble?: { p: number; okText: string; badText: string; ok?: Fx; bad?: Fx; okTag?: string; badTag?: string };
 }
 
 export interface Opt { id: string; label: string; hint: string; fx: Fx }
+
+/** Una final que quedó por jugarse: la decisión de último momento la inclina. `p` es la chance de ganarla sin hacer nada especial. */
+export interface Tension {
+  kind: 'cont' | 'cup'; name: string; cid: ContId | null; p: number; mine: number; opp: number;
+  rank: number; cupWon: boolean; extraWon: boolean; lg: LeagueId; mvp: boolean;
+}
 export interface EventInst { id: string; title: string; text: string; options: Opt[] }
 
 /** Acumulado de las decisiones de la temporada en curso. */
@@ -68,9 +90,14 @@ export interface SeasonLog {
   role: string;
   trophies: string[];
   awards: string[];
-  caps: number; capGoals: number;
+  /** Selección (y Sub-23): partidos, goles y asistencias, y cómo le fue en cada torneo ("Mundial · Campeón"). */
+  caps: number; capGoals: number; capAssists: number; tours: string[];
   injury: Severity | null;
+  /** El club subió o bajó de división al terminar la temporada. */
+  promo: 'up' | 'down' | null;
   captain: boolean;
+  /** Valor de mercado al cerrar la temporada, en euros. */
+  val: number;
   picks: string[];      // lo que elegiste
   lines: string[];      // lo que pasó, para contarlo
 }
@@ -80,14 +107,23 @@ export type RetireWhy = 'elegido' | 'edad' | 'fisico';
 
 /** Estado completo de una carrera. Serializable (JSON): mismo seed + mismas decisiones = misma carrera. */
 export interface Career {
-  /** Versión del formato: la 2 es la de los clubes reales (las carreras de la 1, con clubes inventados, se descartan). */
-  v: 2;
+  /** Versión del formato: la 3 suma dificultad, país, pie, apellido, número, posición en la cancha y valor de mercado (las anteriores se descartan). */
+  v: 3;
   seed: number;
   rng: number;
-  /** Año en que arrancó la carrera (a los 17): marca el calendario de Mundiales, Copas América y Juegos Olímpicos. */
+  /** Año en que arrancó la carrera (a los 17): marca el calendario de Mundiales, copas continentales y Juegos Olímpicos. */
   y0: number;
+  diff: Difficulty;
+  nat: NatId;
+  foot: Foot;
   name: string;
+  /** Apellido (para la camiseta) y número. */
+  surname: string;
+  num: number;
   pos: Pos;
+  dpos: DPos;
+  /** La posición con la que arrancó la carrera (`dpos` cambia si un DT te reconvierte): "Jugar otra carrera" vuelve a arrancar con esta. Las carreras guardadas antes de este campo no la tienen. */
+  dpos0?: DPos;
   style: StyleId;
   fromCard: boolean;
   stats: Stats;
@@ -96,7 +132,7 @@ export interface Career {
   rate: number;
   age: number;
   club: Club;
-  /** El club de tus inferiores (uno argentino). */
+  /** El club de tus inferiores. */
   home: string;
   loan: Club | null;
   /** La copa continental que jugás esta temporada (según cómo terminó tu club el año anterior), o null. */
@@ -116,18 +152,33 @@ export interface Career {
   picks: string[];
   history: SeasonLog[];
   retire: RetireWhy | null;
+  /** Si la temporada ya se jugó pero falta una final decisiva: el momento clave que se está decidiendo. */
+  tension?: Tension | null;
+  /** Día (de la Argentina) del Desafío del día al que pertenece esta carrera, si lo es. */
+  daily?: string;
+  /** Identificador de este intento para contarlo una sola vez (el desafío del día repite la semilla en cada intento). */
+  aid?: number;
 }
 
 /** `year`: el año de calendario de la primera temporada (por defecto 2026). */
-export interface NewCareerOpts { seed: number; name: string; pos: Pos; style: StyleId; card?: Stats | null; year?: number }
+export interface NewCareerOpts {
+  seed: number; name: string; pos: Pos; style: StyleId; card?: Stats | null; year?: number;
+  diff?: Difficulty; nat?: NatId; foot?: Foot; surname?: string; num?: number; dpos?: DPos; daily?: string; aid?: number;
+}
+
+/** Lo que se elige en la pantalla de arranque. */
+export interface StartOpts { name: string; surname: string; num: number; dpos: DPos; nat: NatId; foot: Foot; diff: Difficulty; style: StyleId; useCard: boolean }
 
 export interface Totals {
   seasons: number; clubs: number; pj: number; goals: number; assists: number; cs: number;
-  trophies: number; caps: number; capGoals: number; peak: number; peakTier: Tier; awards: number;
-  captainSeasons: number; bestRating: number;
+  trophies: number; caps: number; capGoals: number; capAssists: number; peak: number; peakTier: Tier; awards: number;
+  captainSeasons: number; bestRating: number; peakVal: number;
 }
 
-export interface Legacy { score: number; label: string; index: number }
+export interface Legacy {
+  /** Puntaje final (ya con el multiplicador de la dificultad), el de antes del multiplicador y el multiplicador. */
+  score: number; base: number; mult: number; label: string; index: number;
+}
 
-/** Resumen de la mejor carrera de este dispositivo. */
-export interface Best { v: 2; seed: number; name: string; pos: Pos; label: string; score: number; peak: number; seasons: number; trophies: number }
+/** Resumen de la mejor carrera de este dispositivo (una por dificultad). */
+export interface Best { v: 3; d: Difficulty; seed: number; name: string; surname: string; num: number; pos: Pos; label: string; score: number; peak: number; seasons: number; trophies: number }

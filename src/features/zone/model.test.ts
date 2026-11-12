@@ -3,8 +3,8 @@ import { ovr } from '../../shared/model';
 import {
   DEFAULT_RADIUS, LABEL_MAX, RADII, SHOW_MAX, UNNAMED_ZONE,
   buildZoneRanking, fmtDistance, geoErrorText, inviteText, labelFromReverse, miniStats, normalizeZone, ovrSource, parsePlaces, placeLabel,
-  posCounts, roundCoord, rowStats, sameZone, shortAdmin, shortZone, splitPodium, validCoords, visibleRanking, widerRadius, zoneErrorText, zoneLine,
-  type ZoneRow,
+  posCounts, roundCoord, rowStats, sameZone, shortAdmin, shortZone, splitPodium, validCoords, visibleRanking, widerRadius, zoneErrorText, zoneLine, sortValueText, goalsPerMatch, GPM_MIN_PJ,
+  type ZoneRow, type ZoneSort,
 } from './model';
 
 const row = (id: string, o: Partial<ZoneRow> = {}): ZoneRow => ({
@@ -261,5 +261,42 @@ describe('nombre del barrio (reverse)', () => {
     expect(labelFromReverse({})).toBeNull();
     expect(labelFromReverse({ address: {} })).toBeNull();
     expect(labelFromReverse({ address: { suburb: 12 } })).toBeNull();
+  });
+});
+
+describe('ordenar el ranking de la zona', () => {
+  const rows = [
+    row('crack', { ...flat(85), goals: 2, assists: 9, mvps: 1, matches_played: 10 }),
+    row('goleador', { ...flat(60), goals: 15, assists: 1, mvps: 4, matches_played: 10, n_votes: 0 }),
+    row('debut', { ...flat(70), goals: 3, matches_played: 1 }),
+    row('nada', { ...flat(75) }),
+  ];
+  const ids = (sort: ZoneSort) =>
+    buildZoneRanking(rows, null, { sort }).map(p => p.id);
+  it('por OVR (por defecto) los votados van primero', () => {
+    expect(buildZoneRanking(rows, null).map(p => p.id)).toEqual(['crack', 'nada', 'debut', 'goleador']);
+  });
+  it('por goles, asistencias, figuras y partidos: de mayor a menor, desempata por OVR, sin separar autoevaluados', () => {
+    expect(ids('goals')).toEqual(['goleador', 'debut', 'crack', 'nada']);
+    expect(ids('assists')).toEqual(['crack', 'goleador', 'nada', 'debut']);
+    expect(ids('mvps')).toEqual(['goleador', 'crack', 'nada', 'debut']);
+    expect(ids('pj')).toEqual(['crack', 'goleador', 'debut', 'nada']);
+  });
+  it('goles por partido exige un mínimo de partidos', () => {
+    expect(GPM_MIN_PJ).toBe(3);
+    expect(ids('gpm')).toEqual(['goleador', 'crack', 'nada', 'debut']);
+  });
+  it('el podio no lleva a nadie con 0 en lo que se ordena', () => {
+    const list = buildZoneRanking([row('a', { goals: 2 }), row('b'), row('c')], null, { sort: 'goals' });
+    expect(splitPodium(list, 'goals').podium.map(p => p.id)).toEqual(['a']);
+    expect(splitPodium(list).podium.length).toBe(3);
+  });
+  it('textos del valor', () => {
+    const [g] = buildZoneRanking([row('g', { goals: 1, matches_played: 4, mvps: 2 })], null);
+    expect(sortValueText(g, 'goals')).toBe('1 gol');
+    expect(sortValueText(g, 'mvps')).toBe('2 figuras');
+    expect(sortValueText(g, 'gpm')).toBe('0,25 gol/PJ');
+    expect(sortValueText(g, 'ovr')).toBe(String(g.ovr));
+    expect(goalsPerMatch({ goals: 3, pj: 0 })).toBe(0);
   });
 });

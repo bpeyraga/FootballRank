@@ -1,0 +1,56 @@
+/* Diseñador del escudo (dentro de la hoja "Escudo de la comunidad"). Solo usa las variables de styles.css (claro y oscuro). */
+.crest-ed{display:grid;gap:16px;padding-bottom:4px}
+.crest-ed .err{margin:0}
+
+/* Vista previa y acciones: quedan fijas arriba mientras se baja por las opciones */
+.crest-top{position:sticky;top:0;z-index:2;display:grid;grid-template-columns:auto minmax(0,1fr);gap:12px;align-items:center;
+  margin:0 -4px;padding:8px 4px 10px;background:var(--surface);border-bottom:1px solid var(--line)}
+.crest-stage{display:grid;place-items:center;width:112px;height:124px;border-radius:14px;background:var(--bg);border:1px solid var(--line)}
+.crest-preview{display:block;width:88px;height:98px;object-fit:contain}
+.crest-acts{display:grid;gap:6px;min-width:0}
+.crest-acts .btn{width:100%;min-width:0}
+.crest-acts-row{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:6px}
+.crest-acts-row .btn{padding:0 6px;font-size:.8rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.crest-sec{display:grid;gap:8px;min-width:0}
+.crest-h{font-size:.85rem;font-weight:700;color:var(--muted)}
+.crest-sec .field{margin-bottom:0}
+
+/* Forma, dibujo y símbolo: miniaturas con el escudo actual */
+.crest-opts{display:grid;grid-template-columns:repeat(auto-fill,minmax(78px,1fr));gap:8px}
+.crest-opts.c3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.crest-opt{display:grid;justify-items:center;align-content:start;gap:4px;min-width:0;padding:8px 4px 6px;border:1px solid var(--line);border-radius:12px;
+  background:var(--bg);color:var(--fg);font:inherit;font-size:.78rem;font-weight:600;line-height:1.15;cursor:pointer}
+.crest-opt img{display:block;width:40px;height:45px;object-fit:contain}
+.crest-opt[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft);box-shadow:0 0 0 1px var(--accent)}
+
+/* Colores */
+.crest-sw{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.crest-chip{flex:none;width:32px;height:32px;padding:0;border-radius:50%;border:1px solid rgba(0,0,0,.28);cursor:pointer;box-shadow:inset 0 0 0 2px rgba(255,255,255,.25)}
+.crest-chip[aria-pressed="true"],.crest-auto[aria-pressed="true"]{outline:3px solid var(--accent);outline-offset:2px}
+.crest-hrow{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.crest-auto{flex:none;height:28px;padding:0 12px;border-radius:14px;border:1px dashed var(--muted);background:var(--bg);color:var(--fg);font:inherit;font-size:.8rem;font-weight:700;cursor:pointer}
+.crest-custom{flex:none;display:block;width:32px;height:32px;border-radius:50%;overflow:hidden;border:2px dashed var(--muted);cursor:pointer}
+.crest-custom input{display:block;width:44px;height:44px;margin:-6px;padding:0;border:0;background:none;cursor:pointer}
+.crest-custom input::-webkit-color-swatch-wrapper{padding:0}
+.crest-custom input::-webkit-color-swatch{border:0}
+.crest-custom input::-moz-color-swatch{border:0}
+.crest-custom:focus-within{outline:3px solid var(--accent);outline-offset:2px}
+
+/* Estrellas */
+.crest-seg{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px}
+.crest-seg button{min-height:40px;padding:0;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--fg);font:inherit;font-weight:700;cursor:pointer}
+.crest-seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+
+.crest-opt:focus-visible,.crest-chip:focus-visible,.crest-auto:focus-visible,.crest-seg button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+
+@media (max-width:380px){
+  .crest-stage{width:96px;height:108px}
+  .crest-preview{width:76px;height:85px}
+}
+@media (min-width:900px){
+  .crest-stage{width:128px;height:140px}
+  .crest-preview{width:100px;height:112px}
+  .crest-acts-row .btn{font-size:.85rem}
+  .crest-opts.c3{grid-template-columns:repeat(6,minmax(0,1fr))}
+}

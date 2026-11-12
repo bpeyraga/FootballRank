@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import type { ComponentChildren } from 'preact';
 import { loadAdminStats } from './api';
 import {
-  dayLong, fmtInt, niceMax, normalizeStats, pct, platformLabel, plural, sectionLabel, seriesTotal, shortDate, timeAgo,
+  dayLong, difficultyLabel, fmtDec, fmtInt, niceMax, normalizeStats, pct, platformLabel, plural, sectionLabel, seriesTotal, shortDate, timeAgo,
   type AdminStats, type SeriesKey, type SeriesPoint,
 } from './adminCore';
 
@@ -33,6 +33,54 @@ const Skeleton = () => (
     <div class="sa-cols"><div class="sa-sk" style="height:260px" /><div class="sa-sk" style="height:260px" /></div>
   </div>
 );
+
+// ---------- Grupos del panel ----------
+const GROUPS = [
+  { id: 'vivo', label: 'En vivo' }, { id: 'personas', label: 'Personas' }, { id: 'comunidades', label: 'Comunidades' },
+  { id: 'partidos', label: 'Partidos' }, { id: 'uso', label: 'Uso de la app' }, { id: 'juegos', label: 'Juegos' },
+] as const;
+
+const Group = ({ id, icon, title, desc, children }: { id: string; icon: string; title: string; desc?: string; children: ComponentChildren }) => (
+  <section class="sa-group" id={`sa-${id}`} aria-labelledby={`sa-${id}-h`}>
+    <header class="sa-gh">
+      <span class="sa-gi" aria-hidden="true">{icon}</span>
+      <div><h3 id={`sa-${id}-h`}>{title}</h3>{desc && <span class="muted">{desc}</span>}</div>
+    </header>
+    {children}
+  </section>
+);
+
+/** Índice fijo arriba: salta a cada grupo (sin tocar el hash, que es la ruta) y marca el que se está viendo. */
+function GroupNav() {
+  const [cur, setCur] = useState<string>('vivo');
+  useEffect(() => {
+    if (typeof IntersectionObserver === 'undefined') return;
+    // El observer solo avisa de los que cambiaron: se lleva la cuenta de cuáles están en la franja y gana el primero
+    // en orden de página. Al fondo del todo (el último grupo puede no llegar nunca a la franja) gana el último.
+    const seen = new Set<string>();
+    const last = GROUPS[GROUPS.length - 1].id;
+    const atBottom = () => innerHeight + scrollY >= document.documentElement.scrollHeight - 4;
+    const io = new IntersectionObserver(es => {
+      es.forEach(x => { const id = x.target.id.replace(/^sa-/, ''); if (x.isIntersecting) seen.add(id); else seen.delete(id); });
+      const first = atBottom() ? last : GROUPS.find(g => seen.has(g.id))?.id;
+      if (first) setCur(first);
+    }, { rootMargin: '-80px 0px -55% 0px' });
+    GROUPS.forEach(g => { const el = document.getElementById(`sa-${g.id}`); if (el) io.observe(el); });
+    const onScroll = () => { if (atBottom()) setCur(last); };
+    addEventListener('scroll', onScroll, { passive: true });
+    return () => { io.disconnect(); removeEventListener('scroll', onScroll); };
+  }, []);
+  const go = (id: string) => {
+    setCur(id);
+    const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    document.getElementById(`sa-${id}`)?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+  };
+  return (
+    <nav class="sa-nav" aria-label="Secciones del panel">
+      {GROUPS.map(g => <button type="button" class={cur === g.id ? 'on' : ''} aria-current={cur === g.id ? 'true' : undefined} onClick={() => go(g.id)}>{g.label}</button>)}
+    </nav>
+  );
+}
 
 // ---------- En vivo ----------
 function Live({ s }: { s: AdminStats }) {
@@ -78,6 +126,7 @@ function Visits({ s }: { s: AdminStats }) {
         <div class="sa-m"><span>Con sesión hoy</span><b>{fmtInt(v.logged_today)}</b></div>
         <div class="sa-m"><span>Usando la app instalada</span><b>{fmtInt(v.standalone_30d)}</b><small>{pct(v.standalone_30d, v.unique_30d)}% de los visitantes (30 d)</small></div>
         <div class="sa-m"><span>Instalaciones</span><b>{fmtInt(v.installs_total)}</b><small>{fmtInt(v.installs_30d)} en 30 días</small></div>
+        <div class="sa-m"><span>Con avisos activados</span><b>{fmtInt(s.push_devices)}</b><small>dispositivos</small></div>
       </div>
       <h4 class="sa-h4">Plataformas (30 días)</h4>
       {v.platforms.length > 0
@@ -108,7 +157,41 @@ const SERIES: { key: SeriesKey; label: string; unit: string }[] = [
   { key: 'communities_new', label: 'Comunidades nuevas', unit: 'comunidades nuevas' },
   { key: 'matches_played', label: 'Partidos', unit: 'partidos jugados' },
   { key: 'goals', label: 'Goles', unit: 'goles' },
+  { key: 'game_starts', label: 'Carreras', unit: 'carreras empezadas en el juego' },
 ];
+
+// ---------- Juegos ----------
+function Games({ s }: { s: AdminStats }) {
+  const g = s.games;
+  const totalDiff = g.difficulty.reduce((a, d) => a + d.n, 0);
+  return (
+    <Section title="De potrero a leyenda" meta="simulador de carrera">
+      <div class="sa-mini">
+        <div class="sa-m"><span>Carreras empezadas</span><b>{fmtInt(g.starts_total)}</b><small>{fmtInt(g.starts_today)} hoy · {fmtInt(g.starts_7d)} en 7 días</small></div>
+        <div class="sa-m"><span>Carreras terminadas</span><b>{fmtInt(g.finishes_total)}</b><small>{pct(g.finishes_total, g.starts_total)}% de las empezadas</small></div>
+        <div class="sa-m"><span>Jugadores</span><b>{fmtInt(g.players_total)}</b><small>{fmtInt(g.players_7d)} en 7 días</small></div>
+        <div class="sa-m"><span>Carreras por jugador</span><b>{g.players_total ? fmtDec(g.starts_total / g.players_total) : '0'}</b><small>en promedio</small></div>
+        <div class="sa-m"><span>Temporadas por carrera</span><b>{fmtDec(g.avg_seasons)}</b><small>de las terminadas</small></div>
+        <div class="sa-m"><span>Mejor OVR final</span><b>{fmtInt(g.best_ovr)}</b></div>
+      </div>
+      <h4 class="sa-h4">Dificultad elegida</h4>
+      {g.difficulty.length > 0
+        ? (
+          <div class="sa-hbars">
+            {g.difficulty.map(d => (
+              <div class="sa-hb">
+                <span class="sa-hb-l">{difficultyLabel(d.difficulty)}</span>
+                <span class="sa-hb-t" aria-hidden="true"><i style={`width:${Math.max(2, pct(d.n, totalDiff))}%`} /></span>
+                <span class="sa-hb-n">{fmtInt(d.n)} <small class="muted">({pct(d.n, totalDiff)}%)</small></span>
+              </div>
+            ))}
+          </div>
+        )
+        : <p class="muted">Todavía nadie jugó.</p>}
+      <p class="muted sa-foot">Solo cuenta a quienes aceptaron estadísticas en el aviso de cookies. Jugador = cuenta o, sin sesión, navegador.</p>
+    </Section>
+  );
+}
 
 function Trend({ series }: { series: SeriesPoint[] }) {
   const [key, setKey] = useState<SeriesKey>('visitors');
@@ -170,7 +253,7 @@ function Trend({ series }: { series: SeriesPoint[] }) {
 function Communities({ s, now }: { s: AdminStats; now: number }) {
   const list = s.top_communities;
   return (
-    <Section title="Comunidades" meta={list.length ? `las ${list.length} más activas de ${fmtInt(s.communities.total)}` : ''}>
+    <Section title="Las más activas" meta={list.length ? `${list.length} de ${fmtInt(s.communities.total)}` : ''}>
       {list.length === 0 ? <p class="muted">Todavía no hay comunidades.</p> : (
         <table class="sa-table">
           <thead>
@@ -261,30 +344,36 @@ export function Admin() {
     <div class="wrap sa-page">
       <a class="muted sa-back" href="#/">← Inicio</a>
       <div class="card empty">
-        <b>Esta sección es solo para el equipo de Fútbol Rank.</b>
+        <b>Esta sección es solo para el equipo de El Partidito.</b>
         <a class="btn" href="#/">Volver al inicio</a>
       </div>
     </div>
   );
 
   const m = stats?.matches, u = stats?.users, c = stats?.communities, e = stats?.events;
-  const tiles: Tile[] = stats && m && u && c && e ? [
-    { l: 'Cuentas', v: u.total, sub: `+${fmtInt(u.new_7d)} esta semana` },
+  const people: Tile[] = stats && u ? [
+    { l: 'Cuentas', v: u.total, sub: `+${fmtInt(u.new_7d)} esta semana · +${fmtInt(u.new_30d)} en 30 días` },
     { l: 'Activos hoy', v: u.active_24h, sub: 'últimas 24 horas' },
     { l: 'Activos 7 días', v: u.active_7d, sub: `${pct(u.active_7d, u.total)}% de las cuentas` },
     { l: 'Activos 30 días', v: u.active_30d, sub: `${pct(u.active_30d, u.total)}% de las cuentas` },
-    { l: 'Comunidades', v: c.total, sub: `+${fmtInt(c.new_7d)} esta semana` },
-    { l: 'Jugadores', v: u.players_total, sub: `${fmtInt(u.players_no_account)} sin cuenta` },
+    { l: 'Jugadores', v: u.players_total, sub: `${fmtInt(u.players_no_account)} sin cuenta (cargados a mano)` },
+    { l: 'Perfil completo', v: u.onboarded, sub: `${pct(u.onboarded, u.players_total)}% de los jugadores` },
+  ] : [];
+  const comms: Tile[] = stats && c ? [
+    { l: 'Comunidades', v: c.total, sub: `+${fmtInt(c.new_7d)} esta semana · +${fmtInt(c.new_30d)} en 30 días` },
+    { l: 'Membresías', v: c.memberships, sub: c.total ? `${fmtDec(c.memberships / c.total)} por comunidad` : undefined },
+    { l: 'Mensajes', v: stats.messages, sub: 'en los chats' },
+    { l: 'Encuestas', v: stats.polls },
+  ] : [];
+  const played: Tile[] = stats && m && e ? [
     { l: 'Partidos jugados', v: m.played, sub: `${fmtInt(m.cancelled)} cancelados` },
-    { l: 'Partidos por jugarse', v: m.open, sub: `+${fmtInt(m.new_7d)} creados esta semana` },
-    { l: 'Goles', v: e.goals },
+    { l: 'Por jugarse', v: m.open, sub: `+${fmtInt(m.new_7d)} creados esta semana` },
+    { l: 'Goles', v: e.goals, sub: m.played ? `${fmtDec(e.goals / m.played)} por partido` : undefined },
     { l: 'Asistencias', v: e.assists },
     { l: 'Amarillas', v: e.yellow, mark: 'y' },
     { l: 'Rojas', v: e.red, mark: 'r' },
-    { l: 'Mensajes', v: stats.messages },
-    { l: 'Votos', v: stats.stat_votes + stats.mvp_votes, sub: `${fmtInt(stats.stat_votes)} de nivel · ${fmtInt(stats.mvp_votes)} MVP` },
-    { l: 'Encuestas', v: stats.polls },
-    { l: 'Dispositivos con avisos', v: stats.push_devices },
+    { l: 'Votos de nivel', v: stats.stat_votes },
+    { l: 'Votos de figura', v: stats.mvp_votes },
   ] : [];
 
   return (
@@ -315,16 +404,28 @@ export function Admin() {
       {stats && (
         <>
           {fail === 'error' && <p class="note-inline" role="status">No pudimos actualizar ahora: mostramos lo último que trajimos.</p>}
-          <Live s={stats} />
-          <div class="sa-tiles">{tiles.map(t => <TileView t={t} />)}</div>
-          <div class="sa-cols">
-            <Visits s={stats} />
-            <Trend series={stats.series} />
-          </div>
-          <div class="sa-cols wide">
-            <Communities s={stats} now={now} />
+          <GroupNav />
+          <section class="sa-group" id="sa-vivo"><Live s={stats} /></section>
+          <Group id="personas" icon="👥" title="Personas" desc="Cuentas, actividad y últimos registros">
+            <div class="sa-tiles">{people.map(t => <TileView t={t} />)}</div>
             <Recents s={stats} now={now} />
-          </div>
+          </Group>
+          <Group id="comunidades" icon="🏟️" title="Comunidades" desc="Grupos, miembros y charla">
+            <div class="sa-tiles">{comms.map(t => <TileView t={t} />)}</div>
+            <Communities s={stats} now={now} />
+          </Group>
+          <Group id="partidos" icon="⚽" title="Partidos" desc="Lo que se juega y se vota">
+            <div class="sa-tiles">{played.map(t => <TileView t={t} />)}</div>
+          </Group>
+          <Group id="uso" icon="📱" title="Uso de la app" desc="Visitas, instalaciones, avisos y tendencia">
+            <div class="sa-cols">
+              <Visits s={stats} />
+              <Trend series={stats.series} />
+            </div>
+          </Group>
+          <Group id="juegos" icon="🎮" title="Juegos">
+            <Games s={stats} />
+          </Group>
         </>
       )}
     </div>

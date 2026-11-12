@@ -3,9 +3,9 @@
 // escudo con <Crest>. La fuerza de cada club (`pw`) es el OVR de un titular y es un número del juego, no una medición real.
 import { TEAMS_ASCENSO, TEAMS_PRIMERA } from '../../shared/teams';
 import type { Rng } from './careerRng';
-import type { Club, ContId, LeagueId, Tier } from './careerTypes';
+import type { Club, Conf, ContId, LeagueId, Tier } from './careerTypes';
 
-export type Conf = 'conmebol' | 'uefa' | 'concacaf' | 'afc' | 'none';
+export type { Conf };
 
 export interface League {
   id: LeagueId; name: string; country: string; conf: Conf;
@@ -27,13 +27,15 @@ export interface League {
   vis: number;
   /** Frase para las ofertas de esa liga. */
   flavor: string;
+  /** Un segundo torneo largo de la misma temporada con su propia tabla (la Copa de la Liga argentina): nombre, puntos de Legado y copa continental que da. */
+  extra?: { name: string; pts: number; qual: ContId };
 }
 
 const lg = (l: League): League => l;
 
 export const LEAGUES: Record<LeagueId, League> = {
   inf: lg({ id: 'inf', name: 'Torneo de Reserva', country: 'Argentina', conf: 'none', n: 20, games: 18, cup: null, cupRounds: 0, cupQual: null, slots: [], sigma: 5, titlePts: 2, cupPts: 0, vis: -12, flavor: '' }),
-  ar1: lg({ id: 'ar1', name: 'Liga Profesional', country: 'Argentina', conf: 'conmebol', n: 32, games: 28, cup: 'Copa Argentina', cupRounds: 6, cupQual: 'lib', slots: [['lib', 4], ['sud', 12]], sigma: 5.5, titlePts: 9, cupPts: 5, vis: -1, flavor: 'El fútbol de casa, con la hinchada encima.' }),
+  ar1: lg({ id: 'ar1', name: 'Liga Profesional', country: 'Argentina', conf: 'conmebol', n: 32, games: 28, cup: 'Copa Argentina', cupRounds: 6, cupQual: 'lib', slots: [['lib', 4], ['sud', 12]], sigma: 5.5, titlePts: 9, cupPts: 5, vis: -1, flavor: 'El fútbol de casa, con la hinchada encima.', extra: { name: 'Copa de la Liga', pts: 6, qual: 'lib' } }),
   ar2: lg({ id: 'ar2', name: 'Primera Nacional', country: 'Argentina', conf: 'conmebol', n: 36, games: 34, cup: 'Copa Argentina', cupRounds: 6, cupQual: 'lib', slots: [], sigma: 5, titlePts: 4, cupPts: 5, vis: -8, flavor: 'A pelear el ascenso, con todo el sacrificio del Ascenso.' }),
   br: lg({ id: 'br', name: 'Brasileirão', country: 'Brasil', conf: 'conmebol', n: 20, games: 38, cup: 'Copa do Brasil', cupRounds: 6, cupQual: 'lib', slots: [['lib', 6], ['sud', 12]], sigma: 5, titlePts: 11, cupPts: 7, vis: -1, flavor: 'Estadios llenos y exigencia total: el fútbol brasileño no perdona.' }),
   uy: lg({ id: 'uy', name: 'Campeonato Uruguayo', country: 'Uruguay', conf: 'conmebol', n: 16, games: 30, cup: null, cupRounds: 0, cupQual: null, slots: [['lib', 2], ['sud', 5]], sigma: 5, titlePts: 6, cupPts: 0, vis: -3, flavor: 'Un fútbol de garra y de cancha pesada, a un paso de casa.' }),
@@ -51,7 +53,7 @@ export const LEAGUES: Record<LeagueId, League> = {
   fr: lg({ id: 'fr', name: 'Ligue 1', country: 'Francia', conf: 'uefa', n: 18, games: 34, cup: 'Copa de Francia', cupRounds: 6, cupQual: 'el', slots: [['cl', 3], ['el', 5], ['ecl', 6]], sigma: 4.5, titlePts: 11, cupPts: 5, vis: 0, flavor: 'Un fútbol físico y veloz, ideal para crecer.' }),
   pt: lg({ id: 'pt', name: 'Liga Portugal', country: 'Portugal', conf: 'uefa', n: 18, games: 34, cup: 'Taça de Portugal', cupRounds: 5, cupQual: 'el', slots: [['cl', 2], ['el', 3], ['ecl', 4]], sigma: 4.5, titlePts: 9, cupPts: 5, vis: -1, flavor: 'Una vidriera clásica para saltar a las grandes ligas.' }),
   nl: lg({ id: 'nl', name: 'Eredivisie', country: 'Países Bajos', conf: 'uefa', n: 18, games: 34, cup: 'KNVB Beker', cupRounds: 5, cupQual: 'el', slots: [['cl', 2], ['el', 3], ['ecl', 4]], sigma: 4.5, titlePts: 8, cupPts: 4, vis: -1, flavor: 'Una escuela para pibes: jugás y te ven.' }),
-  tr: lg({ id: 'tr', name: 'Süper Lig', country: 'Turquía', conf: 'uefa', n: 20, games: 38, cup: 'Copa de Turquía', cupRounds: 5, cupQual: 'ecl', slots: [['cl', 1], ['el', 3], ['ecl', 4]], sigma: 5, titlePts: 8, cupPts: 4, vis: -2, flavor: 'Pasión pura: las tribunas no se callan nunca.' }),
+  tr: lg({ id: 'tr', name: 'Süper Lig', country: 'Turquía', conf: 'uefa', n: 20, games: 38, cup: 'Copa de Turquía', cupRounds: 5, cupQual: 'el', slots: [['cl', 1], ['el', 3], ['ecl', 4]], sigma: 5, titlePts: 8, cupPts: 4, vis: -2, flavor: 'Pasión pura: las tribunas no se callan nunca.' }),
 };
 
 export const LEAGUE_IDS = Object.keys(LEAGUES) as LeagueId[];
@@ -88,9 +90,12 @@ export const isCont = (x: unknown): x is ContId => typeof x === 'string' && Obje
 /** Torneos de selecciones y de clubes del mundo (no dependen de la liga). */
 export const INTL = {
   worldCup: { name: 'Mundial', pts: 55, rounds: [GRUPOS, OCT, CUA, SEM, FIN], lo: 72, hi: 86, base: 3 },
-  copaAmerica: { name: 'Copa América', pts: 22, rounds: [GRUPOS, CUA, SEM, FIN], lo: 66, hi: 82, base: 3 },
   olympics: { name: 'Juegos Olímpicos', pts: 14, rounds: [GRUPOS, CUA, SEM, FIN], lo: 62, hi: 76, base: 3 },
   finalissima: { name: 'Finalissima', pts: 4, rounds: [FIN], lo: 86, hi: 86, base: 0 },
+  /** Un solo partido: el campeón de liga contra el de copa de la Argentina (Trofeo de Campeones) y el de la Libertadores contra el de la Sudamericana (Recopa). */
+  trofeo: { name: 'Trofeo de Campeones', pts: 4, rounds: [FIN], lo: 74, hi: 74, base: 0 },
+  recopa: { name: 'Recopa Sudamericana', pts: 6, rounds: [FIN], lo: 73, hi: 73, base: 0 },
+  u20: { name: 'Mundial Sub-20', pts: 8, rounds: [GRUPOS, OCT, CUA, SEM, FIN], lo: 60, hi: 74, base: 3 },
   clubWorldCup: { name: 'Mundial de Clubes', pts: 24, rounds: [SEM, FIN], lo: 80, hi: 84, base: 0 },
 } as const;
 
@@ -102,6 +107,8 @@ export const ARG_U23_PW = 72;
 export const isWorldCupYear = (y: number) => y % 4 === 2;
 export const isCopaYear = (y: number) => y % 4 === 0;
 export const isOlympicYear = (y: number) => y % 4 === 0;
+/** El Mundial Sub-20 se juega los años impares. */
+export const isU20Year = (y: number) => y % 2 === 1;
 /** Año de la Finalissima (el campeón de América contra el de Europa): muy de vez en cuando, cada 8 años. */
 export const isFinalissimaYear = (y: number) => y % 8 === 1;
 /** Año del Mundial de Clubes. */
@@ -151,7 +158,7 @@ const WORLD: Record<Exclude<LeagueId, 'inf' | 'ar1' | 'ar2'>, [string, number][]
   ],
   us: [
     ['Inter Miami', 70], ['LAFC', 70], ['LA Galaxy', 68], ['Seattle Sounders', 68], ['Atlanta United', 67], ['Columbus Crew', 67], ['NYCFC', 66],
-    ['FC Cincinnati', 66], ['Philadelphia Union', 66], ['Portland Timbers', 64], ['Orlando City', 64], ['New York Red Bulls', 64], ['Toronto FC', 63], ['Austin FC', 63],
+    ['FC Cincinnati', 66], ['Philadelphia Union', 66], ['Portland Timbers', 64], ['Orlando City', 64], ['New York Red Bulls', 64], ['Austin FC', 63],
   ],
   sa: [['Al-Hilal', 76], ['Al-Nassr', 75], ['Al-Ittihad', 74], ['Al-Ahli', 73], ['Al-Shabab', 66], ['Al-Ettifaq', 66], ['Al-Fateh', 63], ['Al-Taawoun', 63], ['Al-Fayha', 61], ['Damac', 60]],
   en: [
@@ -172,9 +179,9 @@ const WORLD: Record<Exclude<LeagueId, 'inf' | 'ar1' | 'ar2'>, [string, number][]
     ['Friburgo', 75], ['Wolfsburgo', 75], ['Borussia Mönchengladbach', 74], ['Hoffenheim', 74], ['Werder Bremen', 73], ['Mainz', 72],
   ],
   fr: [['PSG', 86], ['Marsella', 79], ['Mónaco', 79], ['Lyon', 78], ['Lille', 78], ['Niza', 76], ['Rennes', 75], ['Lens', 75], ['Estrasburgo', 71]],
-  pt: [['Sporting Lisboa', 80], ['Benfica', 79], ['Porto', 79], ['Braga', 75], ['Vitória de Guimarães', 70]],
+  pt: [['Sporting Lisboa', 80], ['Benfica', 79], ['Porto', 79], ['Braga', 75], ['Vitória de Guimarães', 70], ['Famalicão', 69], ['Gil Vicente', 68], ['Estoril', 68], ['Rio Ave', 67], ['Moreirense', 66], ['Casa Pia', 66]],
   nl: [['PSV', 79], ['Ajax', 77], ['Feyenoord', 77], ['AZ Alkmaar', 74], ['Twente', 72]],
-  tr: [['Galatasaray', 77], ['Fenerbahçe', 77], ['Besiktas', 76.5], ['Trabzonspor', 72], ['Başakşehir', 69]],
+  tr: [['Galatasaray', 77], ['Fenerbahçe', 77], ['Beşiktaş', 76.5], ['Trabzonspor', 72], ['Başakşehir', 69]],
 };
 
 function buildClubs(): ClubDef[] {
@@ -208,10 +215,11 @@ export const youthClub = (d: ClubDef): Club => ({ name: d.name, tier: 0, pw: you
 
 /** Clubes argentinos donde se puede arrancar en las inferiores, con su peso: más Primera y Ascenso que grandes. */
 export function homePool(): (readonly [ClubDef, number])[] {
-  const grandes = new Set(['Boca Juniors', 'River Plate', 'Racing Club', 'Independiente', 'San Lorenzo']);
+  const grandes = new Set(['Boca Juniors', 'River Plate', 'Racing Club', 'Independiente', 'San Lorenzo', 'Vélez Sarsfield', 'Estudiantes de La Plata', "Newell's Old Boys", 'Rosario Central', 'Lanús', 'Argentinos Juniors']);
   const a1 = clubsOf('ar1').filter(c => !grandes.has(c.name)), g = clubsOf('ar1').filter(c => grandes.has(c.name)), a2 = clubsOf('ar2');
   const w = (list: readonly ClubDef[], total: number) => list.map(c => [c, total / list.length] as const);
-  return [...w(a1, 0.52), ...w(a2, 0.4), ...w(g, 0.08)];
+  // menos probable salir de un grande (todos los chicos de la lista juntos suman más que los once grandes), y buena chance de arrancar en el Ascenso
+  return [...w(a1, 0.44), ...w(a2, 0.38), ...w(g, 0.18)];
 }
 
 // ---------- Tabla de la liga ----------
@@ -238,19 +246,19 @@ export const leagueTop = (id: LeagueId) => FIELD[id][0] ?? 50;
 
 /** Puesto en la tabla de una temporada: tu fuerza (con `boost` por lo que aportás) contra la de los demás, con la suerte del año. */
 export function finishRank(club: Club, boost: number, r: Rng): number {
-  const L = LEAGUES[club.lg];
+  const L = LEAGUES[club.lg], f = FIELD[club.lg];
   const mine = club.pw + boost + r.normal(0, L.sigma);
-  let rank = 1, skipped = false;
-  for (const p of FIELD[club.lg]) {
-    if (!skipped && p === club.pw) { skipped = true; continue; } // no te cuentes dos veces
-    if (p + r.normal(0, L.sigma) > mine) rank++;
-  }
-  return Math.min(rank, SIZE[club.lg]);
+  // La tabla siempre tiene el tamaño de la liga: tu club ocupa el lugar del equipo de fuerza más parecida (también si recién ascendió o descendió).
+  let self = 0, near = Infinity;
+  f.forEach((p, i) => { const d = Math.abs(p - club.pw); if (d < near) { near = d; self = i; } });
+  let rank = 1;
+  f.forEach((p, i) => { if (i !== self && p + r.normal(0, L.sigma) > mine) rank++; });
+  return rank;
 }
 
 /** Puesto "de papel" de un club en su liga, por fuerza: 1 = el más fuerte. */
 export function strRank(club: Club): number {
-  return 1 + FIELD[club.lg].filter(p => p > club.pw + 0.25).length;
+  return Math.min(SIZE[club.lg], 1 + FIELD[club.lg].filter(p => p > club.pw + 0.25).length);
 }
 
 /** "Candidato al título", "Mitad de tabla"…: cómo viene el club en su liga. */
@@ -278,6 +286,10 @@ export const qualByStrength = (club: Club): ContId | null => (club.tier === 0 ? 
 /** Tope de partidos que se pueden jugar en una temporada en esa liga (liga + copa + la copa continental más larga + Mundial de Clubes). */
 export function gamesCap(id: LeagueId): number {
   const L = LEAGUES[id];
-  const cont = Math.max(0, ...CONT_IDS.filter(c => CONTS[c].conf === L.conf).map(c => CONTS[c].base + 2 * (CONTS[c].rounds.length - 2) + 1));
-  return L.games + L.cupRounds + cont + 2;
+  // con fase de grupos: sus partidos + ida y vuelta en cada ronda + la final; sin grupos (Concachampions): ida y vuelta en todas menos la final
+  const cont = Math.max(0, ...CONT_IDS.filter(c => CONTS[c].conf === L.conf).map(c => {
+    const n = CONTS[c].rounds.length;
+    return CONTS[c].base > 0 ? CONTS[c].base + 2 * (n - 2) + 1 : 2 * (n - 1) + 1;
+  }));
+  return L.games + L.cupRounds + cont + 2 + 2; // + Mundial de Clubes + Trofeo de Campeones y Recopa
 }

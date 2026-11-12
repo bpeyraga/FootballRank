@@ -5,7 +5,7 @@ import { directionsUrl } from '../venues/maps';
 import { loadMatchLinks } from './api';
 import { BookingMatchSheet } from './BookingMatchSheet';
 import {
-  bookingErrorText, bookingMinutes, bookingWhen, canCancel, canUseForMatch, contactWhatsapp, fmtPrice, splitBookings, statusLabel, telUrl, type MyBooking,
+  bookingErrorText, bookingMinutes, bookingWhen, canCancel, cancelledByComplex, canUseForMatch, contactWhatsapp, fmtPrice, splitBookings, statusLabel, telUrl, type MyBooking,
 } from './model';
 import { DOW_SHORT, MONTH_SHORT, fmtDuration } from './slots';
 import { useMyBookings } from './useCourts';
@@ -127,6 +127,7 @@ function Card({ b, busy, link, onCancel, onUnlink, onMatch }: {
         </span>
         {b.status === 'pending' && b.mine && <span class="muted cn-bk-hint">Esperando que el complejo la confirme.</span>}
         {b.status === 'rejected' && <span class="muted cn-bk-hint">El complejo no pudo darte ese horario. Probá con otro.</span>}
+        {cancelledByComplex(b) && <span class="cn-bk-hint cn-bk-bycx">La canceló el complejo.</span>}
         {b.owner_note && (b.status === 'rejected' || b.status === 'cancelled') && <span class="cn-bk-reason"><b>Mensaje del complejo:</b> {b.owner_note}</span>}
         {b.note && b.mine && live && <span class="muted cn-bk-hint">Tu mensaje: {b.note}</span>}
         {b.match_id && link && <a class="cn-bk-match" href={`#/c/${link.slug}/m/${b.match_id}`}>⚽ {link.title} <span aria-hidden="true">›</span></a>}

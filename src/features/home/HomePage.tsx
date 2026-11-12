@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { Tip } from '../../shared/ui/Tip';
 import { displayName, hue, ovr, posLine, type Profile } from '../../shared/supabase';
 import { go } from '../../app/router';
+import { openConsent } from '../../app/consent';
 import { Avatar } from '../../shared/ui/Avatar';
 import { FutCard } from '../../shared/ui/FutCard';
 import { useInstall } from '../../app/install';
@@ -17,9 +18,12 @@ import { useTour } from './useTour';
 import { ZoneEntry } from '../zone/ZoneEntry';
 import { CourtsEntry } from '../courts/CourtsEntry';
 import { CareerEntry } from '../career/CareerEntry';
+import { isCrestUrl } from '../community/crestUrl';
 
 /** Escudo de la comunidad: la imagen del escudo si la cargaron; si no, la portada; si no, las iniciales. */
 function CommCrest({ c }: { c: Comm }) {
+  // un escudo diseñado en la app va entero (trae su propia forma); una imagen, dentro de la forma de siempre
+  if (isCrestUrl(c.logo_url)) return <span class="comm-crest designed" aria-hidden="true"><img src={c.logo_url!} alt="" loading="lazy" decoding="async" /></span>;
   const img = c.logo_url || c.photo_url;
   return <span class={`comm-crest${img ? ' photo' : ''}`} style={`--h:${hue(c.id)}${img ? `;background-image:url("${img}")` : ''}`}>{initials(c.name)}</span>;
 }
@@ -106,6 +110,8 @@ export function Home({ me }: { me: Profile }) {
             {staff && <a href="#/admin">📊 Panel de la app</a>}
             <a href="/terminos.html">Términos</a>
             <a href="/privacidad.html">Privacidad</a>
+            <a href="/cookies.html">Cookies</a>
+            <a href="#" onClick={e => { e.preventDefault(); menu.current && (menu.current.open = false); openConsent(); }}>🍪 Preferencias de cookies</a>
             <button onClick={signOut}>Cerrar sesión</button>
           </div>
         </details>

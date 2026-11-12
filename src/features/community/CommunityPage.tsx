@@ -285,7 +285,7 @@ export function Community({ slug, sub, me }: { slug: string; sub: string[]; me: 
         compact={tab !== 'partidos' && tab !== 'miembros'}>
         <a href="#/" class="cover-back">← Comunidades</a>
         <h2 class="cover-title">
-          <CommunityLogo id={c.id} name={c.name} url={c.logo_url ?? null} isAdmin={isAdmin} changed={load} />
+          <CommunityLogo id={c.id} name={c.name} url={c.logo_url ?? null} crest={c.crest} isAdmin={isAdmin} changed={load} />
           <span class="cover-name">{c.name}</span>
         </h2>
       </CommunityPhoto>

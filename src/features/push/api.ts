@@ -16,7 +16,12 @@ export async function loadPushKinds(endpoint: string): Promise<string[] | null> 
   return (data?.kinds as string[] | undefined) ?? null;
 }
 
-/** Pide al servidor un aviso de prueba (si falla, no importa). */
-export function sendTestPush() {
-  sb.functions.invoke('push', { body: { type: 'test' } }).catch(() => {});
+/** Pide al servidor un aviso de prueba. Devuelve a cuántos dispositivos salió, o null si no se pudo saber (error de red). */
+export async function sendTestPush(): Promise<number | null> {
+  try {
+    const { data, error } = await sb.functions.invoke('push', { body: { type: 'test' } });
+    if (error) return null;
+    const n = Number((data as { sent?: unknown } | null)?.sent);
+    return Number.isFinite(n) ? n : null;
+  } catch { return null; }
 }

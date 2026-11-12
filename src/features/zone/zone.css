@@ -93,6 +93,16 @@
 /* Filtro por posición */
 .zn-pos{display:flex;gap:5px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;margin:0 -16px 14px;padding:0 16px 2px;scroll-padding-inline:16px}
 .zn-pos::-webkit-scrollbar{display:none}
+.zn-sort{display:flex;align-items:center;gap:5px;overflow-x:auto;scrollbar-width:none;margin:-6px -16px 14px;padding:0 16px 2px}
+.zn-sort::-webkit-scrollbar{display:none}
+.zn-sort>span{flex:none;font-size:.8rem;font-weight:600;margin-right:2px}
+.zn-sort button{flex:none;min-height:34px;padding:0 11px;border:1px solid var(--line);border-radius:8px;background:transparent;color:inherit;font:600 .84rem var(--f-body);white-space:nowrap;cursor:pointer}
+.zn-sort button.on{background:var(--fg);border-color:var(--fg);color:var(--bg)}
+.zn-sortnote{font-size:.8rem;margin:-8px 0 12px}
+.zn-metric{flex:none;display:grid;justify-items:center;min-width:3.4em;line-height:1.05}
+.zn-metric b{font:800 1.25rem var(--f-display,var(--f-body))}
+.zn-metric small{font-size:.68rem;color:var(--muted);font-weight:600}
+.zn-pod-metric{display:block;margin-top:4px;font-size:.78rem;font-weight:800;text-align:center}
 .zn-pos button{flex:none;display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 13px;border:1px solid var(--line);border-radius:99px;background:var(--surface);color:inherit;font:600 .9rem var(--f-body);white-space:nowrap;cursor:pointer}
 .zn-pos button small{display:inline-grid;place-items:center;min-width:1.5em;padding:0 5px;border-radius:99px;background:var(--accent-soft);font-size:.72rem;font-weight:700;line-height:1.55}
 .zn-pos button.on{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
@@ -187,6 +197,7 @@
   .zn-intro h2{font-size:2.8rem}
   .zn-setup{max-width:560px}
   .zn-pos{overflow:visible;flex-wrap:wrap;margin-inline:0;padding:0}
+  .zn-sort{overflow:visible;flex-wrap:wrap;margin-inline:0;padding:0}
   .zn-pos button{transition:border-color .15s,background .15s}
   .zn-podium{gap:18px;margin:16px 0 26px}
   .zn-pod .futcard{zoom:1.2}

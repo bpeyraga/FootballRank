@@ -1,14 +1,25 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { ATTRS, POS, displayName, type Pos, type Profile, type Stats } from '../../shared/model';
-import { whatsappUrl } from '../matches/share';
-import { Crest } from '../../shared/ui/Crest';
-import { AWARD_PTS, POS_LABEL, STYLES, TROPHY_PTS } from './careerData';
-import { LEAGUES } from './careerWorld';
+import { ATTRS, type Profile } from '../../shared/model';
+import { AchScreen, AchToast } from './CareerAch';
+import { Closing, RETIRE_TEXT, Summary, Vitrina } from './CareerEnd';
+import { Seasons } from './CareerSeasons';
+import { Start } from './CareerStart';
+import { Boots, Chips, ClubLogo, CompLogo, CountryFlag, Flag, Shirt, TrophyIcon } from './CareerVisuals';
+import { activeCosmetics, type Active } from './careerCosmetics';
+import { ACH_TOTAL, unlockedCount } from './careerAchievements';
+import { careerOvr } from './careerBase';
+import { LEGAL_NOTICE } from './careerData';
 import {
-  canRetire, cardTier, careerOvr, currentEvent, fxTags, legacy, legacyBlurb, potentialStars, seasonTitle, shareText, tally, totals, youthTarget,
-  type Best, type Career, type RetireWhy, type SeasonLog, type StyleId,
+  canRetire, cardTier, currentEvent, legacy, potentialStars, seasonTitle,
+  type Career,
 } from './careerCore';
-import { useCareer, type StartOpts } from './useCareer';
+import { optionChips } from './careerFx';
+import { nationOf } from './careerNations';
+import { DPOS_LABEL } from './careerSetup';
+import { trophyArt } from './careerTrophies';
+import { fmtEuro, marketValue } from './careerValue';
+import { LEAGUES, strLabel } from './careerWorld';
+import { useCareer } from './useCareer';
 
 /** Al cambiar de paso, el foco va al título (para lectores de pantalla y teclado) y se acerca a la vista si quedó lejos. */
 function useStepFocus(key: string) {
@@ -37,29 +48,45 @@ function useTapGuard(ms = 400) {
   };
 }
 
-const RETIRE_TEXT: Record<RetireWhy, string> = {
-  elegido: 'Elegiste colgar los botines en el momento justo.',
-  edad: 'Llegaste a los 40: es hora de colgar los botines.',
-  fisico: 'El cuerpo dijo basta: ya no te daba para seguir.',
-};
+const year = (c: Career, age = c.age) => c.y0 + age - 17;
+/** Mientras se decide la final, esa temporada todavía no se ve (el resultado se sabe después de decidir). */
+const shownHistory = (c: Career) => (c.tension ? c.history.slice(0, -1) : c.history);
 
-/** Tu jugador: OVR, club, potencial y las seis stats. */
-function PlayerBar({ c, age }: { c: Career; age: number }) {
-  const ovr = careerOvr(c.stats, c.pos);
+/** El club donde jugás: escudo, liga, cómo viene y cómo terminó la última temporada, tu OVR, tu valor y tus seis stats. */
+function ClubHeader({ c, age, cos }: { c: Career; age: number; cos: Active }) {
+  const ovr = careerOvr(c.stats, c.pos, c.dpos);
   const stars = potentialStars(c.potential);
+  const last = shownHistory(c)[shownHistory(c).length - 1];
+  const L = LEAGUES[c.club.lg];
+  const val = last?.val ?? marketValue({ ovr, age, potential: c.potential, lg: c.club.lg, tier: c.club.tier });
+  const n = nationOf(c.nat);
   return (
-    <section class="cr-bar" aria-label="Tu jugador">
-      <div class={`ovr ${cardTier(ovr)} cr-ovr`} role="img" aria-label={`OVR ${ovr}`}><b>{ovr}</b><small>OVR</small></div>
-      <div class="cr-who">
-        <b class="ellipsis">{c.name}</b>
-        <span class="muted ellipsis">{POS_LABEL[c.pos]} · {age} años</span>
-      </div>
-      {age <= 27 && (
-        <div class="cr-stars" role="img" aria-label={`Potencial: ${stars} de 5 estrellas`}>
-          <span aria-hidden="true">{[0, 1, 2, 3, 4].map(i => <i class={i < stars ? 'on' : ''}>★</i>)}</span><small>Potencial</small>
+    <section class="cr-bar" aria-label="Tu jugador y tu club">
+      <div class="cr-club-row">
+        <ClubLogo name={c.club.name} size={46} />
+        <div class="cr-club-info">
+          <b class="ellipsis cr-club-name">{c.loan ? `${c.club.name} (cedido)` : c.club.name}</b>
+          <span class="cr-league"><CompLogo name={L.name} size={16} /><span class="ellipsis">{L.name}</span></span>
+          <span class="muted cr-club-meta">
+            {strLabel(c.club)}
+            {last ? ` · Terminaste ${last.fin}.º${last.lg !== c.club.lg ? ` en ${LEAGUES[last.lg].name}` : ''}` : ''}
+          </span>
         </div>
-      )}
-      <p class="cr-club"><Crest team={c.club.name} size={20} /><span class="ellipsis">{c.club.name}</span><i>{LEAGUES[c.club.lg].name}</i></p>
+      </div>
+      <div class="cr-me">
+        <div class={`ovr ${cardTier(ovr)} cr-ovr${cos.frameId ? ` ${cos.frameId}` : ''}`} role="img" aria-label={`OVR ${ovr}`}><b>{ovr}</b><small>OVR</small></div>
+        <div class="cr-who">
+          <b class="ellipsis">{c.surname} <span class="cr-num">#{c.num}</span></b>
+          <span class="muted ellipsis">{c.dpos} · {DPOS_LABEL[c.dpos]}</span>
+          <span class="muted ellipsis"><Flag nat={c.nat} size={14} /> {age} años · {year(c, age)} · <b class="cr-val" title="Valor de mercado">{fmtEuro(val)}</b></span>
+        </div>
+        {age <= 27 && (
+          <div class="cr-stars" role="img" aria-label={`Potencial: ${stars} de 5 estrellas`}>
+            <span aria-hidden="true">{[0, 1, 2, 3, 4].map(i => <i class={i < stars ? 'on' : ''}>★</i>)}</span><small>Potencial</small>
+          </div>
+        )}
+        <span class="cr-bar-shirt"><Shirt nat={c.nat} surname={c.surname} num={c.num} size={54} trim={cos.trim} />{cos.boots && <Boots color={cos.boots} size={30} />}</span>
+      </div>
       <ul class="cr-stats">
         {ATTRS.map(([k, code, name]) => {
           const v = Math.round(c.stats[k]);
@@ -70,137 +97,12 @@ function PlayerBar({ c, age }: { c: Career; age: number }) {
   );
 }
 
-/** Tu carrera temporada por temporada. Se desplaza sola hasta la última. */
-function Timeline({ rows, pos }: { rows: SeasonLog[]; pos: Pos }) {
-  const box = useRef<HTMLDivElement>(null);
-  useEffect(() => { const el = box.current; if (el) el.scrollTop = el.scrollHeight; }, [rows.length]);
-  if (!rows.length) return null;
-  const keeper = pos === 'ARQ' || pos === 'DEF';
-  return (
-    <section class="cr-tlwrap">
-      <h3>Tu carrera</h3>
-      <div class="cr-tl" ref={box} role="region" aria-label="Tu carrera, temporada por temporada" tabIndex={0}>
-        <table>
-          <thead>
-            <tr>
-              <th scope="col">Temp.</th><th scope="col" class="cr-tl-age">Edad</th><th scope="col" class="cr-tl-club">Club</th><th scope="col">OVR</th><th scope="col">PJ</th>
-              <th scope="col">G</th><th scope="col">A</th>{keeper && <th scope="col" title="Vallas invictas">VI</th>}<th scope="col" title="Títulos">🏆</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map(h => {
-              const d = h.ovr - h.ovr0;
-              return (
-                <tr class={h.trophies.length ? 'won' : ''}>
-                  <td>{h.n}</td><td class="cr-tl-age">{h.age}</td>
-                  <td class="cr-tl-club">
-                    <span class="cr-tl-cn"><Crest team={h.club} size={14} /><span class="ellipsis">{h.club}</span></span>
-                    <small class="muted ellipsis">{LEAGUES[h.lg].name}{h.fin > 0 ? ` · ${h.fin}.º` : ''}</small>
-                  </td>
-                  <td title={d ? `${d > 0 ? '+' : '−'}${Math.abs(d)} en la temporada` : undefined}>
-                    <b>{h.ovr}</b>{d !== 0 && <i class={d > 0 ? 'up' : 'down'} aria-hidden="true">{d > 0 ? '▲' : '▼'}</i>}
-                  </td>
-                  <td>{h.pj}</td><td>{h.goals}</td><td>{h.assists}</td>{keeper && <td>{h.cs}</td>}
-                  <td>{h.trophies.length || '·'}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  );
-}
-
-// ---------- Pantalla de arranque ----------
-
-function Start({ me, card, best, onStart }: { me: Profile; card: Stats | null | undefined; best: Best | null; onStart: (o: StartOpts) => void }) {
-  const [name, setName] = useState(() => displayName(me).slice(0, 24));
-  const [pos, setPos] = useState<Pos>(me.pos && POS.includes(me.pos) ? me.pos : 'MED');
-  const [style, setStyle] = useState<StyleId>('potrero');
-  const [useCard, setUseCard] = useState(false);
-  const avg = card ? ATTRS.reduce((t, [k]) => t + card[k], 0) / ATTRS.length : 0;
-  const youth = Math.min(60, Math.max(45, Math.round(youthTarget(avg))));
-
-  const toggleCard = (on: boolean) => { setUseCard(on); if (on && me.pos) setPos(me.pos); };
-  const submit = (e: Event) => { e.preventDefault(); onStart({ name: name.trim() || 'Crack', pos, style, useCard: useCard && !!card }); };
-
-  return (
-    <div class="cr-start">
-      <header class="cr-hero">
-        <span class="cr-hero-grass" aria-hidden="true" />
-        <svg class="cr-hero-pitch" viewBox="0 0 200 200" aria-hidden="true">
-          <g fill="none" stroke="currentColor" stroke-width="3"><circle cx="100" cy="100" r="62" /><circle cx="100" cy="100" r="5" fill="currentColor" /><path d="M-10 100h220" /></g>
-        </svg>
-        <span class="cr-kicker cr-kicker-light">Simulador de carrera</span>
-        <h1>De potrero a leyenda</h1>
-        <p>Arrancás en las inferiores de un club argentino y vivís la carrera entera de un futbolista, de los 17 años hasta el retiro: Libertadores, Champions, Mundial y Balón de Oro. Vos elegís; el azar decide cómo sale. ¿Hasta dónde llegás?</p>
-      </header>
-
-      {best && (
-        <p class="cr-best" role="status">
-          <span aria-hidden="true">🏅</span> Tu mejor carrera: <b>{best.label}</b> · {best.score} pts <span class="muted">({best.name}, {best.pos}, {best.seasons} temporadas)</span>
-        </p>
-      )}
-
-      <form class="card cr-form" onSubmit={submit}>
-        <label class="field">
-          <span>Nombre del jugador</span>
-          <input value={name} maxLength={24} placeholder="Tu nombre" autoComplete="off" onInput={e => setName((e.target as HTMLInputElement).value)} />
-        </label>
-
-        <fieldset class="cr-fs">
-          <legend>Posición</legend>
-          <div class="cr-pos">
-            {POS.map(p => (
-              <label class="cr-opt">
-                <input type="radio" name="cr-pos" value={p} checked={pos === p} onChange={() => setPos(p)} />
-                <span><b>{p}</b><small>{POS_LABEL[p]}</small></span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
-
-        <fieldset class="cr-fs">
-          <legend>Estilo de juego</legend>
-          <div class="cr-styles">
-            {STYLES.map(s => (
-              <label class="cr-opt cr-style">
-                <input type="radio" name="cr-style" value={s.id} checked={style === s.id} onChange={() => setStyle(s.id)} />
-                <span>
-                  <i aria-hidden="true">{s.emoji}</i>
-                  <b>{s.name}</b>
-                  <em>{s.tag}</em>
-                  <small>{s.desc}</small>
-                </span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
-
-        {card && (
-          <label class="cr-cardopt">
-            <input type="checkbox" checked={useCard} onChange={e => toggleCard((e.target as HTMLInputElement).checked)} />
-            <span>
-              <b>Arrancar con tu carta</b>
-              <small>Usás tus stats reales, en versión pibe de 17 (arrancás con unos {youth} de OVR). Cuanto mejor tu carta, más potencial tenés.</small>
-            </span>
-          </label>
-        )}
-
-        <button class="btn primary block cr-go">Empezar la carrera</button>
-        <p class="cr-fine muted">Clubes y torneos reales, resultados inventados. Se guarda solo en este dispositivo y no cuenta para ningún ranking de la app.</p>
-      </form>
-    </div>
-  );
-}
-
 // ---------- Una temporada: la decisión ----------
 
 function Decide({ c, onPick, onRetire }: { c: Career; onPick: (id: string) => void; onRetire: () => void }) {
   const ev = currentEvent(c)!;
   const total = c.picks.length + c.queue.length;
-  const ref = useStepFocus(`d${c.history.length}-${c.picks.length}`);
+  const ref = useStepFocus(`d${c.history.length}-${c.picks.length}${c.tension ? 't' : ''}`);
   const [sure, setSure] = useState(false);
   // El estado de esta pantalla (la confirmación de retiro, el bloqueo de toques) arranca de cero en cada decisión: ver `key` en CareerScreen
   const tapOk = useTapGuard();
@@ -208,20 +110,27 @@ function Decide({ c, onPick, onRetire }: { c: Career; onPick: (id: string) => vo
 
   return (
     <section class="card cr-card" aria-labelledby="cr-title">
-      <div class="cr-kicker">Temporada {c.history.length + 1} · {c.age} años{total > 1 ? ` · decisión ${c.picks.length + 1} de ${total}` : ''}</div>
+      <div class={`cr-kicker${c.tension ? ' cr-key' : ''}`}>{c.tension ? `⚡ Momento clave · Temporada ${c.history.length}` : `Temporada ${c.history.length + 1} · ${year(c)} · ${c.age} años${total > 1 ? ` · decisión ${c.picks.length + 1} de ${total}` : ''}`}</div>
       <h2 id="cr-title" ref={ref} tabIndex={-1}>{ev.title}</h2>
       <p class="cr-text">{ev.text}</p>
       {c.notes.length > 0 && <ul class="cr-notes" aria-label="Novedades">{c.notes.map(n => <li>{n}</li>)}</ul>}
       <div class="cr-choices" role="group" aria-label="Elegí una opción">
         {ev.options.map(o => {
-          const tags = fxTags(o.fx);
+          const chips = optionChips(c, o), club = o.fx.move?.club;
           return (
-            <button type="button" class="cr-choice" onClick={() => pick(o.id)}>
-              <span class="cr-choice-l">{o.fx.move && <Crest team={o.fx.move.club.name} size={20} />}<span>{o.label}</span></span>
-              <span class="cr-choice-h">{o.hint}</span>
-              {tags.length > 0 && (
-                <span class="cr-tags">{tags.map(t => <span class={`cr-tag${t.good === true ? ' up' : t.good === false ? ' down' : ''}`}>{t.t}</span>)}</span>
+            <button type="button" class={`cr-choice${club ? ' offer' : ''}`} onClick={() => pick(o.id)}>
+              {club && (
+                <span class="cr-offer-head">
+                  <ClubLogo name={club.name} size={42} />
+                  <span class="cr-offer-t">
+                    <b class="ellipsis">{club.name}</b>
+                    <span class="cr-league"><CompLogo name={LEAGUES[club.lg].name} size={15} /><span class="ellipsis">{LEAGUES[club.lg].name}</span> <CountryFlag country={LEAGUES[club.lg].country} size={14} /></span>
+                  </span>
+                </span>
               )}
+              <span class="cr-choice-l"><span>{o.label}</span></span>
+              <span class="cr-choice-h">{o.hint}</span>
+              <Chips chips={chips} />
             </button>
           );
         })}
@@ -251,14 +160,23 @@ function Result({ c, onNext }: { c: Career; onNext: () => void }) {
   const tapOk = useTapGuard();
   const d = h.ovr - h.ovr0;
   const keeper = c.pos === 'ARQ' || c.pos === 'DEF';
+  const L = LEAGUES[h.lg];
+  const prev = c.history[c.history.length - 2];
+  const dv = prev ? h.val - prev.val : 0;
   return (
     <section class="card cr-card cr-result" aria-labelledby="cr-title">
-      <div class="cr-kicker cr-kick-club">Temporada {h.n} · {h.age} años · <Crest team={h.club} size={16} /> {h.club}</div>
+      <div class="cr-kicker cr-kick-club">Temporada {h.n} · {c.y0 + h.age - 17} · {h.age} años · <ClubLogo name={h.club} size={18} /> {h.club}</div>
       <h2 id="cr-title" ref={ref} tabIndex={-1}>{seasonTitle(h)}</h2>
-      <p class="muted cr-role">{h.role} · {LEAGUES[h.lg].name}{h.fin > 0 ? ` (${h.fin}.º)` : ''}{h.cont ? ` · ${h.cont}` : ''}{h.captain ? ' · Capitán' : ''}</p>
+      <p class="muted cr-role"><CompLogo name={L.name} size={15} /> {h.role} · {L.name}{h.fin > 0 ? ` (${h.fin}.º)` : ''}{h.cont ? ` · ${h.cont}` : ''}{h.captain ? ' · Capitán' : ''}</p>
+      <p class="cr-s-marks">
+        {h.injury && <span class="cr-mark inj">LESIÓN</span>}
+        {h.promo === 'up' && <span class="cr-mark up">▲ ASCENSO</span>}
+        {h.promo === 'down' && <span class="cr-mark down">▼ DESCENSO</span>}
+      </p>
       <p class="cr-delta">
         OVR {h.ovr0} → <b>{h.ovr}</b>{' '}
         <span class={d > 0 ? 'up' : d < 0 ? 'down' : ''}>{d > 0 ? `▲ +${d}` : d < 0 ? `▼ −${Math.abs(d)}` : '= igual'}</span>
+        <span class="cr-val-line"> · Valor <b>{fmtEuro(h.val)}</b>{dv !== 0 && <span class={dv > 0 ? 'up' : 'down'}> {dv > 0 ? '▲' : '▼'}</span>}</span>
       </p>
       <dl class="cr-nums" style={`--n:${keeper || h.caps > 0 ? 3 : 4}`}>
         <div><dt>Partidos</dt><dd>{h.pj}</dd></div>
@@ -266,11 +184,12 @@ function Result({ c, onNext }: { c: Career; onNext: () => void }) {
         <div><dt>Asist.</dt><dd>{h.assists}</dd></div>
         {keeper && <div><dt>Vallas invictas</dt><dd>{h.cs}</dd></div>}
         <div><dt>Nota</dt><dd>{h.pj > 0 ? h.rating.toFixed(1) : '—'}</dd></div>
-        {h.caps > 0 && <div><dt>Selección</dt><dd>{h.caps}{h.capGoals ? <small> ({h.capGoals} g)</small> : null}</dd></div>}
+        {h.caps > 0 && <div><dt>Selección</dt><dd>{h.caps}{h.capGoals || h.capAssists ? <small> ({h.capGoals}g {h.capAssists}a)</small> : null}</dd></div>}
       </dl>
+      {h.tours.length > 0 && <p class="cr-s-nat"><Flag nat={c.nat} size={16} /> {h.tours.join(' · ')}</p>}
       {(h.trophies.length > 0 || h.awards.length > 0) && (
         <ul class="cr-chips" aria-label="Títulos y premios">
-          {h.trophies.map(t => <li class="gold"><span aria-hidden="true">🏆</span> {t}</li>)}
+          {h.trophies.map(t => { const a = trophyArt(t); return <li class="gold"><TrophyIcon shape={a.shape} tone={a.tone} size={20} /> {t}</li>; })}
           {h.awards.map(a => <li><span aria-hidden="true">⭐</span> {a}</li>)}
         </ul>
       )}
@@ -279,82 +198,6 @@ function Result({ c, onNext }: { c: Career; onNext: () => void }) {
       {c.retire && <p class="cr-retire-msg">{RETIRE_TEXT[c.retire]}</p>}
       <button type="button" class="btn primary block cr-next" onClick={() => { if (tapOk()) onNext(); }}>{c.retire ? 'Ver mi carrera completa' : `Seguir: temporada ${h.n + 1}`}</button>
     </section>
-  );
-}
-
-// ---------- El cierre ----------
-
-function End({ c, best, onAgain }: { c: Career; best: Best | null; onAgain: () => void }) {
-  const t = totals(c), l = legacy(c);
-  const ref = useStepFocus('end');
-  const record = !!best && best.seed === c.seed && best.score === l.score;
-  const keeper = c.pos === 'ARQ' || c.pos === 'DEF';
-  const trophies = tally(c.history.flatMap(h => h.trophies), TROPHY_PTS);
-  const awards = tally(c.history.flatMap(h => h.awards), AWARD_PTS);
-  // Los clubes por los que pasaste, en orden, con la liga en la que jugaste en cada uno
-  // (si jugaste en primera con ese club, vale esa liga y no la de reserva de tus inferiores)
-  const path = c.history.filter((h, i) => c.history.findIndex(x => x.club === h.club) === i).map(h => c.history.find(x => x.club === h.club && x.lg !== 'inf') ?? h);
-  const share = () => {
-    const text = shareText(c, `${location.origin}/#/juegos/carrera`);
-    if (navigator.share) navigator.share({ text }).catch(() => {});
-    else window.open(whatsappUrl(text), '_blank', 'noopener');
-  };
-  const tiles: [string, string | number][] = [
-    ['Temporadas', t.seasons], ['Clubes', t.clubs], ['Partidos', t.pj], ['Goles', t.goals], ['Asistencias', t.assists],
-    ...(keeper ? [['Vallas invictas', t.cs] as [string, number]] : []),
-    ['Títulos', t.trophies], ['Premios', t.awards],
-    ['Selección', t.caps ? `${t.caps} (${t.capGoals} g)` : '—'], ['OVR máximo', t.peak],
-  ];
-  return (
-    <div class="cr-end">
-      <section class={`cr-legacy lv${l.index}`} aria-labelledby="cr-title">
-        <span class="cr-hero-grass" aria-hidden="true" />
-        <span class="cr-kicker cr-kicker-light">Tu carrera terminó · {c.name} ({c.pos})</span>
-        <h1 id="cr-title" ref={ref} tabIndex={-1}>{l.label}</h1>
-        <p class="cr-score"><b>{l.score}</b> pts de Legado</p>
-        <p class="cr-blurb">{legacyBlurb(l.index)}</p>
-        {record && <span class="cr-record">🏅 ¡Es tu mejor carrera!</span>}
-        {c.retire && <p class="cr-retire-msg">{RETIRE_TEXT[c.retire]}</p>}
-      </section>
-
-      <dl class="cr-grid">
-        {tiles.map(([k, v]) => <div><dt>{k}</dt><dd>{v}</dd></div>)}
-      </dl>
-
-      {(trophies.length > 0 || awards.length > 0) && (
-        <section class="card cr-honors">
-          {trophies.length > 0 && (
-            <div>
-              <h3>Títulos</h3>
-              <ul class="cr-chips">{trophies.map(([n, k]) => <li class="gold"><span aria-hidden="true">🏆</span> {n}{k > 1 ? ` ×${k}` : ''}</li>)}</ul>
-            </div>
-          )}
-          {awards.length > 0 && (
-            <div>
-              <h3>Premios</h3>
-              <ul class="cr-chips">{awards.map(([n, k]) => <li><span aria-hidden="true">⭐</span> {n}{k > 1 ? ` ×${k}` : ''}</li>)}</ul>
-            </div>
-          )}
-        </section>
-      )}
-
-      {path.length > 0 && (
-        <section class="card cr-honors">
-          <h3>Tu recorrido</h3>
-          <ul class="cr-path">
-            {path.map(h => <li><Crest team={h.club} size={22} /><span><b class="ellipsis">{h.club}</b><small class="muted ellipsis">{LEAGUES[h.lg].name}</small></span></li>)}
-          </ul>
-        </section>
-      )}
-
-      <div class="cr-actions">
-        <button type="button" class="btn primary" onClick={share}>Compartir mi carrera</button>
-        <button type="button" class="btn" onClick={onAgain}>Jugar otra vez</button>
-      </div>
-      {best && !record && <p class="cr-best-line muted">Tu mejor carrera sigue siendo {best.label} ({best.score} pts, {best.name}).</p>}
-
-      <Timeline rows={c.history} pos={c.pos} />
-    </div>
   );
 }
 
@@ -369,22 +212,55 @@ export function CareerPage({ me }: { me: Profile }) {
 function CareerScreen({ me }: { me: Profile }) {
   const g = useCareer(me);
   const [quit, setQuit] = useState(false);
+  const [achView, setAchView] = useState(false);
+  const [summary, setSummary] = useState(false);
   const run = g.run;
+  const cos = activeCosmetics(g.ach.unlocked);
 
   const back = <a class="muted cr-back" href="#/">← Inicio</a>;
-
-  if (!run) return <div class="wrap cr-page">{back}<Start me={me} card={g.card} best={g.best} onStart={g.start} /></div>;
-  if (run.phase === 'over') return <div class="wrap cr-page">{back}<End c={run} best={g.best} onAgain={g.reset} /></div>;
-
-  const resultAge = run.phase === 'result' ? run.history[run.history.length - 1].age : run.age;
-  return (
+  const shell = (body: preact.ComponentChildren) => (
     <div class="wrap cr-page">
       {back}
-      <PlayerBar c={run} age={resultAge} />
+      {body}
+      <p class="cr-legal">{LEGAL_NOTICE}</p>
+      {g.toast.length > 0 && <AchToast ids={g.toast} onDone={g.dismissToast} />}
+    </div>
+  );
+
+  if (achView) return shell(<AchScreen ach={g.ach} onBack={() => setAchView(false)} />);
+
+  if (!run) {
+    return shell(
+      <Start
+        me={me} card={g.card} bests={g.bests} achCount={unlockedCount(g.ach)} achTotal={ACH_TOTAL} onStart={g.start} onAch={() => setAchView(true)}
+        daily={g.daily} dailyBest={g.ach.dailyBest && g.ach.dailyBest.day === g.today ? g.ach.dailyBest.score : null} streak={g.ach.streak} today={g.today} onDaily={g.startDaily}
+      />,
+    );
+  }
+  if (run.phase === 'over') {
+    const l = legacy(run);
+    const again = () => { setSummary(false); g.again(); };
+    const change = () => { setSummary(false); g.reset(); };
+    return shell(summary
+      ? <Summary c={run} l={l} best={g.bests[run.diff]} ach={g.ach} onAgain={again} onChange={change} onAch={() => setAchView(true)} />
+      : <Closing c={run} l={l} ach={g.ach} onSummary={() => setSummary(true)} onAgain={again} onChange={change} />);
+  }
+
+  const resultAge = run.phase === 'result' || run.tension ? run.history[run.history.length - 1].age : run.age;
+  const past = { ...run, history: shownHistory(run) };
+  return shell(
+    <>
+      <ClubHeader c={run} age={resultAge} cos={cos} />
       {run.phase === 'decide'
         ? <Decide key={`${run.history.length}-${run.picks.length}`} c={run} onPick={g.pick} onRetire={g.retire} />
         : <Result c={run} onNext={g.next} />}
-      <Timeline rows={run.history} pos={run.pos} />
+      {past.history.length > 0 && (
+        <section class="cr-tlwrap">
+          <h2 class="cr-h cr-h-out">Tu carrera</h2>
+          <Seasons c={past} limit={6} />
+        </section>
+      )}
+      <Vitrina c={past} fold />
       <div class="cr-quit">
         {!quit
           ? <button type="button" class="btn sm" onClick={() => setQuit(true)}>Abandonar esta carrera</button>
@@ -396,6 +272,6 @@ function CareerScreen({ me }: { me: Profile }) {
             </div>
           )}
       </div>
-    </div>
+    </>,
   );
 }

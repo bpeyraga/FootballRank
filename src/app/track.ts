@@ -39,7 +39,7 @@ const isStandalone = () => {
 };
 const platform = () => platformOf(navigator.userAgent, navigator.maxTouchPoints || 0);
 
-async function send(fn: 'track_visit' | 'track_install', args: Record<string, unknown>) {
+async function send(fn: 'track_visit' | 'track_install' | 'track_game', args: Record<string, unknown>) {
   try { await client?.rpc(fn, args); } catch { /* silencioso */ }
 }
 
@@ -58,6 +58,37 @@ function ping() {
 /** Avisa ahora (p. ej. al iniciar sesión, para asociar la visita al usuario). Respeta el tope de 30 s. */
 export function trackNow() { try { ping(); } catch { /* silencioso */ } }
 
+/**
+ * Registro del consentimiento de cookies en la base (record_consent): id al azar de la elección (no el de visitas),
+ * qué eligió, versión del aviso y la cuenta si hay sesión. Sirve de constancia; si falla, la app sigue igual.
+ */
+export async function logConsent(c: { id: string; choice: string; v: number }) {
+  try { await sb.rpc('record_consent', { p_id: c.id, p_choice: c.choice, p_version: c.v }); } catch { /* silencioso */ }
+}
+
+/**
+ * Partidas de los juegos para el panel (track_game): cuándo empezás y terminás una carrera, con temporadas, OVR final
+ * y dificultad. Solo si aceptaste estadísticas (sin cliente no manda nada); nunca rompe el juego.
+ */
+export function trackGame(game: 'carrera', kind: 'start' | 'finish', extra: { seasons?: number; ovr?: number; difficulty?: string } = {}) {
+  try {
+    if (!client) return;
+    const int = (n: unknown) => (typeof n === 'number' && isFinite(n) ? Math.round(n) : null);
+    const diff = typeof extra.difficulty === 'string' ? extra.difficulty.toLowerCase().normalize('NFD').replace(/[^a-z]/g, '').slice(0, 16) : '';
+    void send('track_game', {
+      p_vid: vid, p_game: game, p_kind: kind, p_seasons: int(extra.seasons), p_ovr: int(extra.ovr), p_difficulty: diff || null,
+    });
+  } catch { /* silencioso */ }
+}
+
+/** "Solo necesarias": deja de contar visitas en esta pestaña y borra el id de visitas guardado. */
+export function stopTracking() {
+  client = null;
+  if (pending) { clearTimeout(pending); pending = undefined; }
+  try { localStorage.removeItem(VID_KEY); } catch { /* sin storage */ }
+}
+
+let wired = false;
 export function startTracking(c: typeof sb = sb) {
   try {
     if (client || typeof window === 'undefined') return;
@@ -65,8 +96,10 @@ export function startTracking(c: typeof sb = sb) {
     client = c;
     vid = visitorId();
     ping();
-    setInterval(() => { if (document.visibilityState === 'visible') ping(); }, BEAT_MS);
-    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') ping(); });
-    addEventListener('appinstalled', () => { void send('track_install', { p_vid: vid, p_platform: platform() }); });
+    if (wired) return; // si se vuelve a aceptar después de "Solo necesarias", los listeners ya están
+    wired = true;
+    setInterval(() => { if (client && document.visibilityState === 'visible') ping(); }, BEAT_MS);
+    document.addEventListener('visibilitychange', () => { if (client && document.visibilityState === 'visible') ping(); });
+    addEventListener('appinstalled', () => { if (client) void send('track_install', { p_vid: vid, p_platform: platform() }); });
   } catch { /* silencioso */ }
 }

@@ -28,6 +28,18 @@ const reg = async () => {
 };
 const current = async () => (supported() ? (await reg()).pushManager.getSubscription() : null);
 
+/** Este dispositivo tiene los avisos prendidos (lo eligió la persona): si el navegador pierde la suscripción, se rehace sola. */
+const FLAG = 'fr-push-on';
+const flag = (on?: boolean) => {
+  try {
+    if (on === undefined) return localStorage.getItem(FLAG) === '1';
+    if (on) localStorage.setItem(FLAG, '1'); else localStorage.removeItem(FLAG);
+  } catch { /* sin storage */ }
+  return !!on;
+};
+const subscribe = async (r: ServiceWorkerRegistration) =>
+  (await r.pushManager.getSubscription()) ?? (await r.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key() }));
+
 const save = (s: PushSubscription, kinds?: PushKind[]) => {
   const j = s.toJSON();
   return savePush(s.endpoint, j.keys!.p256dh, j.keys!.auth, kinds ?? null);
@@ -46,11 +58,12 @@ export async function pushOn(): Promise<string> {
   if (await Notification.requestPermission() !== 'granted')
     return 'No diste permiso. Habilitalo en los ajustes del navegador para esta página.';
   try {
-    const r = await reg();
-    const s = (await r.pushManager.getSubscription())
-      ?? (await r.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key() }));
+    const s = await subscribe(await reg());
     if (!(await save(s).then(() => true, () => false))) return 'No se pudo guardar. Probá de nuevo.';
-    sendTestPush();
+    flag(true);
+    // El aviso de prueba puede tardar si el servidor arranca en frío: no se espera más de 10 s.
+    const sent = await Promise.race([sendTestPush(), new Promise<null>(ok => setTimeout(() => ok(null), 10_000))]);
+    if (sent === 0) return 'Quedaron activados, pero el aviso de prueba no salió. Revisá que el navegador y el celular tengan permitidas las notificaciones.';
     return '';
   } catch {
     return 'Este navegador no dejó activar los avisos.';
@@ -58,6 +71,7 @@ export async function pushOn(): Promise<string> {
 }
 
 export async function pushOff() {
+  flag(false);
   const s = await current().catch(() => null);
   if (!s) return;
   await deletePush(s.endpoint);
@@ -77,20 +91,23 @@ export async function setPushKinds(kinds: PushKind[]) {
 }
 
 /**
- * Al abrir la app: si este celular ya tenía avisos, vuelve a guardar la suscripción a nombre de quien
+ * Al abrir la app: si este celular ya tenía avisos (o los tenía prendidos y el navegador perdió la suscripción), vuelve a guardar la suscripción a nombre de quien
  * está logueado (las suscripciones cambian solas y pueden perderse al unir perfiles).
  */
 export async function pushSync() {
   try {
     if (!supported() || Notification.permission !== 'granted') return;
     const s = await current();
-    if (s) await save(s);
+    if (s) { await save(s); flag(true); } // (también marca los celulares que activaron los avisos antes de que existiera la marca)
+    // El navegador la perdió o la cambió (pasa en Android y al limpiar datos): si los avisos estaban prendidos, se rehace.
+    else if (flag()) await save(await subscribe(await reg()));
   } catch { /* sin avisos */ }
 }
 
 /** Al cerrarse la sesión sin pasar por "Cerrar sesión" (vencida, revocada): este celular deja de recibir avisos.
  *  La fila en la base se limpia sola en el próximo envío (el servicio de push responde 410). */
 export async function pushForget() {
+  flag(false); // si no, el próximo en entrar a este celular (otra persona, incluso) quedaría suscripto sin haberlo pedido
   try {
     if (!supported()) return;
     const r = await navigator.serviceWorker.getRegistration();

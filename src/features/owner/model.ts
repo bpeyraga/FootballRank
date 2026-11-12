@@ -7,6 +7,8 @@ export const DEFAULT_TZ = 'America/Argentina/Buenos_Aires';
 // ---------- Tipos ----------
 export type BookingStatus = 'pending' | 'confirmed' | 'rejected' | 'cancelled';
 export type BookingKind = 'request' | 'block';
+/** Quién canceló: 'requester' = quien pidió el turno, 'staff' = el complejo (dueño o encargado). */
+export type CancelRole = 'requester' | 'staff';
 export type Surface = 'sintetico' | 'cesped' | 'cemento' | 'parquet';
 
 export interface Complex {
@@ -23,6 +25,8 @@ export interface Booking {
   id: string; field_id: string; starts_at: string; ends_at: string; status: BookingStatus; kind: BookingKind;
   note: string | null; owner_note: string | null; price: number | null;
   requester_id: string | null; requester_name: string | null; requester_photo: string | null; community_name: string | null; created_at: string;
+  /** Quién la canceló y cuándo se decidió (migración 20261114500000). Ausentes si la base todavía no la tiene o si la cancelación es anterior: no se muestra quién. */
+  cancelled_by?: string | null; cancelled_by_name?: string | null; cancel_role?: CancelRole | null; decided_at?: string | null;
 }
 export interface Overview { complex_id: string; pending: number; today: number }
 /** Un complejo con sus canchas y horarios (lo que carga el panel). */
@@ -329,6 +333,60 @@ export const dayRevenue = (list: Booking[]): number =>
 /** Pedidos para responder: pendientes que todavía no terminaron, los que empiezan antes primero. */
 export const openRequests = (all: Booking[], nowMs: number): Booking[] =>
   all.filter(b => b.kind === 'request' && b.status === 'pending' && endMs(b) > nowMs).sort((a, b) => startMs(a) - startMs(b));
+
+// ---------- Cancelaciones ----------
+/** "hace 5 min", "hace 3 h", "hace 2 días"; pasada una semana, la fecha ("5 nov"). */
+export function fmtAgo(ms: number, nowMs: number, tz: string = DEFAULT_TZ): string {
+  const min = Math.floor((nowMs - ms) / 60_000);
+  if (min < 1) return 'recién';
+  if (min < 60) return `hace ${min} min`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `hace ${h} h`;
+  const d = Math.floor(h / 24);
+  return d < 7 ? `hace ${d} día${d === 1 ? '' : 's'}` : fmtDayShort(localParts(ms, tz).date);
+}
+/** "jue 12 nov · 21:00 – 22:30" en la hora del complejo. */
+export function fmtSlotWhen(startMs: number, endMs: number, tz: string = DEFAULT_TZ): string {
+  const { date, weekday } = localParts(startMs, tz);
+  return `${WEEKDAY_SHORT[weekday]} ${fmtDayShort(date)} · ${fmtRange(startMs, endMs, tz)}`;
+}
+/**
+ * Quién canceló, para el dueño: "Cancelada por vos" / "Cancelada por Beto (quien la pidió)" / "Cancelada por Ana (del complejo)".
+ * Sin nombre (se borró la cuenta) queda el rol; sin ningún dato (cancelaciones anteriores a la migración) es null: no se adivina.
+ */
+export function cancelledByLabel(b: Pick<Booking, 'status' | 'kind' | 'cancelled_by' | 'cancelled_by_name' | 'cancel_role'>, meId?: string | null): string | null {
+  if (b.status !== 'cancelled') return null;
+  const verb = isBlock(b) ? 'Liberado' : 'Cancelada';
+  if (meId && b.cancelled_by === meId) return `${verb} por vos`;
+  const name = b.cancelled_by_name?.trim();
+  const role = b.cancel_role;
+  const tag = role === 'requester' ? 'quien la pidió' : role === 'staff' ? 'del complejo' : '';
+  if (name) return tag ? `${verb} por ${name} (${tag})` : `${verb} por ${name}`;
+  if (role === 'requester') return `${verb} por quien la pidió`;
+  if (role === 'staff') return `${verb} por el complejo`;
+  return null;
+}
+/** Lo de arriba más cuándo: "Cancelada por Beto (quien la pidió) · hace 2 h". null si no se sabe quién. */
+export function cancelledLine(b: Parameters<typeof cancelledByLabel>[0] & Pick<Booking, 'decided_at'>, meId: string | null | undefined, nowMs: number, tz: string = DEFAULT_TZ): string | null {
+  const who = cancelledByLabel(b, meId);
+  if (!who) return null;
+  const at = b.decided_at ? Date.parse(b.decided_at) : NaN;
+  return Number.isFinite(at) ? `${who} · ${fmtAgo(at, nowMs, tz)}` : who;
+}
+
+export const RECENT_CANCEL_DAYS = 7;
+/**
+ * Cancelaciones recientes que el dueño tiene que ver: las que hizo quien pidió el turno (las del propio complejo ya las conoce) en los
+ * últimos 7 días, de turnos que todavía no pasaron del todo (empezaron hace menos de un día o empiezan más adelante). Las más nuevas primero.
+ */
+export function recentCancellations(all: Booking[], nowMs: number): Booking[] {
+  const since = nowMs - RECENT_CANCEL_DAYS * 86_400_000;
+  const decided = (b: Booking) => (b.decided_at ? Date.parse(b.decided_at) : NaN);
+  return all
+    .filter(b => b.status === 'cancelled' && b.kind === 'request' && b.cancel_role === 'requester'
+      && decided(b) >= since && startMs(b) >= nowMs - 86_400_000)
+    .sort((a, b) => decided(b) - decided(a));
+}
 
 // ---------- Canchas ----------
 export interface FieldDraft { name: string; size: number; surface: Surface; roofed: boolean; price: string; active: boolean }

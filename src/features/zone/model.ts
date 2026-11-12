@@ -110,14 +110,53 @@ export function rowStats(r: Pick<ZoneRow, 'rit' | 'tir' | 'pas' | 'reg' | 'def' 
   return out;
 }
 
-export interface RankOpts { km?: number; pos?: Pos | null }
+/** Por qué se ordena el ranking de la zona. */
+export type ZoneSort = 'ovr' | 'goals' | 'assists' | 'mvps' | 'pj' | 'gpm';
+export const ZONE_SORTS: { key: ZoneSort; label: string; one: string; many: string }[] = [
+  { key: 'ovr', label: 'OVR', one: 'OVR', many: 'OVR' },
+  { key: 'goals', label: 'Goles', one: 'gol', many: 'goles' },
+  { key: 'assists', label: 'Asistencias', one: 'asistencia', many: 'asistencias' },
+  { key: 'mvps', label: 'Figuras', one: 'figura', many: 'figuras' },
+  { key: 'pj', label: 'Partidos', one: 'partido', many: 'partidos' },
+  { key: 'gpm', label: 'Gol/partido', one: 'gol/PJ', many: 'gol/PJ' },
+];
+/** Para "goles por partido" hace falta un mínimo de partidos (si no, uno que jugó 1 y metió 3 queda primero). */
+export const GPM_MIN_PJ = 3;
+
+/** Goles por partido con dos decimales (0 sin partidos). */
+export const goalsPerMatch = (p: Pick<ZonePlayer, 'goals' | 'pj'>) => (p.pj > 0 ? Math.round((p.goals / p.pj) * 100) / 100 : 0);
+
+/** El número por el que se ordena. */
+export function sortValue(p: ZonePlayer, sort: ZoneSort): number {
+  switch (sort) {
+    case 'goals': return p.goals;
+    case 'assists': return p.assists;
+    case 'mvps': return p.mvps;
+    case 'pj': return p.pj;
+    case 'gpm': return p.pj >= GPM_MIN_PJ ? goalsPerMatch(p) : -1;
+    default: return p.ovr;
+  }
+}
+
+/** "12 goles", "1 figura", "0,75 gol/PJ" (en OVR, el número solo). */
+export function sortValueText(p: ZonePlayer, sort: ZoneSort): string {
+  const s = ZONE_SORTS.find(x => x.key === sort) ?? ZONE_SORTS[0];
+  if (sort === 'ovr') return String(p.ovr);
+  if (sort === 'gpm') return p.pj >= GPM_MIN_PJ ? `${goalsPerMatch(p).toFixed(2).replace('.', ',')} ${s.one}` : `menos de ${GPM_MIN_PJ} PJ`;
+  const v = sortValue(p, sort);
+  return `${v} ${v === 1 ? s.one : s.many}`;
+}
+
+export interface RankOpts { km?: number; pos?: Pos | null; sort?: ZoneSort }
 
 /**
- * Arma el ranking: dentro del radio (por banda de distancia), con la posición elegida. Primero los que tienen votos de compañeros
- * y después los autoevaluados; en cada grupo, por OVR de mayor a menor. Desempata por partidos jugados (más rodaje primero)
- * y por nombre, así el orden es estable.
+ * Arma el ranking: dentro del radio (por banda de distancia), con la posición elegida.
+ * Por OVR: primero los que tienen votos de compañeros y después los autoevaluados; en cada grupo, por OVR de mayor a menor,
+ * desempata por partidos jugados (más rodaje primero). Por goles, asistencias, figuras o partidos: de mayor a menor (son datos
+ * de partidos reales, no hay autoevaluación); desempata por OVR. Goles por partido solo cuenta a quienes jugaron GPM_MIN_PJ o más
+ * (el resto va al final). Siempre termina por nombre, así el orden es estable.
  */
-export function buildZoneRanking(rows: ZoneRow[], meId: string | null, { km, pos }: RankOpts = {}): ZonePlayer[] {
+export function buildZoneRanking(rows: ZoneRow[], meId: string | null, { km, pos, sort = 'ovr' }: RankOpts = {}): ZonePlayer[] {
   const list: Omit<ZonePlayer, 'rank'>[] = [];
   for (const r of rows) {
     if (km != null && r.distance_band > km) continue;
@@ -132,7 +171,12 @@ export function buildZoneRanking(rows: ZoneRow[], meId: string | null, { km, pos
       isMe: r.profile_id === meId,
     });
   }
-  list.sort((a, b) => Number(b.voted) - Number(a.voted) || b.ovr - a.ovr || b.pj - a.pj || a.name.localeCompare(b.name, 'es') || a.id.localeCompare(b.id));
+  const tail = (a: Omit<ZonePlayer, 'rank'>, b: Omit<ZonePlayer, 'rank'>) => a.name.localeCompare(b.name, 'es') || a.id.localeCompare(b.id);
+  if (sort === 'ovr') list.sort((a, b) => Number(b.voted) - Number(a.voted) || b.ovr - a.ovr || b.pj - a.pj || tail(a, b));
+  else {
+    const v = (p: Omit<ZonePlayer, 'rank'>) => sortValue(p as ZonePlayer, sort);
+    list.sort((a, b) => v(b) - v(a) || b.ovr - a.ovr || tail(a, b));
+  }
   return list.map((p, i) => ({ ...p, rank: i + 1 }));
 }
 
@@ -158,9 +202,11 @@ export function visibleRanking(list: ZonePlayer[], max = SHOW_MAX): { shown: Zon
  * Podio y resto de lo que se dibuja: el podio son los primeros 3 CON votos (los autoevaluados no suben: su OVR es lo que ellos
  * mismos se pusieron). Si hay menos de 3 votados, hay menos lugares en el podio. La lista ya viene con los votados primero.
  */
-export function splitPodium(shown: ZonePlayer[]): { podium: ZonePlayer[]; rest: ZonePlayer[] } {
+export function splitPodium(shown: ZonePlayer[], sort: ZoneSort = 'ovr'): { podium: ZonePlayer[]; rest: ZonePlayer[] } {
+  // Por OVR suben solo los votados; por goles, asistencias, etc., solo quien tiene algo (nadie sube al podio con 0 goles).
+  const ok = (p: ZonePlayer) => (sort === 'ovr' ? p.voted : sortValue(p, sort) > 0);
   let n = 0;
-  while (n < 3 && n < shown.length && shown[n].voted) n++;
+  while (n < 3 && n < shown.length && ok(shown[n])) n++;
   return { podium: shown.slice(0, n), rest: shown.slice(n) };
 }
 

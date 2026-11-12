@@ -25,6 +25,8 @@ export interface MyBooking {
   status: BookingStatus; price: number | null; community_id: string | null; match_id: string | null; mine: boolean;
   /** Mi nota al pedir, y la respuesta del complejo (motivo de un rechazo o una cancelación). */
   note?: string | null; owner_note?: string | null;
+  /** Quién la canceló (migración 20261114500000): 'staff' = el complejo, 'requester' = quien la pidió. Ausente si la base todavía no lo manda. */
+  cancel_role?: 'requester' | 'staff' | null;
   /** Para contactar al complejo desde la reserva. */
   complex_address?: string | null; complex_phone?: string | null; complex_whatsapp?: string | null;
 }
@@ -201,6 +203,9 @@ export function splitBookings(list: MyBooking[], nowMs: number): { upcoming: MyB
   const past = list.filter(b => !isLive(b, nowMs)).sort((a, b) => Date.parse(b.starts_at) - Date.parse(a.starts_at));
   return { upcoming, past };
 }
+
+/** Para el jugador: "La canceló el complejo" si fue el dueño o un encargado (si la canceló quien la pidió, no hace falta decirlo). */
+export const cancelledByComplex = (b: Pick<MyBooking, 'status' | 'cancel_role'>): boolean => b.status === 'cancelled' && b.cancel_role === 'staff';
 
 /** Cancelar: solo quien la pidió, mientras está pendiente o confirmada y antes de que empiece. */
 export const canCancel = (b: MyBooking, nowMs: number) =>

@@ -22,7 +22,8 @@ export function NotifyPrompt({ onInstall }: { onInstall: () => void }) {
     setBusy(true); setMsg('');
     const err = await pushOn();
     setBusy(false);
-    if (err) setMsg(err); else { setMsg('¡Listo! Te mandamos un aviso de prueba.'); setSt('on'); setTimeout(close, 2500); }
+    // Con error puede haber quedado activado igual (el aviso de prueba no salió): se relee el estado para no ofrecer "Activar" de nuevo.
+    if (err) { setMsg(err); pushStatus().then(setSt, () => {}); } else { setMsg('¡Listo! Te mandamos un aviso de prueba.'); setSt('on'); setTimeout(close, 2500); }
   };
 
   return (

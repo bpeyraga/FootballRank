@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  RADII, bookingErrorText, bookingMinutes, bookingPrice, bookingWhen, canCancel, canUseForMatch, contactWhatsapp, countByRadius, filterComplexes, fmtKm, fmtPrice, isMissingCourts,
+  RADII, bookingErrorText, bookingMinutes, bookingPrice, bookingWhen, canCancel, cancelledByComplex, canUseForMatch, contactWhatsapp, countByRadius, filterComplexes, fmtKm, fmtPrice, isMissingCourts,
   nextBooking, parseOrigin, placeLine, priceFrom, sizeLabel, sizesLine, splitBookings, startsDiffer, statusLabel, surfaceLabel, telUrl, whatsappUrl, whenLocal, widerRadius,
   type ComplexRow, type MyBooking,
 } from './model';
@@ -199,6 +199,12 @@ describe('mis reservas', () => {
     expect(canCancel(mk('a', 2, 'cancelled'), NOW)).toBe(false);
     expect(canCancel(mk('a', -0.5, 'confirmed'), NOW)).toBe(false);
     expect(canCancel(mk('a', 2, 'confirmed', { mine: false }), NOW)).toBe(false);
+  });
+  it('cancelledByComplex: solo si está cancelada y la canceló el complejo', () => {
+    expect(cancelledByComplex(mk('a', 2, 'cancelled', { cancel_role: 'staff' }))).toBe(true);
+    expect(cancelledByComplex(mk('a', 2, 'cancelled', { cancel_role: 'requester' }))).toBe(false);
+    expect(cancelledByComplex(mk('a', 2, 'cancelled'))).toBe(false); // cancelaciones anteriores a la migración: no se adivina
+    expect(cancelledByComplex(mk('a', 2, 'confirmed', { cancel_role: 'staff' }))).toBe(false);
   });
   it('canUseForMatch: la mía, confirmada y que no terminó', () => {
     expect(canUseForMatch(mk('a', 2, 'confirmed'), NOW)).toBe(true);

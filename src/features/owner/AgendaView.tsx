@@ -7,11 +7,11 @@ import { useAgenda, useIsDesktop, useNow } from './useOwner';
 import { WeekGrid } from './WeekGrid';
 import {
   addDays, bookingsOfDay, dayCounts, dayHours, dayRevenue, dayWindow, fmtDayLong, fmtDayChip, fmtPrice, groupByDay, isActive, localParts, startOfWeek,
-  today as todayOf, weekdayOf, zonedToUtc, STATUS_LABEL, fmtRange, startMs, endMs, type Booking, type ComplexData,
+  today as todayOf, weekdayOf, zonedToUtc, STATUS_LABEL, fmtRange, startMs, endMs, cancelledLine, isBlock, type Booking, type ComplexData,
 } from './model';
 
 /** La agenda del complejo: el día con una columna por cancha (y la semana entera en pantallas anchas), con los pedidos por responder. */
-export function AgendaView({ data, tick, pending, reloadAll }: { data: ComplexData; tick: number; pending: number; reloadAll: () => void }) {
+export function AgendaView({ meId, data, tick, pending, reloadAll }: { meId: string; data: ComplexData; tick: number; pending: number; reloadAll: () => void }) {
   const { complex, fields, hours } = data;
   const tz = complex.tz;
   const now = useNow();
@@ -135,10 +135,14 @@ export function AgendaView({ data, tick, pending, reloadAll }: { data: ComplexDa
             <details class="ow-dead card">
               <summary>Cancelados y rechazados ({dead.length})</summary>
               <ul>
-                {dead.map(({ b }) => (
-                  <li><button class="linkbtn" onClick={() => setSel(b)}>{fmtRange(startMs(b), endMs(b), tz)}</button>
-                    <span class="muted"> · {b.requester_name ?? 'Jugador'} · {STATUS_LABEL[b.status]}</span></li>
-                ))}
+                {dead.map(({ b }) => {
+                  const by = cancelledLine(b, meId, now, tz);
+                  return (
+                    <li><button class="linkbtn" onClick={() => setSel(b)}>{fmtRange(startMs(b), endMs(b), tz)}</button>
+                      <span class="muted"> · {isBlock(b) ? (b.note || 'Bloqueo') : (b.requester_name ?? 'Jugador')} · {STATUS_LABEL[b.status]}</span>
+                      {by && <small class="ow-dead-by">{by}</small>}</li>
+                  );
+                })}
               </ul>
             </details>
           )}
@@ -150,7 +154,7 @@ export function AgendaView({ data, tick, pending, reloadAll }: { data: ComplexDa
           onPickDay={d => { setDate(d); setMode('dia'); }} onOpen={setSel} />
       )}
 
-      {sel && <BookingSheet b={sel} all={all} fields={fields} tz={tz} now={now} onClose={() => setSel(null)} onDone={done} />}
+      {sel && <BookingSheet meId={meId} b={sel} all={all} fields={fields} tz={tz} now={now} onClose={() => setSel(null)} onDone={done} />}
       {block && <BlockSheet complex={complex} fields={fields} date={date} init={block} onClose={() => setBlock(null)} onDone={done} />}
     </div>
   );

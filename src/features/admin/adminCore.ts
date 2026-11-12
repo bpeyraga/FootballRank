@@ -85,8 +85,13 @@ export function dayLong(d: string): string {
 export const plural = (n: number, one: string, many: string) => `${fmtInt(n)} ${n === 1 ? one : many}`;
 
 // ---------- Datos de admin_stats() ----------
-export type SeriesKey = 'visitors' | 'users_new' | 'communities_new' | 'matches_played' | 'goals';
-export interface SeriesPoint { d: string; visitors: number; users_new: number; communities_new: number; matches_played: number; goals: number }
+export type SeriesKey = 'visitors' | 'users_new' | 'communities_new' | 'matches_played' | 'goals' | 'game_starts';
+export interface SeriesPoint { d: string; visitors: number; users_new: number; communities_new: number; matches_played: number; goals: number; game_starts: number }
+export interface GameStats {
+  starts_total: number; finishes_total: number; starts_today: number; starts_7d: number; starts_30d: number;
+  players_total: number; players_7d: number; avg_seasons: number; best_ovr: number;
+  difficulty: { difficulty: string; n: number }[];
+}
 export interface OnlineUser { name: string; platform: string | null; path: string | null; standalone: boolean }
 export interface TopCommunity {
   name: string; slug: string; members: number; players_no_account: number; matches_played: number; goals: number; messages: number;
@@ -108,6 +113,7 @@ export interface AdminStats {
   series: SeriesPoint[];
   top_communities: TopCommunity[];
   recent_users: RecentUser[];
+  games: GameStats;
 }
 
 const num = (v: unknown): number => (typeof v === 'number' && isFinite(v) ? v : Number(v) > 0 ? Number(v) : 0);
@@ -137,7 +143,7 @@ export function normalizeStats(raw: unknown): AdminStats {
       ...nums(v, ['unique_today', 'unique_7d', 'unique_30d', 'logged_today', 'hits_today', 'standalone_30d', 'installs_total', 'installs_30d'] as const),
       platforms: arr(v.platforms).map(p => ({ platform: str(obj(p).platform) ?? 'otro', n: num(obj(p).n) })),
     },
-    series: arr(r.series).map(p => ({ d: str(obj(p).d) ?? '', ...nums(p, ['visitors', 'users_new', 'communities_new', 'matches_played', 'goals'] as const) })),
+    series: arr(r.series).map(p => ({ d: str(obj(p).d) ?? '', ...nums(p, ['visitors', 'users_new', 'communities_new', 'matches_played', 'goals', 'game_starts'] as const) })),
     top_communities: arr(r.top_communities).map(c => ({
       name: str(obj(c).name) ?? 'Sin nombre', slug: str(obj(c).slug) ?? '',
       ...nums(c, ['members', 'players_no_account', 'matches_played', 'goals', 'messages'] as const),
@@ -147,8 +153,18 @@ export function normalizeStats(raw: unknown): AdminStats {
       name: str(obj(u).name) ?? 'Sin perfil', created_at: str(obj(u).created_at), last_sign_in_at: str(obj(u).last_sign_in_at),
       last_seen: str(obj(u).last_seen), communities: num(obj(u).communities),
     })),
+    games: {
+      ...nums(r.games, ['starts_total', 'finishes_total', 'starts_today', 'starts_7d', 'starts_30d', 'players_total', 'players_7d', 'avg_seasons', 'best_ovr'] as const),
+      difficulty: arr(obj(r.games).difficulty).map(d => ({ difficulty: str(obj(d).difficulty) ?? 'otra', n: num(obj(d).n) })),
+    },
   };
 }
+
+const DIFF_LABEL: Record<string, string> = { normal: 'Normal', intenso: 'Intenso', experto: 'Experto', otra: 'Sin dato' };
+export const difficultyLabel = (d: string) => DIFF_LABEL[d] ?? d.charAt(0).toUpperCase() + d.slice(1);
+
+/** Un decimal con coma (3.5 → "3,5"; 4 → "4"). */
+export const fmtDec = (n: number) => (Number.isInteger(n) ? fmtInt(n) : (Math.round(n * 10) / 10).toFixed(1).replace('.', ','));
 
 /** Suma de una serie en el período. */
 export const seriesTotal = (s: SeriesPoint[], k: SeriesKey) => s.reduce((a, p) => a + (p[k] || 0), 0);

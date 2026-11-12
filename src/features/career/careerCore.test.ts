@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ATTRS, POS, type Stats } from '../../shared/model';
-import { AWARD, AWARD_PTS, LEGACY_STEPS, POS_LABEL, POS_W, TROPHY_PTS, contMvp, lgAward } from './careerData';
+import { AWARD, AWARD_PTS, LEGACY_STEPS, POS_W, TROPHY_PTS, contMvp, lgAward } from './careerData';
+import { NATIONS, NAT_CUPS, NAT_CUP_LIST, natStar, nationOf } from './careerNations';
+import { DPOS_LABEL } from './careerSetup';
 import { BEST_KEY, RUN_KEY, bestKey, loadBest, loadRun, recordIfBest, runKey, saveBest, saveRun } from './careerStore';
 import { loadSummary, summaryKey } from './careerSummary';
 import { DEFAULT_YEAR, remainingGrowth, seasonYear } from './careerBase';
@@ -8,7 +10,7 @@ import { eliminatedAt, natTournament, runTournament } from './careerComps';
 import { drawEvents, olyChance, selecChance } from './careerEvents';
 import {
   CLUBS, CLUB_BY_NAME, CONTS, CONT_IDS, INTL, LEAGUES, LEAGUE_IDS, asClub, clubNamed, clubsOf, gamesCap, isClubWorldCupYear, isCopaYear, isFinalissimaYear,
-  finishRank, isOlympicYear, isWorldCupYear, qualByStrength, qualFor, sizeOf, tierOf, youthClub,
+  finishRank, isOlympicYear, isU20Year, isWorldCupYear, qualByStrength, qualFor, sizeOf, tierOf, youthClub,
 } from './careerWorld';
 import { KITS, TEAMS_ASCENSO, TEAMS_PRIMERA } from '../../shared/teams';
 import { Rng, seedState } from './careerRng';
@@ -18,6 +20,7 @@ import {
   type Career, type Club, type EventInst, type Picker, type SeasonLog,
 } from './careerCore';
 
+const EMPTY_SUMMARY = { run: null, best: {}, ach: 0, day: null, streak: { last: '', n: 0 } };
 const flat = (n: number): Stats => ({ rit: n, tir: n, pas: n, reg: n, def: n, fis: n });
 const first: Picker = (_c, ev) => ev.options[0].id;
 const seeds = (n: number, k = 7919) => Array.from({ length: n }, (_, i) => (i + 1) * k);
@@ -332,8 +335,8 @@ describe('decisiones', () => {
     const c = find(x => x.phase === 'decide' && x.queue.some(e => e.id === 'switch'), 900);
     const ev = c.queue.find(e => e.id === 'switch')!;
     const yes = ev.options.find(o => o.id === 'yes')!;
-    expect(yes.label).toMatch(/^Aceptar el cambio a (defensor|mediocampista|delantero)$/);
-    expect(yes.label).toContain(POS_LABEL[yes.fx.pos!].toLowerCase());
+    expect(yes.label).toMatch(/^Aceptar el cambio a [a-záéíóú ]+$/);
+    expect(yes.label).toContain(DPOS_LABEL[yes.fx.dpos!].toLowerCase());
   });
 });
 
@@ -398,7 +401,7 @@ describe('categorías y traspasos', () => {
     expect(c.club.tier).toBe(tierOf(c.club.pw));
   });
   it('terminar entre los últimos de la Liga Profesional manda al club a la Primera Nacional', () => {
-    const c = find(x => x.phase === 'result' && !x.loan && x.history[x.history.length - 1].lg === 'ar1' && x.history[x.history.length - 1].fin > sizeOf('ar1') - 3, 1500);
+    const c = find(x => x.phase === 'result' && !x.loan && x.history[x.history.length - 1].lg === 'ar1' && x.history[x.history.length - 1].fin > sizeOf('ar1') - 2, 1500);
     expect(c.club.lg).toBe('ar2');
     expect(c.notes.join(' ')).toContain('descendió');
     expect(c.qual).toBeNull();
@@ -463,7 +466,8 @@ describe('categorías y traspasos', () => {
     expect(years.filter(isFinalissimaYear).slice(0, 2)).toEqual([2033, 2041]);
     // Mundial y Copa América nunca el mismo año; un año de por medio queda libre
     expect(years.filter(y => isWorldCupYear(y) && isCopaYear(y))).toEqual([]);
-    expect(natTournament(2026)!.t).toBe(INTL.worldCup); expect(natTournament(2028)!.t).toBe(INTL.copaAmerica); expect(natTournament(2029)).toBeNull();
+    const ar = nationOf('ar');
+    expect(natTournament(2026, ar)!.t).toBe(INTL.worldCup); expect(natTournament(2028, ar)!.t).toBe(NAT_CUPS.conmebol); expect(natTournament(2029, ar)).toBeNull();
     // Con otro año de arranque, el calendario se corre pero se respeta
     for (const y0 of [2025, 2026, 2027, 2029]) expect(seasonYear({ y0, age: 19 })).toBe(y0 + 2);
   });
@@ -618,13 +622,14 @@ describe('Legado', () => {
     const txt = shareText(c, 'https://ejemplo.test/#/juegos/carrera');
     const t = totals(c);
     expect(txt).toContain('De potrero a leyenda');
-    expect(txt).toContain(c.name);
+    expect(txt).toContain(c.surname);
+    expect(txt).toContain('#' + c.num);
     expect(txt).toContain(legacy(c).label);
     expect(txt).toContain(`OVR máximo: ${t.peak}`);
     expect(txt).toContain('https://ejemplo.test/#/juegos/carrera');
     expect(txt).not.toMatch(/undefined|NaN/);
     const gk = simulateRun(1234, { pos: 'ARQ' });
-    expect(shareText(gk, 'x')).toContain('vallas invictas');
+    expect(shareText(gk, 'x')).toMatch(/valla/);
   });
 });
 
@@ -714,7 +719,7 @@ describe('el mundo real: clubes, ligas y copas', () => {
     for (const n of want) expect(names.has(n), n).toBe(true);
     const elite = ['Real Madrid', 'Barcelona', 'Atlético de Madrid', 'Manchester City', 'Liverpool', 'Arsenal', 'Chelsea', 'Manchester United', 'Tottenham', 'Bayern Múnich', 'Borussia Dortmund', 'Bayer Leverkusen', 'PSG', 'Inter', 'Milan', 'Juventus', 'Napoli'];
     const medium = ['Sevilla', 'Villarreal', 'Real Betis', 'Real Sociedad', 'Athletic Club', 'Valencia', 'Girona', 'Aston Villa', 'Newcastle', 'West Ham', 'Brighton', 'RB Leipzig', 'Stuttgart', 'Eintracht Fráncfort', 'Roma', 'Lazio', 'Atalanta', 'Fiorentina', 'Bologna',
-      'Marsella', 'Lyon', 'Mónaco', 'Lille', 'Benfica', 'Porto', 'Sporting Lisboa', 'Ajax', 'PSV', 'Feyenoord', 'Galatasaray', 'Fenerbahçe', 'Besiktas'];
+      'Marsella', 'Lyon', 'Mónaco', 'Lille', 'Benfica', 'Porto', 'Sporting Lisboa', 'Ajax', 'PSV', 'Feyenoord', 'Galatasaray', 'Fenerbahçe', 'Beşiktaş'];
     for (const n of elite) expect(clubNamed(n)?.tier, n).toBe(5);
     for (const n of medium) expect(clubNamed(n)?.tier, n).toBe(4);
     expect(CLUBS.length).toBeGreaterThan(220);
@@ -727,7 +732,9 @@ describe('el mundo real: clubes, ligas y copas', () => {
     expect(CONT_IDS.map(id => CONTS[id].name)).toEqual(['Copa Libertadores', 'Copa Sudamericana', 'Champions League', 'Europa League', 'Conference League', 'Concachampions', 'Champions League de Asia']);
     for (const id of LEAGUE_IDS) { expect(TROPHY_PTS[LEAGUES[id].name]).toBeGreaterThan(0); const cup = LEAGUES[id].cup; if (cup) expect(TROPHY_PTS[cup]).toBeGreaterThan(0); }
     for (const id of CONT_IDS) expect(TROPHY_PTS[CONTS[id].name]).toBeGreaterThan(0);
-    for (const t of [INTL.worldCup, INTL.copaAmerica, INTL.olympics, INTL.finalissima, INTL.clubWorldCup]) expect(TROPHY_PTS[t.name]).toBeGreaterThan(0);
+    for (const t of [INTL.worldCup, INTL.olympics, INTL.finalissima, INTL.clubWorldCup, INTL.trofeo, INTL.recopa, INTL.u20, ...NAT_CUP_LIST]) expect(TROPHY_PTS[t.name]).toBeGreaterThan(0);
+    for (const t of NAT_CUP_LIST) expect(AWARD_PTS[natStar(t.name)]).toBeGreaterThan(0);
+    expect(LEAGUES.ar1.extra!.name).toBe('Copa de la Liga'); expect(TROPHY_PTS['Copa de la Liga']).toBeGreaterThan(0);
     for (const id of LEAGUE_IDS) for (const k of ['scorer', 'assist', 'keeper', 'defender', 'best', 'rookie'] as const) expect(AWARD_PTS[lgAward[k](id)], id + k).toBeGreaterThan(0);
     for (const id of CONT_IDS) expect(AWARD_PTS[contMvp(CONTS[id].name)]).toBeGreaterThan(0);
   });
@@ -787,32 +794,43 @@ describe('competencias y premios en carreras enteras', () => {
   const CWC_NAMES = ['lib', 'cl', 'ccc', 'acl'].map(id => CONTS[id as keyof typeof CONTS].name);
   const TOP5 = ['en', 'es', 'it', 'de', 'fr'];
 
-  it('en 400 carreras (al azar y bien jugadas, con distintos años de arranque) cada título y premio respeta las reglas de su competencia', () => {
+  it('en 400 carreras (al azar y bien jugadas, de distintas nacionalidades y años de arranque) cada título y premio respeta las reglas de su competencia', () => {
     const seen: Record<string, number> = {};
     const bump = (k: string) => { seen[k] = (seen[k] ?? 0) + 1; };
     const trophyNames = new Set(Object.keys(TROPHY_PTS)), awardNames = new Set(Object.keys(AWARD_PTS));
     const contNames = new Set(CONT_IDS.map(id => CONTS[id].name));
+    const natCups = new Map(NAT_CUP_LIST.map(t => [t.name, t]));
+    const nats = ['ar', 'ar', 'ar', 'br', 'es', 'uy', 'mx', 'jp', 'ma', 'fr', 'us', 'ca'];
     seeds(400, 3571).forEach((seed, i) => {
-      const c = simulateRun(seed, { pick: i % 2 ? smart : undefined, year: 2026 + (i % 4) });
+      const nat = nats[i % nats.length], N = nationOf(nat);
+      const c = simulateRun(seed, { pick: i % 2 ? smart : undefined, year: 2026 + (i % 4), nat });
+      expect(c.nat).toBe(nat);
       c.history.forEach((h, k) => {
         const year = c.y0 + h.age - 17, L = LEAGUES[h.lg], prev = c.history[k - 1];
         expect(CLUB_BY_NAME.has(h.club), h.club).toBe(true);
         expect(h.lg === 'inf').toBe(h.tier === 0);
         expect(h.fin).toBeGreaterThanOrEqual(1); expect(h.fin).toBeLessThanOrEqual(sizeOf(h.lg));
-        if (h.cont) { expect(contNames.has(h.cont)).toBe(true); expect(CONT_IDS.find(id => CONTS[id].name === h.cont) && CONTS[CONT_IDS.find(id => CONTS[id].name === h.cont)!].conf).toBe(L.conf); }
+        if (h.cont) { expect(contNames.has(h.cont)).toBe(true); expect(CONTS[CONT_IDS.find(id => CONTS[id].name === h.cont)!].conf).toBe(L.conf); }
         for (const t of h.trophies) {
           bump(t);
           expect(trophyNames.has(t), t).toBe(true);
           if (contNames.has(t)) expect(h.cont, t).toBe(t); // solo se gana la copa continental que se jugó
           else if (t === INTL.worldCup.name) { expect(isWorldCupYear(year)).toBe(true); expect(h.caps).toBeGreaterThanOrEqual(3); }
-          else if (t === INTL.copaAmerica.name) { expect(isCopaYear(year)).toBe(true); expect(h.caps).toBeGreaterThanOrEqual(3); }
+          else if (natCups.has(t)) { // el torneo de selecciones de TU confederación, en su año
+            const cup = natCups.get(t)!;
+            expect(cup.conf, t).toBe(N.conf); expect(cup.year(year), t + ' ' + year).toBe(true); expect(h.caps).toBeGreaterThanOrEqual(3);
+          }
           else if (t === INTL.olympics.name) { expect(isOlympicYear(year)).toBe(true); expect(h.age).toBeLessThanOrEqual(23); }
-          else if (t === INTL.finalissima.name) expect(isFinalissimaYear(year)).toBe(true);
+          else if (t === INTL.u20.name) { expect(h.age).toBeGreaterThanOrEqual(18); expect(h.age).toBeLessThanOrEqual(20); expect(isU20Year(year)).toBe(true); }
+          else if (t === INTL.finalissima.name) { expect(isFinalissimaYear(year)).toBe(true); expect(N.conf).toBe('conmebol'); }
+          else if (t === INTL.trofeo.name) { expect(h.lg).toBe('ar1'); expect(prev?.club).toBe(h.club); }
+          else if (t === INTL.recopa.name) { expect(prev?.club).toBe(h.club); expect(prev!.trophies.some(x => x === CONTS.lib.name || x === CONTS.sud.name)).toBe(true); }
           else if (t === INTL.clubWorldCup.name) {
             expect(isClubWorldCupYear(year)).toBe(true);
             expect(prev?.club).toBe(h.club); // el campeón continental del año anterior, con el mismo club
             expect(prev!.trophies.some(x => CWC_NAMES.includes(x))).toBe(true);
           } else if (t === L.name) expect(h.fin).toBe(1);
+          else if (L.extra && t === L.extra.name) expect(h.lg).toBe('ar1');
           else expect(t, 'copa nacional de otra liga').toBe(L.cup);
         }
         for (const a of h.awards) {
@@ -821,23 +839,24 @@ describe('competencias y premios en carreras enteras', () => {
           if (a === AWARD.ballon || a === AWARD.ballon2 || a === AWARD.ballon3) { expect(L.conf).toBe('uefa'); expect(h.tier).toBeGreaterThanOrEqual(4); }
           else if (a === AWARD.boot) expect(TOP5).toContain(h.lg);
           else if (a === AWARD.golden) { expect(h.age).toBeLessThanOrEqual(21); expect(L.conf).toBe('uefa'); }
-          else if (a === AWARD.olimpiaPlata) expect(h.lg).toBe('ar1');
+          else if (a === AWARD.puskas) expect(h.lg).not.toBe('inf'); // en las inferiores no hay Puskás
+          else if (a === AWARD.olimpiaPlata || a === AWARD.olimpiaOro) { if (a === AWARD.olimpiaPlata) expect(h.lg).toBe('ar1'); }
           else if (a === AWARD.wcStar) expect(h.trophies).toContain(INTL.worldCup.name);
-          else if (a === AWARD.caStar) expect(h.trophies).toContain(INTL.copaAmerica.name);
+          else if (NAT_CUP_LIST.some(t => a === natStar(t.name))) expect(h.trophies.some(t => natCups.has(t))).toBe(true);
           else if (CONT_IDS.some(id => a === contMvp(CONTS[id].name))) expect(a).toBe(contMvp(h.cont));
           else if (a.includes(': ')) expect(a.startsWith(L.name + ': ')).toBe(true);
         }
         // Los textos de la temporada
         const said = h.lines.join(' ');
         if (said.includes('Juegos Olímpicos')) { expect(isOlympicYear(year)).toBe(true); expect(h.age).toBeLessThanOrEqual(23); }
-        if (/del Mundial\b(?! de Clubes)/.test(said)) expect(isWorldCupYear(year)).toBe(true);
-        expect(said).not.toMatch(/undefined|NaN|\[object/);
+        if (/del Mundial\b(?! de Clubes| Sub-20)/.test(said)) expect(isWorldCupYear(year)).toBe(true);
+        expect(said).not.toMatch(/undefined|NaN|\[object|\b1 (partidos|goles|asistencias)\b/);
         if (h.age > 23) expect(h.trophies).not.toContain(INTL.olympics.name);
       });
     });
     // y de todo eso pasa, no es solo teoría
-    for (const t of ['Liga Profesional', 'Primera Nacional', 'Copa Argentina', 'Copa Libertadores', 'Copa Sudamericana', 'Champions League', 'Europa League', 'Premier League', 'LaLiga', 'Bundesliga',
-      'Copa América', 'Mundial', 'Juegos Olímpicos', AWARD.ballon, AWARD.olimpiaPlata]) expect(seen[t] ?? 0, t).toBeGreaterThan(0);
+    for (const t of ['Liga Profesional', 'Primera Nacional', 'Copa Argentina', 'Copa de la Liga', 'Copa Libertadores', 'Copa Sudamericana', 'Champions League', 'Europa League', 'Premier League', 'LaLiga', 'Bundesliga',
+      'Copa América', 'Eurocopa', 'Mundial', 'Juegos Olímpicos', AWARD.ballon, AWARD.olimpiaPlata]) expect(seen[t] ?? 0, t).toBeGreaterThan(0);
   });
 
   it('en cada paso de 120 carreras el estado es válido: clubes reales, copa continental de su confederación y ofertas solo de clubes que existen', () => {
@@ -904,7 +923,7 @@ describe('guardado', () => {
   });
   it('rechaza lo roto, viejo o inventado sin tirar error', () => {
     const c = simulateRun(42);
-    const bad: unknown[] = [null, undefined, 5, 'x', '{', '[]', {}, { v: 2 }, { ...c, v: 1 }, { ...c, v: 3 }, { ...c, pos: 'ZZZ' }, { ...c, style: 'x' }, { ...c, phase: 'nada' },
+    const bad: unknown[] = [null, undefined, 5, 'x', '{', '[]', {}, { v: 3 }, { ...c, v: 1 }, { ...c, v: 2 }, { ...c, v: 4 }, { ...c, pos: 'ZZZ' }, { ...c, style: 'x' }, { ...c, phase: 'nada' },
       { ...c, age: NaN }, { ...c, stats: { rit: 1 } }, { ...c, history: 'no' }, { ...c, club: null }, { ...c, club: { ...c.club, tier: 9 } },
       { ...c, mods: null }, { ...c, phase: 'decide', queue: [] }, { ...c, phase: 'decide', queue: [{ id: 'x', options: [] }] }];
     for (const b of bad) expect(parseCareer(b)).toBeNull();
@@ -988,15 +1007,17 @@ describe('guardado', () => {
     vi.stubGlobal('localStorage', st);
     try {
       const mid = find(x => x.phase === 'decide' && x.history.length > 2);
+      for (const v of [1, 2]) { const o = JSON.parse(JSON.stringify(mid)); o.v = v; expect(parseCareer(o), 'versión ' + v).toBeNull(); }
       const old = JSON.parse(JSON.stringify(mid)); old.v = 1; old.home = 'Sportivo Los Aromos'; old.club = { name: 'Sportivo Los Aromos', tier: 2, str: 1 };
       st.map.set(runKey('u1'), JSON.stringify(old));
       st.map.set(bestKey('u1'), JSON.stringify({ seed: 1, name: 'Viejo', pos: 'DEL', label: 'Ídolo', score: 300, peak: 80, seasons: 15, trophies: 5 }));
       st.map.set(summaryKey('u1'), JSON.stringify({ run: { name: 'Viejo', season: 7 }, best: { label: 'Ídolo', score: 300 } }));
+      st.map.set(summaryKey('u1') + 'x', 'otro');
       // la tarjeta de Inicio ya no muestra lo viejo, ni siquiera sin abrir el juego
-      expect(loadSummary('u1')).toEqual({ run: null, best: null });
+      expect(loadSummary('u1')).toEqual(EMPTY_SUMMARY);
       expect(loadRun('u1')).toBeNull();
       expect(loadBest('u1')).toBeNull();
-      expect(loadSummary('u1')).toEqual({ run: null, best: null });
+      expect(loadSummary('u1')).toEqual(EMPTY_SUMMARY);
       // una carrera nueva se guarda y se lee normal
       const fresh = newCareer({ seed: 11, name: 'Nuevo', pos: 'DEL', style: 'potrero' });
       saveRun(fresh, 'u1');
@@ -1020,7 +1041,7 @@ describe('guardado', () => {
 
 describe('textos y resúmenes', () => {
   const log = (o: Partial<SeasonLog> = {}): SeasonLog => ({
-    n: 1, age: 20, club: 'Colón', tier: 1, lg: 'ar2', fin: 4, cont: '', ovr0: 60, ovr: 62, pj: 20, goals: 5, assists: 2, cs: 0, rating: 7, role: 'Titular', trophies: [], awards: [],
+    n: 1, age: 20, club: 'Colón', tier: 1, lg: 'ar2', fin: 4, cont: '', capAssists: 0, tours: [], promo: null, val: 1_000_000, ovr0: 60, ovr: 62, pj: 20, goals: 5, assists: 2, cs: 0, rating: 7, role: 'Titular', trophies: [], awards: [],
     caps: 0, capGoals: 0, injury: null, captain: false, picks: [], lines: [], ...o,
   });
   it('tally cuenta repetidos y pone primero lo más valioso', () => {
@@ -1064,7 +1085,7 @@ describe('mejor carrera y guardado en el dispositivo', () => {
     expect(b.score).toBe(legacy(c).score);
     expect(b.seasons).toBe(c.history.length);
     expect(parseBest(JSON.stringify(b))).toEqual(b);
-    for (const bad of [null, '', '{', 5, {}, { ...b, pos: 'X' }, { ...b, score: NaN }, { ...b, name: 5 }, { ...b, v: 1 }, { ...b, v: undefined }]) expect(parseBest(bad)).toBeNull();
+    for (const bad of [null, '', '{', 5, {}, { ...b, pos: 'X' }, { ...b, score: NaN }, { ...b, name: 5 }, { ...b, v: 1 }, { ...b, v: 2 }, { ...b, v: undefined }, { ...b, d: 'facil' }, { ...b, num: 'x' }]) expect(parseBest(bad)).toBeNull();
   });
 
   it('guarda y recupera la carrera en curso y la mejor', () => {
@@ -1084,7 +1105,13 @@ describe('mejor carrera y guardado en el dispositivo', () => {
       expect(recordIfBest(mid, null, 'u1')).toBeNull(); // una carrera sin terminar no cuenta
       const first = recordIfBest(done, null, 'u1')!;
       expect(first.score).toBe(legacy(done).score);
+      expect(first.d).toBe('normal');
       expect(loadBest('u1')).toEqual(first);
+      // la mejor es por dificultad: una carrera en Experto no pisa la de Normal
+      const hard = simulateRun(99, { diff: 'experto' });
+      const bh = recordIfBest(hard, null, 'u1')!;
+      expect(bh.d).toBe('experto');
+      expect(loadBest('u1', 'normal')).toEqual(first); expect(loadBest('u1', 'experto')).toEqual(bh); expect(loadBest('u1', 'intenso')).toBeNull();
       // una peor no pisa a la mejor; una mejor sí
       const worse = { ...first, score: first.score - 10 };
       expect(recordIfBest(JSON.parse(JSON.stringify({ ...done })) as Career, worse, 'u1')!.score).toBe(first.score);
@@ -1106,6 +1133,7 @@ describe('mejor carrera y guardado en el dispositivo', () => {
       for (const other of ['beto', undefined, null]) { expect(loadRun(other)).toBeNull(); expect(loadBest(other)).toBeNull(); }
       expect(new Set([runKey('ana'), runKey('beto'), runKey()]).size).toBe(3);
       expect(bestKey('ana')).not.toBe(bestKey('beto'));
+      expect(bestKey('ana', 'normal')).not.toBe(bestKey('ana', 'experto'));
       // Sin perfil igual funciona (un cajón común), sin pisar el de nadie
       saveRun(done, undefined);
       expect(loadRun()).toEqual(done);
@@ -1121,7 +1149,7 @@ describe('mejor carrera y guardado en el dispositivo', () => {
     try {
       const mid = find(x => x.phase === 'decide' && x.history.length > 2);
       const done = simulateRun(99);
-      expect(loadSummary('ana')).toEqual({ run: null, best: null });
+      expect(loadSummary('ana')).toEqual(EMPTY_SUMMARY);
       saveRun(mid, 'ana');
       expect(loadSummary('ana').run).toEqual({ name: mid.name, season: mid.history.length + 1 });
       expect(JSON.stringify(loadSummary('ana')).length).toBeLessThan(150);
@@ -1129,15 +1157,15 @@ describe('mejor carrera y guardado en el dispositivo', () => {
       saveRun(res, 'ana');
       expect(loadSummary('ana').run).toEqual({ name: res.name, season: res.history.length });
       const best = recordIfBest(done, null, 'ana')!;
-      expect(loadSummary('ana').best).toEqual({ label: best.label, score: best.score });
+      expect(loadSummary('ana').best).toEqual({ normal: { label: best.label, score: best.score } });
       saveRun(done, 'ana'); // terminada: ya no hay carrera en curso, pero la mejor se mantiene
-      expect(loadSummary('ana')).toEqual({ run: null, best: { label: best.label, score: best.score } });
-      expect(loadSummary('beto')).toEqual({ run: null, best: null });
-      expect(loadSummary()).toEqual({ run: null, best: null });
+      expect(loadSummary('ana')).toEqual({ ...EMPTY_SUMMARY, best: { normal: { label: best.label, score: best.score } } });
+      expect(loadSummary('beto')).toEqual(EMPTY_SUMMARY);
+      expect(loadSummary()).toEqual(EMPTY_SUMMARY);
       // Basura en el resumen: se lee vacío, sin errores
-      for (const junk of ['no es json', '[]', '{"run":{"name":5,"season":"x"},"best":{"label":1}}', 'null']) {
+      for (const junk of ['no es json', '[]', '{"v":3,"run":{"name":5,"season":"x"},"best":{"label":1}}', 'null', '{"run":{"name":"Viejo","season":3},"best":{}}']) {
         st.map.set(summaryKey('ana'), junk);
-        expect(loadSummary('ana')).toEqual({ run: null, best: null });
+        expect(loadSummary('ana')).toEqual(EMPTY_SUMMARY);
       }
     } finally { vi.unstubAllGlobals(); }
   });
@@ -1146,7 +1174,7 @@ describe('mejor carrera y guardado en el dispositivo', () => {
     try {
       expect(loadRun('u1')).toBeNull();
       expect(loadBest('u1')).toBeNull();
-      expect(loadSummary('u1')).toEqual({ run: null, best: null });
+      expect(loadSummary('u1')).toEqual(EMPTY_SUMMARY);
       expect(() => saveRun(simulateRun(5), 'u1')).not.toThrow();
       expect(() => saveRun(null, 'u1')).not.toThrow();
       expect(() => saveBest(bestOf(simulateRun(5)), 'u1')).not.toThrow();
@@ -1160,7 +1188,7 @@ describe('mejor carrera y guardado en el dispositivo', () => {
   it('sin storage en absoluto (ni existe localStorage) tampoco rompe', () => {
     expect(typeof localStorage).toBe('undefined');
     expect(loadRun('u1')).toBeNull();
-    expect(loadSummary('u1')).toEqual({ run: null, best: null });
+    expect(loadSummary('u1')).toEqual(EMPTY_SUMMARY);
     expect(() => saveRun(simulateRun(3), 'u1')).not.toThrow();
   });
   it('la tarjeta de Inicio no trae el simulador: CareerEntry y careerSummary no importan el juego ni el store', () => {
@@ -1168,7 +1196,7 @@ describe('mejor carrera y guardado en el dispositivo', () => {
     expect(Object.keys(src).length).toBe(2);
     for (const [file, text] of Object.entries(src)) {
       const imports = [...text.matchAll(/^\s*(?:import|export)\b[^'"]*from\s+['"]([^'"]+)['"]/gm)].map(m => m[1]);
-      for (const from of imports) expect(from, `${file} importa ${from}`).not.toMatch(/career(Core|Data|Events|Base|Store|Rng|Types)|useCareer|CareerPage/);
+      for (const from of imports) expect(from, `${file} importa ${from}`).not.toMatch(/career(Core|Data|Events|Base|Store|Rng|Types|World|Nations|Achievements|Comps|Setup|Value|Fx|Challenge|Logos|Cosmetics|Trophies)|Career(Visuals|Page|Ach|End|Start|Seasons)|useCareer|shared\/teams/);
     }
   });
 });

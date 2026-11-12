@@ -3,13 +3,13 @@ import { Avatar } from '../../shared/ui/Avatar';
 import { Sheet } from '../../shared/ui/Sheet';
 import { cancelBooking, decideBooking } from './api';
 import {
-  STATUS_LABEL, competingPending, durationMin, endMs, fmtDayLong, fmtDuration, fmtPrice, fmtRange, isBlock, localParts, ownerErrorText,
+  STATUS_LABEL, cancelledLine, competingPending, durationMin, endMs, fmtDayLong, fmtDuration, fmtPrice, fmtRange, isBlock, localParts, ownerErrorText,
   pendingConflict, sizeLabel, startMs, type Booking, type Field,
 } from './model';
 
 /** Un turno o pedido en detalle, con lo que el dueño puede hacer: aceptar, rechazar, cancelar o liberar el horario. */
-export function BookingSheet({ b, all, fields, tz, now, onClose, onDone }: {
-  b: Booking; all: Booking[]; fields: Field[]; tz: string; now: number; onClose: () => void; onDone: () => void;
+export function BookingSheet({ meId, b, all, fields, tz, now, onClose, onDone }: {
+  meId: string; b: Booking; all: Booking[]; fields: Field[]; tz: string; now: number; onClose: () => void; onDone: () => void;
 }) {
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
@@ -19,6 +19,7 @@ export function BookingSheet({ b, all, fields, tz, now, onClose, onDone }: {
   const over = endMs(b) <= now;
   const conflict = pendingConflict(b, all);
   const rivals = competingPending(b, all);
+  const cancelBy = cancelledLine(b, meId, now, tz);
 
   const run = async (fn: () => Promise<unknown>) => {
     setBusy(true); setErr('');
@@ -34,6 +35,7 @@ export function BookingSheet({ b, all, fields, tz, now, onClose, onDone }: {
           <span>{fmtRange(startMs(b), endMs(b), tz)} · {fmtDuration(durationMin(b))}</span>
         </div>
         <span class={`ow-pill st-${block ? 'block' : b.status}`}>{block ? 'Bloqueo' : STATUS_LABEL[b.status]}</span>
+        {cancelBy && <p class="ow-cancelby" role="status"><span aria-hidden="true">🚫 </span>{cancelBy}</p>}
 
         <dl class="ow-dl">
           <dt>Cancha</dt><dd>{f ? `${f.name} · ${sizeLabel(f.size)}` : 'Cancha'}</dd>

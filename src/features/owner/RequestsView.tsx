@@ -5,26 +5,31 @@ import { BookingSheet } from './BookingSheet';
 import { Skeleton } from './ui';
 import { useAgenda, useNow } from './useOwner';
 import {
-  addDays, competingPending, durationMin, endMs, fmtDayLong, fmtDuration, fmtPrice, fmtRange, groupByDay, openRequests, ownerErrorText,
-  pendingConflict, sizeLabel, startMs, today as todayOf, zonedToUtc, type Booking, type ComplexData,
+  addDays, competingPending, durationMin, endMs, fmtAgo, fmtDayLong, fmtDuration, fmtPrice, fmtRange, fmtSlotWhen, groupByDay, openRequests,
+  ownerErrorText, pendingConflict, recentCancellations, sizeLabel, startMs, today as todayOf, zonedToUtc, type Booking, type ComplexData,
 } from './model';
 
+/** Cuántas cancelaciones se ven de entrada (el resto, con "Ver todas"). */
+const RECENT_SHOWN = 3;
+
 /** Pedidos de turno por responder, del más próximo al más lejano. Aceptar es un toque; rechazar permite explicar el motivo. */
-export function RequestsView({ data, tick, reloadAll }: { data: ComplexData; tick: number; reloadAll: () => void }) {
+export function RequestsView({ meId, data, tick, reloadAll }: { meId: string; data: ComplexData; tick: number; reloadAll: () => void }) {
   const { complex, fields, hours } = data;
   const tz = complex.tz;
   const now = useNow(60_000);
   // Rango fijo (ayer a +62 días): si dependiera de "ahora" se volvería a pedir en cada repintado.
   const fromMs = useMemo(() => zonedToUtc(addDays(todayOf(tz), -1), 0, tz), [tz]);
-  const toMs = fromMs + 63 * 86_400_000;
+  const toMs = fromMs + 62 * 86_400_000; // complex_agenda rechaza rangos de más de 62 días (con 63 no devolvía nada)
   const { bookings, err, reload } = useAgenda(complex.id, fromMs, toMs, tick);
   const [sel, setSel] = useState<Booking | null>(null);
   const [busyId, setBusyId] = useState('');
   const [cardErr, setCardErr] = useState<Record<string, string>>({});
+  const [allRecent, setAllRecent] = useState(false);
 
   const all = bookings ?? [];
   const open = useMemo(() => openRequests(all, now), [all, now]);
   const byDay = useMemo(() => groupByDay(open, hours, tz), [open, hours, tz]);
+  const recent = useMemo(() => recentCancellations(all, now), [all, now]);
   const fieldOf = (id: string) => fields.find(f => f.id === id);
 
   const done = () => { setSel(null); reload(); reloadAll(); };
@@ -42,6 +47,30 @@ export function RequestsView({ data, tick, reloadAll }: { data: ComplexData; tic
       </div>
       {err && <p class="err" role="alert">{err} <button class="linkbtn" onClick={reload}>Reintentar</button></p>}
       {bookings === null && !err && <Skeleton rows={3} />}
+      {recent.length > 0 && (
+        <section class="card ow-recent" aria-label="Cancelaciones recientes">
+          <h4>Cancelaciones recientes</h4>
+          <p class="muted">Turnos que canceló quien los pidió en los últimos 7 días. El horario ya quedó libre.</p>
+          <ul>
+            {(allRecent ? recent : recent.slice(0, RECENT_SHOWN)).map(b => (
+              <li>
+                <button type="button" class="ow-recent-row" onClick={() => setSel(b)} aria-label="Ver el detalle de la cancelación">
+                  <span class="ow-recent-top">
+                    <span class="ellipsis"><b>{b.cancelled_by_name ?? b.requester_name ?? 'Un jugador'}</b> canceló</span>
+                    <small class="muted">{fmtAgo(Date.parse(b.decided_at as string), now, tz)}</small>
+                  </span>
+                  <small class="muted ow-recent-sub">{fieldOf(b.field_id)?.name ?? 'Cancha'} · {fmtSlotWhen(startMs(b), endMs(b), tz)}</small>
+                </button>
+              </li>
+            ))}
+          </ul>
+          {recent.length > RECENT_SHOWN && (
+            <button type="button" class="linkbtn ow-recent-more" aria-expanded={allRecent} onClick={() => setAllRecent(v => !v)}>
+              {allRecent ? 'Ver menos' : `Ver todas (${recent.length})`}
+            </button>
+          )}
+        </section>
+      )}
       {bookings !== null && open.length === 0 && (
         <div class="card ow-empty">
           <span class="ow-empty-ico" aria-hidden="true">✅</span>
@@ -87,7 +116,7 @@ export function RequestsView({ data, tick, reloadAll }: { data: ComplexData; tic
           </div>
         </section>
       ))}
-      {sel && <BookingSheet b={sel} all={all} fields={fields} tz={tz} now={now} onClose={() => setSel(null)} onDone={done} />}
+      {sel && <BookingSheet meId={meId} b={sel} all={all} fields={fields} tz={tz} now={now} onClose={() => setSel(null)} onDone={done} />}
     </div>
   );
 }
