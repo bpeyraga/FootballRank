@@ -4,6 +4,7 @@ import { go } from '../../app/router';
 import { ATTRS, POS, ovr, type Pos, type Profile, type Stats } from '../../shared/supabase';
 import { loadAccount, loadBaseStats, saveMyProfile, setMyRoles, uploadPhoto, type Account } from './api';
 import { RolePicker } from './RolePicker';
+import { ProfileSettings } from './ProfileSettings';
 import {
   clearIntent, defaultChoice, routeAfterSetup, choiceFlags, needsRoleChoice, readIntent, roleErrorText, roleFlags,
   type RoleChoice, type RoleFlags,
@@ -234,6 +235,8 @@ export function Onboarding({ me, done, cancel }: { me: Profile; done: () => void
       </button>
       {cancel && <button class="btn block" style="margin-top:8px" disabled={busy} onClick={cancel}>Cancelar</button>}
       {err && <p class="err">{err}</p>}
+      {/* Solo al editar: ajustes y ayuda (lo que antes estaba en el menú de la foto) */}
+      {cancel && <ProfileSettings player={me.is_player !== false} />}
     </div>
   );
 }

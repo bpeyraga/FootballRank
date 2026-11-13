@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'preact/compat';
 import { Component, type ComponentChildren } from 'preact';
+import { reportError } from './errors';
 
 const RELOAD_KEY = 'futrank-chunk-reload';
 
@@ -22,6 +23,7 @@ export const page = <T,>(load: () => Promise<T>, pick: (m: T) => any) => lazy(()
 class Boundary extends Component<{ children: ComponentChildren }, { failed: boolean }> {
   state = { failed: false };
   static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch(e: unknown) { reportError(e, 'pantalla'); } // al equipo le sirve saber qué pantalla no cargó o se rompió al dibujarse
   render() {
     if (!this.state.failed) return this.props.children;
     return (

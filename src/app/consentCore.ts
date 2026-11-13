@@ -39,3 +39,37 @@ export function cookieLine(c: Consent, https: boolean, days = CONSENT_MAX_AGE_DA
 
 /** ¿Se pueden contar las visitas? Solo con "Aceptar todo". */
 export const allowsStats = (c: Consent | null) => c?.choice === 'all';
+
+/** Lo que guarda la cuenta (my_consent): la última elección con sesión para esta versión del aviso. */
+export interface ServerConsent { consent_id: string; choice: ConsentChoice; version: number; created_at: string }
+
+/** Respuesta de my_consent (una fila o ninguna) validada; null si falta, está rota o es de otra versión del aviso. */
+export function parseServerConsent(data: unknown): ServerConsent | null {
+  const r = Array.isArray(data) ? data[0] : data;
+  if (!r || typeof r !== 'object') return null;
+  const o = r as Record<string, unknown>;
+  if (typeof o.consent_id !== 'string' || !/^[0-9a-f-]{36}$/i.test(o.consent_id)) return null;
+  if (o.choice !== 'all' && o.choice !== 'necessary') return null;
+  if (o.version !== CONSENT_VERSION) return null;
+  if (typeof o.created_at !== 'string' || isNaN(Date.parse(o.created_at))) return null;
+  return { consent_id: o.consent_id.toLowerCase(), choice: o.choice, version: o.version, created_at: o.created_at };
+}
+
+/**
+ * Con sesión, ¿qué hacer con la elección de este navegador frente a la de la cuenta?
+ * - apply: usar la de la cuenta (no había acá, o es más nueva y distinta). No se vuelve a registrar.
+ * - record: la de acá es la vigente (la cuenta no tiene ninguna, o es más vieja y distinta): se registra con la cuenta.
+ * - keep: ya coinciden; no hay nada que hacer (ni un registro duplicado).
+ */
+export function decideConsentSync(local: Consent | null, server: ServerConsent | null): 'apply' | 'record' | 'keep' {
+  if (!server) return local ? 'record' : 'keep';
+  if (!local) return 'apply';
+  if (local.choice === server.choice) return 'keep';
+  return local.at > Date.parse(server.created_at) ? 'record' : 'apply';
+}
+
+/** ¿Hay una sesión guardada (o una vuelta de login en la URL)? Con eso se espera a la cuenta antes de mostrar el aviso. */
+export function hasStoredSession(storageKeys: string[], url: { hash: string; search: string }): boolean {
+  if (storageKeys.some(k => /^sb-.+-auth-token$/.test(k))) return true;
+  return /[#&?]access_token=/.test(url.hash) || /[?&]code=/.test(url.search);
+}

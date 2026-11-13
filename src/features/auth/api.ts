@@ -1,5 +1,6 @@
 // Cuenta, sesión, invitaciones y la ficha propia: la única puerta a Supabase de esta funcionalidad.
 // Tiran Error con el mensaje del servidor (las pantallas lo traducen).
+import { clearOfflineData } from '../../shared/offline';
 import { must, sb, type Profile, type Stats } from '../../shared/supabase';
 import { pushOff } from '../push/push';
 import { parseChallenge, type PowChallenge, type PowSolution } from './pow';
@@ -24,6 +25,23 @@ export async function loadMe(): Promise<Profile | null> {
   if (error) throw error;
   // Con sesión pero sin perfil (usuario creado antes del trigger): no mostrar el login en loop.
   if (!data) throw new Error('No encontramos tu perfil de jugador. Salí y volvé a entrar; si sigue pasando, avisale al admin.');
+  return data;
+}
+
+/** Anota en la cuenta que ya vio el tutorial (para no mostrárselo en otro dispositivo). Sin esperar ni romper nada si falla. */
+export async function markTourSeen(): Promise<void> {
+  try { await sb.rpc('mark_tour_seen'); } catch { /* silencioso: queda el aviso local */ }
+}
+
+/** Id de quien tiene la sesión guardada en este navegador (sin ir a la red), o undefined. */
+export async function sessionUserId(): Promise<string | undefined> {
+  return (await sb.auth.getSession()).data.session?.user.id;
+}
+
+/** La última elección de cookies de la cuenta para esa versión del aviso (my_consent). Lanza si falla. */
+export async function loadMyConsent(version: number): Promise<unknown> {
+  const { data, error } = await sb.rpc('my_consent', { p_version: version });
+  if (error) throw error;
   return data;
 }
 
@@ -54,6 +72,7 @@ export async function signInWithGoogle() {
 /** Cierra la sesión (antes da de baja los avisos de este dispositivo, si se puede). */
 export async function signOut() {
   await pushOff().catch(() => {});
+  await clearOfflineData(); // las lecturas guardadas para uso sin conexión son datos privados de esta cuenta
   await sb.auth.signOut();
 }
 
@@ -63,7 +82,7 @@ export async function signOut() {
  */
 export function onAuthChange(cb: (ev: 'in' | 'out', userId: string | undefined) => void): () => void {
   const { data } = sb.auth.onAuthStateChange((ev, session) => {
-    if (ev === 'SIGNED_OUT') cb('out', undefined);
+    if (ev === 'SIGNED_OUT') { void clearOfflineData(); cb('out', undefined); } // también si cerró en otra pestaña o venció la sesión
     else if (ev === 'SIGNED_IN') cb('in', session?.user.id);
   });
   return () => data.subscription.unsubscribe();

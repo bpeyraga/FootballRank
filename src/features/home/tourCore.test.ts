@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TOUR_KEY, TOUR_STEPS, clampStep, keyAction, makeTourGate, swipeDir } from './tourCore';
+import { TOUR_KEY, TOUR_STEPS, clampStep, keyAction, makeTourGate, makeTourRequest, swipeDir, tourSyncAction } from './tourCore';
 
 const fakeStore = () => {
   const m = new Map<string, string>();
@@ -67,5 +67,49 @@ describe('tourGate', () => {
     const g = makeTourGate(() => st);
     g.due(); g.due();
     expect(st.m.size).toBe(0);
+  });
+});
+
+describe('tutorial en la cuenta', () => {
+  it('si la cuenta ya lo vio, no se muestra aunque este dispositivo no lo tenga', () => {
+    const g = makeTourGate(() => fakeStore());
+    expect(g.due(true)).toBe(false);
+    expect(g.due(false)).toBe(true);
+  });
+  it('local() refleja la marca del dispositivo', () => {
+    const st = fakeStore();
+    const g = makeTourGate(() => st);
+    expect(g.local()).toBe(false);
+    g.mark();
+    expect(g.local()).toBe(true);
+    expect(makeTourGate(() => broken).local()).toBe(false);
+  });
+  it('sincronización local vs cuenta', () => {
+    expect(tourSyncAction(false, true)).toBe('setLocal');
+    expect(tourSyncAction(true, false)).toBe('backfill');
+    expect(tourSyncAction(true, true)).toBe('none');
+    expect(tourSyncAction(false, false)).toBe('none');
+    // base sin la migración: no se sabe, no se toca la cuenta
+    expect(tourSyncAction(true, undefined)).toBe('none');
+    expect(tourSyncAction(false, undefined)).toBe('none');
+  });
+});
+
+describe('tourRequest (ver el tutorial desde Ajustes)', () => {
+  it('sin pedido no hay tutorial', () => {
+    expect(makeTourRequest().take()).toBe(false);
+  });
+  it('se recoge una sola vez', () => {
+    const r = makeTourRequest();
+    r.ask(1000);
+    expect(r.take(1500)).toBe(true);
+    expect(r.take(1600)).toBe(false);
+  });
+  it('un pedido viejo caduca y no abre el tutorial de sorpresa', () => {
+    const r = makeTourRequest(5000);
+    r.ask(0);
+    expect(r.take(5001)).toBe(false);
+    r.ask(10_000);
+    expect(r.take(15_000)).toBe(true);
   });
 });

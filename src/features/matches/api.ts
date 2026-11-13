@@ -8,6 +8,7 @@ import type { LiveAction, LiveState } from './live';
 import type { Match, MatchListItem, Mvp, Score, Signup, Suspension, Team } from './model';
 import type { WeekEvent, WeekVote } from './weeklyCore';
 import type { FeePayment } from './fees';
+import type { PendingVote } from './votingCore';
 
 const rpc = async (fn: string, args: Record<string, unknown>) => { must(await sb.rpc(fn, args)); };
 
@@ -94,6 +95,21 @@ export async function loadMvp(id: string, meId: string): Promise<Mvp> {
     sb.from('match_mvp').select('profile_id,votes').eq('match_id', id),
   ]);
   return { mine: must(mine)?.target_id ?? null, tally: new Map((must(tally) ?? []).map((x: any) => [x.profile_id, x.votes])) };
+}
+
+/** Los partidos de los últimos 3 días donde jugué y todavía no voté la figura (una sola consulta; la hace VotePrompt al abrir la app). */
+export async function loadPendingVotes(): Promise<PendingVote[]> {
+  return (must(await sb.rpc('my_pending_votes')) ?? []) as PendingVote[];
+}
+
+/** Un jugador de un partido, con lo justo para mostrarlo en la lista de la figura. */
+export type VotePlayer = Pick<Profile, 'id' | 'name' | 'nickname' | 'photo_url' | 'pos' | 'shirt_number'> & { team: Team | null };
+/** Los que jugaron un partido (anotados y sin ausencia), para elegir a la figura. */
+export async function loadVoteRoster(id: string): Promise<VotePlayer[]> {
+  const data = must(await sb.from('match_signups')
+    .select('team, profile:profiles(id,name,nickname,photo_url,pos,shirt_number)')
+    .eq('match_id', id).eq('status', 'in').eq('absent', false));
+  return ((data ?? []) as any[]).filter(r => r.profile).map(r => ({ ...r.profile, team: r.team ?? null }));
 }
 
 export const signup = (id: string) => rpc('signup', { p_match: id });

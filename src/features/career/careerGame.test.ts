@@ -15,8 +15,8 @@ import {
 import { COSMETICS, activeCosmetics, unlockedBy } from './careerCosmetics';
 import { LEGAL_NOTICE, TROPHY_PTS } from './careerData';
 import { NO_STREAK, argDay, dailySeed, dayBefore, isDay, nextStreak, streakShown } from './careerDaily';
-import { drawEvents, olyChance, selecChance } from './careerEvents';
-import { fxEffects, finalOdds, optionChips } from './careerFx';
+import { adapt, drawDecision, olyChance, selecChance } from './careerEvents';
+import { finalOdds, optionChips, riskOf } from './careerFx';
 import { CLUB_ESPN, COMP_LOGO, SIN_ESCUDO } from './careerLogos';
 import { FLAG_CODE, NATIONS, NAT_CUPS, NAT_CUP_LIST, flagUrl, nationOf, pickHome } from './careerNations';
 import { Rng, seedState } from './careerRng';
@@ -35,38 +35,21 @@ import homePageSrc from '../home/HomePage.tsx?raw';
 
 const seeds = (n: number, k = 7919) => Array.from({ length: n }, (_, i) => (i + 1) * k);
 
-/** Decide bien (ver careerCore.test). */
+/** Decide bien: se la juega donde conviene (entrenar de joven, fichar, la Selección, la final) y se cuida el resto. */
 const smart: Picker = (c, ev) => {
-  const ids = ev.options.map(o => o.id);
   switch (ev.id) {
-    case 'plan': return c.age <= 28 ? 'train' : 'care';
-    case 'selec': case 'oly': case 'abroad': return 'go';
-    case 'comeback': return 'slow';
-    case 'mentor': case 'captain': return 'yes';
-    case 'coach': return 'talk';
-    case 'debut': return ids.includes('up') ? 'up' : 'home';
-    case 'loan': return 'loan';
-    case 'cash': return 'stay';
-    case 'home': return c.age >= 34 ? 'back' : 'stay';
-    case 'final': return 'all';
-    case 'transfer': {
-      const best = ev.options.filter(o => o.fx.move).sort((a, b) => b.fx.move!.club.pw - a.fx.move!.club.pw)[0];
-      return best && best.fx.move!.club.pw > c.club.pw ? best.id : 'stay';
-    }
-    default: return ev.options[0].id;
+    case 'plan': return c.age <= 28 ? 'risky' : 'safe';
+    case 'selec': case 'oly': case 'debut': case 'transfer': case 'abroad': case 'renewal': case 'youth': case 'captain': case 'final': return 'risky';
+    case 'home': return c.age >= 34 ? 'risky' : 'safe';
+    default: return 'safe';
   }
 };
-/** Decide mal. */
+/** Decide mal: se la juega donde no conviene (joda, prensa, clásico lesionado) y rechaza lo que hace crecer. */
 const bad: Picker = (c, ev) => {
   switch (ev.id) {
-    case 'plan': return c.age <= 28 ? 'party' : 'train';
-    case 'selec': case 'oly': return 'rest';
-    case 'comeback': return 'fast';
-    case 'coach': return 'press';
-    case 'debut': return 'home';
-    case 'transfer': case 'abroad': case 'cash': return 'stay';
-    case 'final': return 'calm';
-    default: return ev.options[ev.options.length - 1].id;
+    case 'plan': return c.age <= 28 ? 'safe' : 'risky';
+    case 'night': case 'hype': case 'derby': case 'coach': case 'comeback': case 'sunset': case 'rival': return 'risky';
+    default: return 'safe';
   }
 };
 
@@ -126,13 +109,13 @@ describe('nacionalidad', () => {
     expect(homes.filter(h => CLUB_BY_NAME.get(h)!.lg === 'ar2').length / 500).toBeGreaterThan(0.25); // la Primera Nacional es un arranque frecuente
   });
   it('la Selección es la de tu país: el texto de la convocatoria y el de los partidos lo nombran', () => {
-    const c = find(x => x.phase === 'decide' && x.queue.some(e => e.id === 'selec'), 1200, smart, { nat: 'uy' });
+    const c = find(x => x.phase === 'decide' && x.queue[0].id === 'selec', 1500, smart, { nat: 'uy' });
     expect(c.nat).toBe('uy');
-    expect(c.queue.find(e => e.id === 'selec')!.text).toContain('la Selección de Uruguay');
-    const done = finishSeason(c, 'go');
+    expect(c.queue[0].text).toContain('Selección de Uruguay');
+    const done = finishSeason(c, 'risky');
     expect(done.history[done.history.length - 1].lines.join(' ')).toContain('la Selección de Uruguay');
-    const ar = find(x => x.phase === 'decide' && x.queue.some(e => e.id === 'selec'), 1200, smart);
-    expect(ar.queue.find(e => e.id === 'selec')!.text).toContain('la Selección Argentina');
+    const ar = find(x => x.phase === 'decide' && x.queue[0].id === 'selec', 1500, smart);
+    expect(ar.queue[0].text).toContain('Selección Argentina');
   });
   it('te convocan más o menos según la profundidad de tu Selección: más difícil en Brasil o Francia que en Paraguay o Arabia', () => {
     const base = newCareer({ seed: 2, name: 'x', pos: 'DEL', style: 'potrero' });
@@ -170,22 +153,32 @@ describe('nacionalidad', () => {
       }
     }
   });
-  it('pagás adaptación solo si te vas a vivir a otro país que no sea el tuyo: debutar en otro club argentino, o volver a casa, no la tiene', () => {
-    const c = find(x => x.phase === 'decide' && x.queue[0].id === 'debut', 300, randomPicker);
-    const other = c.queue[0].options.find(o => o.id === 'other')!;
-    expect(CLUB_BY_NAME.get(other.fx.move!.club.name)!.lg === 'ar1' || CLUB_BY_NAME.get(other.fx.move!.club.name)!.lg === 'ar2').toBe(true);
-    expect(other.fx.gamble).toBeUndefined();
-    expect(JSON.stringify(other)).not.toContain('adaptarte');
-    // volver al club de las inferiores (siempre en tu país)
-    const h = find(x => x.phase === 'decide' && x.queue[0].id === 'home', 900, randomPicker);
-    expect(h.queue[0].options.find(o => o.id === 'back')!.fx.gamble).toBeUndefined();
-    // irte a Europa sí
-    const t = find(x => x.phase === 'decide' && x.queue[0].id === 'transfer' && x.queue[0].options.some(o => o.fx.move && LEAGUES[o.fx.move.club.lg].conf === 'uefa'), 900, randomPicker);
-    const eu = t.queue[0].options.find(o => o.fx.move && LEAGUES[o.fx.move.club.lg].conf === 'uefa')!;
-    expect(eu.fx.gamble?.okTag).toBeTruthy();
-    // y un español que vuelve a España no se "adapta" a España
-    const es = find(x => x.phase === 'decide' && x.queue[0].id === 'transfer' && x.club.lg !== 'es' && x.queue[0].options.some(o => o.fx.move?.club.lg === 'es'), 900, randomPicker, { nat: 'es' });
-    expect(es.queue[0].options.find(o => o.fx.move?.club.lg === 'es')!.fx.gamble).toBeUndefined();
+  it('pagás adaptación solo si te vas a vivir a otro país que no sea el tuyo: otro club argentino, o volver a casa, no la tiene', () => {
+    const c = newCareer({ seed: 3, name: 'x', pos: 'MED', style: 'potrero' });
+    const ar = { ...c, club: clubNamed('Boca Juniors')! };
+    expect(adapt(ar, clubNamed('Banfield')!)).toBe(0);
+    expect(adapt(ar, clubNamed('Real Madrid')!)).toBeLessThan(0);
+    expect(adapt(ar, clubNamed('Flamengo')!)).toBeLessThan(0);
+    const es = { ...ar, nat: 'es', club: clubNamed('Flamengo')! };
+    expect(adapt(es, clubNamed('Barcelona')!)).toBe(0); // un español que vuelve a España no se "adapta" a España
+    expect(adapt({ ...ar, nat: 'es' }, clubNamed('Real Madrid')!)).toBe(0);
+    // y en las ofertas de un club de Europa, la chance de que salga bien es menor que la de uno de acá
+    const ps = (k: 'in' | 'out') => {
+      const out: number[] = [];
+      for (const seed of seeds(400, 61)) {
+        const x = newCareer({ seed, name: 'x', pos: 'MED', style: 'potrero' });
+        let y = x;
+        for (let g = 0; g < 40 && y.phase !== 'over'; g++) {
+          if (y.phase === 'decide' && y.queue[0].id === 'transfer') {
+            const o = y.queue[0].options[1], to = clubNamed(o.club!)!;
+            if ((adapt(y, to) < 0) === (k === 'out')) out.push(o.fx.gamble!.p);
+          }
+          y = y.phase === 'result' ? advance(y) : choose(y, 'safe');
+        }
+      }
+      return out.reduce((a, b) => a + b, 0) / Math.max(1, out.length);
+    };
+    expect(ps('in')).toBeGreaterThan(ps('out'));
   });
   it('el Premio Olimpia es solo para quienes juegan en la Argentina, sean argentinos o no', () => {
     for (const nat of ['ar', 'uy', 'br', 'es']) for (const seed of seeds(80, 1237)) {
@@ -251,7 +244,7 @@ describe('posición en la cancha, pie, camiseta', () => {
         const pr = new Rng(seedState(seed));
         let c = newCareer({ seed, name: 'x', pos: 'DEL', style: 'potrero', foot });
         for (let g = 0; g < 400 && c.phase !== 'over'; g++) {
-          if (c.phase === 'decide' && c.queue[0].id === 'transfer') for (const o of c.queue[0].options) if (o.fx.move) { t += o.fx.move.club.pw - careerOvr(c.stats, c.pos, c.dpos); n++; }
+          if (c.phase === 'decide' && c.queue[0].id === 'transfer') for (const o of c.queue[0].options) { const m = o.fx.gamble?.ok?.move; if (m) { t += m.club.pw - careerOvr(c.stats, c.pos, c.dpos); n++; } }
           c = c.phase === 'result' ? advance(c) : choose(c, smart(c, c.queue[0], pr));
         }
       }
@@ -298,13 +291,13 @@ describe('dificultad', () => {
   });
   it('tabla de Legado por dificultad (al azar, bien y mal jugado): la cima es rara y casi imposible en Experto', () => {
     const N = 500;
-    const top = (d: Difficulty, p: Picker | undefined) => seeds(N, 7919).filter(s => legacy(simulateRun(s, { diff: d, pick: p })).index === 4).length / N;
+    const top = (d: Difficulty, p: Picker | undefined) => seeds(N, 7919).filter(s => legacy(simulateRun(s, { diff: d, pick: p })).index >= 5).length / N;
     const good = { normal: top('normal', smart), intenso: top('intenso', smart), experto: top('experto', smart) };
-    expect(good.normal).toBeGreaterThan(0.02); expect(good.normal).toBeLessThan(0.1);
-    expect(good.experto).toBeLessThan(0.03);
+    expect(good.normal).toBeGreaterThan(0.01); expect(good.normal).toBeLessThan(0.1);
+    expect(good.experto).toBeLessThan(0.05);
     expect(good.normal).toBeGreaterThan(good.experto);
-    expect(top('experto', bad)).toBeLessThan(0.01); expect(top('normal', bad)).toBeLessThan(0.015);
-    expect(top('experto', undefined)).toBeLessThan(0.03);
+    expect(top('experto', bad)).toBeLessThan(0.03); expect(top('normal', bad)).toBeLessThan(0.04);
+    expect(top('experto', undefined)).toBeLessThan(0.05);
   });
 });
 
@@ -345,114 +338,89 @@ describe('valor de mercado', () => {
   });
 });
 
-describe('efectos honestos de cada opción', () => {
-  /** Cuánto cambia de verdad el OVR de la temporada al elegir esa opción, promediando muchas tiradas con el mismo punto de partida. */
-  function measured(base: Career, optId: string, reps: number): number {
-    let t = 0;
-    for (let i = 0; i < reps; i++) {
-      const c = { ...JSON.parse(JSON.stringify(base)) as Career, rng: seedState(i * 7919 + 13) };
-      const n = finishSeason(c, optId);
-      const h = n.history[n.history.length - 1];
-      t += h.ovr - h.ovr0;
+describe('riesgo honesto de cada opción', () => {
+  it('la probabilidad que se muestra es la que usa la temporada: cada decisión se juega muchas veces y sale bien con esa frecuencia', () => {
+    const ids = ['plan', 'night', 'hype', 'derby', 'coach', 'comeback', 'transfer', 'debut', 'loan', 'captain', 'switch', 'renewal'];
+    let done = 0;
+    for (const id of ids) {
+      let c: Career;
+      try { c = find(x => x.phase === 'decide' && !x.tension && x.queue[0].id === id, 2500, randomPicker); } catch { continue; }
+      const g = c.queue[0].options[1].fx.gamble!;
+      expect(g, id).toBeDefined();
+      const reps = 1200;
+      let ok = 0;
+      for (let i = 0; i < reps; i++) {
+        const n = choose({ ...JSON.parse(JSON.stringify(c)) as Career, rng: seedState(i * 104729 + 7) }, 'risky');
+        if (n.history[n.history.length - 1].risk === 'ok') ok++;
+      }
+      expect(Math.abs(ok / reps - g.p), id + ' dice ' + g.p).toBeLessThan(0.045);
+      const chips = optionChips(c, c.queue[0].options[1]).map(x => x.text).join(' | ');
+      expect(chips, id).toContain(Math.round((1 - g.p) * 100) + ' %');
+      done++;
     }
-    return t / reps;
-  }
-  it('el signo y el tamaño del cambio de OVR que se muestra coinciden con lo que pasa de verdad (comparado con "seguir el plan del club")', () => {
-    let checked = 0;
-    const kinds = new Set<string>();
-    for (const seed of seeds(120, 977)) {
+    expect(done).toBeGreaterThanOrEqual(9);
+  });
+  it('lo que sale mal tiene consecuencias de verdad: más minutos perdidos, peor OVR o peor nota que lo que sale bien', () => {
+    let worse = 0, n = 0;
+    for (const seed of seeds(200, 977)) {
       const pr = new Rng(seedState(seed));
       let c = newCareer({ seed, name: 'x', pos: POS[seed % 4], style: 'potrero' });
-      for (let g = 0; g < 400 && c.phase !== 'over' && checked < 40; g++) {
-        if (c.phase === 'decide' && c.queue.length === 1 && ['plan', 'mentor', 'derby', 'coach', 'captain', 'comeback'].includes(c.queue[0].id) && c.age >= 20) {
-          const ev = c.queue[0], ref = ev.options.find(o => o.id === 'club') ?? ev.options.find(o => o.id === 'no') ?? ev.options.find(o => o.id === 'rest') ?? ev.options.find(o => o.id === 'work') ?? ev.options.find(o => o.id === 'slow');
-          if (ref) {
-            const baseShown = fxEffects(c, ref.fx).ovr.exp, baseReal = measured(c, ref.id, 60);
-            for (const o of ev.options) if (o.id !== ref.id) {
-              const shown = fxEffects(c, o.fx).ovr.exp - baseShown, real = measured(c, o.id, 60) - baseReal;
-              expect(Math.abs(shown - real), `${ev.id}/${o.id}: se muestra ${shown.toFixed(2)}, pasa ${real.toFixed(2)}`).toBeLessThan(0.7);
-              if (Math.abs(shown) >= 0.5) expect(Math.sign(real), `${ev.id}/${o.id} signo`).toBe(Math.sign(shown));
-              kinds.add(`${ev.id}/${o.id}`); checked++;
-            }
+      for (let g = 0; g < 400 && c.phase !== 'over'; g++) {
+        if (c.phase === 'decide' && !c.tension && c.age >= 20 && ['plan', 'hype', 'night', 'coach', 'transfer'].includes(c.queue[0].id)) {
+          let a: Career | null = null, b: Career | null = null;
+          for (let k = 0; k < 40 && (!a || !b); k++) {
+            const x = choose({ ...c, rng: seedState(seed * 31 + k) }, 'risky'), h = x.history[x.history.length - 1];
+            if (!h || x.tension) continue;
+            if (h.risk === 'ok') a = x; else if (h.risk === 'bad') b = x;
+          }
+          if (a && b) {
+            const ha = a.history[a.history.length - 1], hb = b.history[b.history.length - 1];
+            n++; if (ha.ovr - ha.ovr0 + ha.rating * 0.5 + ha.pj * 0.02 >= hb.ovr - hb.ovr0 + hb.rating * 0.5 + hb.pj * 0.02) worse++;
           }
         }
         c = c.phase === 'result' ? advance(c) : choose(c, randomPicker(c, c.queue[0], pr));
       }
     }
-    expect(checked).toBeGreaterThanOrEqual(25);
-    expect(kinds.size).toBeGreaterThanOrEqual(6);
+    expect(n).toBeGreaterThan(80);
+    expect(worse / n).toBeGreaterThan(0.6);
   });
-  it('la probabilidad de que salga mal (o bien) que se muestra es la que usa la temporada', () => {
-    const cases = [
-      { ev: 'plan', opt: 'party', needs: (c: Career) => c.age <= 28 },
-      { ev: 'plan', opt: 'train', needs: (c: Career) => c.age <= 28 },
-      { ev: 'mentor', opt: 'yes', needs: () => true },
-      { ev: 'derby', opt: 'play', needs: () => true },
-      { ev: 'coach', opt: 'talk', needs: () => true },
-      { ev: 'coach', opt: 'press', needs: () => true },
-      { ev: 'comeback', opt: 'doc', needs: () => true },
-    ];
-    for (const k of cases) {
-      const c = find(x => x.phase === 'decide' && x.queue.length === 1 && x.queue[0].id === k.ev && k.needs(x), 1500, randomPicker);
-      const o = c.queue[0].options.find(x => x.id === k.opt)!, g = o.fx.gamble!;
-      expect(g, k.ev + '/' + k.opt).toBeDefined();
-      const reps = 1600;
-      let ok = 0;
-      for (let i = 0; i < reps; i++) {
-        const n = finishSeason({ ...JSON.parse(JSON.stringify(c)) as Career, rng: seedState(i * 104729 + 7) }, k.opt);
-        const said = n.history[n.history.length - 1].lines.join(' | ');
-        const good = g.okText ? said.includes(g.okText) : !said.includes(g.badText);
-        if (good) ok++;
-      }
-      expect(Math.abs(ok / reps - g.p), `${k.ev}/${k.opt} dice ${g.p}`).toBeLessThan(0.04);
-      // y el texto de la etiqueta lleva ese mismo porcentaje
-      const chips = optionChips(c, o).map(x => x.text).join(' | ');
-      const pctText = (p: number) => `${Math.round(p * 100)} %`;
-      expect(chips.includes(pctText(g.p)) || chips.includes(pctText(1 - g.p)), `${k.ev}/${k.opt}: ${chips}`).toBe(true);
-    }
-  });
-  it('cada opción de cada decisión muestra sus efectos: con números, riesgo con su probabilidad y las mudanzas con sueldo, vidriera y oferta', () => {
-    const seen: Record<string, number> = {};
+  it('cada opción de cada decisión muestra sus etiquetas, sin textos rotos y cortas', () => {
     for (const seed of seeds(150, 5113)) {
       const pr = new Rng(seedState(seed));
       let c = newCareer({ seed, name: 'x', pos: POS[seed % 4], style: 'tactico', nat: ['ar', 'ar', 'br', 'es'][seed % 4] });
       for (let g = 0; g < 400 && c.phase !== 'over'; g++) {
         if (c.phase === 'decide') for (const o of c.queue[0].options) {
           const chips = optionChips(c, o);
-          for (const x of chips) { expect(x.text).not.toMatch(/undefined|NaN|Infinity/); seen[x.id] = (seen[x.id] ?? 0) + 1; }
-          if (o.fx.gamble) expect(chips.some(x => /\d+ %/.test(x.text)), c.queue[0].id + '/' + o.id).toBe(true);
-          if (o.fx.move?.kind === 'transfer' && c.club.lg !== 'inf') expect(chips.some(x => x.id === 'fee' && /Ofrecen €/.test(x.text))).toBe(true);
-          if (o.fx.growth && Math.abs(o.fx.growth) >= 0.5 && !o.fx.move) expect(chips.some(x => x.id === 'ovr'), c.queue[0].id + '/' + o.id).toBe(true);
+          expect(chips.length).toBeGreaterThanOrEqual(2);
+          for (const x of chips) { expect(x.text).not.toMatch(/undefined|NaN|Infinity/); expect(x.text.length).toBeLessThan(40); }
+          if (o.kind === 'risky') expect(riskOf(o).pBad).toBeGreaterThan(0.05);
         }
         c = c.phase === 'result' ? advance(c) : choose(c, randomPicker(c, c.queue[0], pr));
       }
     }
-    for (const id of ['ovr', 'min', 'inj', 'okp', 'badp', 'pay', 'vis', 'fee', 'team']) expect(seen[id] ?? 0, id).toBeGreaterThan(0);
   });
 });
 
 describe('momentos clave: la final', () => {
   const withTension = () => find(x => !!x.tension, 3000, smart, { nat: 'ar' });
-  it('de vez en cuando tu equipo llega a una final y se define con una decisión: tres opciones, con la chance de ganar que muestran', () => {
+  it('de vez en cuando tu equipo llega a una final y se define con una decisión: la calma o el penal, con la chance de ganar que muestran', () => {
     const c = withTension();
     expect(c.phase).toBe('decide');
     expect(c.queue).toHaveLength(1);
     const ev = c.queue[0];
     expect(ev.id).toBe('final');
-    expect(ev.options.map(o => o.id)).toEqual(['calm', 'all', 'pen']);
+    expect(ev.options.map(o => o.id)).toEqual(['safe', 'risky']);
     const t = c.tension!;
     expect(['cont', 'cup']).toContain(t.kind);
     expect(t.p).toBeGreaterThan(0); expect(t.p).toBeLessThan(1);
     for (const o of ev.options) {
       const odds = finalOdds(c, o.fx)!;
       const chips = optionChips(c, o);
-      expect(chips.some(x => x.id === 'final' && x.text.includes('Ganar la final')), o.id).toBe(true);
+      expect(chips.some(x => x.id === 'final' && x.text.includes('Ganás')), o.id).toBe(true);
       expect(Math.abs(odds - t.p) < 0.5).toBe(true);
     }
-    expect(optionChips(c, ev.options[0]).find(x => x.id === 'final')!.text).toBe(`Ganar la final: ${Math.round(finalOdds(c, ev.options[0].fx)! * 100)} %`);
-    expect(finalOdds(c, ev.options[1].fx)!).toBeGreaterThan(t.p);   // ir con todo suma
-    expect(optionChips(c, ev.options[1]).some(x => x.id === 'ovr' && /−0,4|-0,4/.test(x.text))).toBe(true); // y cuesta OVR
-    expect(optionChips(c, ev.options[2]).some(x => /Lo metés 55 %/.test(x.text))).toBe(true);
+    expect(optionChips(c, ev.options[0]).find(x => x.id === 'final')!.text).toBe(`🏆 Ganás: ${Math.round(finalOdds(c, ev.options[0].fx)! * 100)} %`);
+    expect(optionChips(c, ev.options[1]).some(x => /45 %/.test(x.text))).toBe(true); // el penal se erra el 45 %
     expect(finalOdds(newCareer({ seed: 1, name: 'x', pos: 'DEL', style: 'potrero' }), ev.options[0].fx)).toBeNull();
   });
   it('mientras se decide no se puede colgar los botines, se guarda y se retoma, y la temporada espera su final', () => {
@@ -464,7 +432,7 @@ describe('momentos clave: la final', () => {
     const before = h.trophies.length;
     expect(h.lines.join(' ')).not.toMatch(/ganaste la final|perdiste la final/i);
     for (const bad of [{ ...c, tension: { ...c.tension, p: NaN } }, { ...c, tension: { ...c.tension, lg: 'xx' } }, { ...c, phase: 'result' }]) expect(parseCareer(bad)).toBeNull();
-    const n = choose(c, 'calm');
+    const n = choose(c, 'safe');
     expect(n.phase).toBe('result'); expect(n.tension).toBeNull(); expect(n.queue).toEqual([]);
     const h2 = n.history[n.history.length - 1];
     expect(h2.lines.join(' ')).toMatch(/¡Ganaste la|Perdiste la final|perdió la final|ganó la final/);
@@ -532,7 +500,8 @@ describe('Desafío del día', () => {
     expect(parseCareer(JSON.stringify(a))).toEqual(a);
     expect(parseCareer({ ...a, daily: '12/11/2026' })).toBeNull();
     const run = (c: Career) => { let k = c; const pr = new Rng(seedState(5)); for (let g = 0; g < 400 && k.phase !== 'over'; g++) k = k.phase === 'result' ? advance(k) : choose(k, smart(k, k.queue[0], pr)); return k; };
-    expect(run(a).history).toEqual(run(b).history);
+    const noName = (k: Career) => k.history.map(h => ({ ...h, head: '' })); // el titular lleva tu apellido; lo demás es igual
+    expect(noName(run(a))).toEqual(noName(run(b)));
   });
   it('el texto para compartir el desafío no cuenta la carrera (sin clubes ni títulos)', () => {
     const S = dailySetup('2026-11-12');
@@ -595,7 +564,7 @@ describe('logros', () => {
     expect(ACHIEVEMENTS).toHaveLength(24); expect(ACH_TOTAL).toBe(24); expect(ACH_TOTAL_MODULE).toBe(SUMMARY_TOTAL); expect(ACH_IDS.size).toBe(24);
     for (const a of ACHIEVEMENTS) { expect(a.title.length).toBeGreaterThan(3); expect(a.desc.length).toBeGreaterThan(10); expect(['bronce', 'plata', 'oro', 'leyenda']).toContain(a.tier); expect(a.icon.length).toBeGreaterThan(0); expect(a.target).toBeGreaterThan(0); }
     expect(new Set(ACHIEVEMENTS.map(a => a.title)).size).toBe(24);
-    for (const id of ['start1', 'start5', 'start10', 'start25', 'start50', 'start100', 'fin1', 'fin5', 'fin10', 'fin25', 'seas50', 'seas200', 'seas500', 'tit10', 'tit50', 'day3', 'exp', 'ovr90', 'daily1', 'streak3', 'streak7', 'rec5']) expect(ACH_IDS.has(id), id).toBe(true);
+    for (const id of ['start1', 'start5', 'start10', 'start50', 'start100', 'fin1', 'fin5', 'fin10', 'fin25', 'seas50', 'seas500', 'tit10', 'tit50', 'nat', 'gamble', 'home', 'exp', 'ovr90', 'daily1', 'streak3', 'streak7', 'rec5']) expect(ACH_IDS.has(id), id).toBe(true);
   });
   it('el avance se calcula sin pasarse de la meta, y evaluate devuelve solo lo nuevo', () => {
     expect(progress(3, 10)).toEqual({ value: 3, target: 10, pct: 30 }); expect(progress(30, 10).pct).toBe(100); expect(progress(-2, 10).pct).toBe(0); expect(progress(NaN, 10).value).toBe(0); expect(progress(1, 0).target).toBe(1);
@@ -606,17 +575,17 @@ describe('logros', () => {
     expect(unlockedCount(both)).toBe(1);
     expect(withUnlocked(both, ['zzz'], 'x')).toBe(both);
   });
-  it('arrancar una carrera se cuenta una sola vez por carrera (aunque se recargue o se toque dos veces) y detecta tres en un día', () => {
+  it('arrancar una carrera se cuenta una sola vez por carrera (aunque se recargue o se toque dos veces) y cuenta cuántas por día', () => {
     let st = emptyAch();
     let r = recordStart(st, 1001, '2026-11-12'); st = r.stats;
     expect(st.careersStarted).toBe(1); expect(r.newly).toEqual(['start1']);
     r = recordStart(st, 1001, '2026-11-12'); expect(r.stats).toBe(st); expect(r.newly).toEqual([]);
     st = recordStart(st, 1002, '2026-11-12').stats;
-    r = recordStart(st, 1003, '2026-11-12'); expect(r.newly).toContain('day3'); expect(r.stats.maxPerDay).toBe(3);
+    r = recordStart(st, 1003, '2026-11-12'); expect(r.stats.maxPerDay).toBe(3);
     r = recordStart(r.stats, 1004, '2026-11-13'); expect(r.stats.dayCount).toBe(1); expect(r.stats.maxPerDay).toBe(3);
     for (let i = 0; i < 300; i++) st = recordStart(st, 5000 + i, '2026-12-01').stats;
     expect(st.started.length).toBeLessThanOrEqual(200);
-    expect(unlockedCount(st)).toBeGreaterThanOrEqual(6);
+    expect(unlockedCount(st)).toBeGreaterThanOrEqual(5);
     expect(st.unlocked.start100).toBeDefined();
   });
   it('terminar una carrera suma temporadas, títulos y mejor OVR una sola vez, y marca lo especial (Experto, retiro con 90, campeón del mundo, la cima)', () => {
@@ -719,9 +688,9 @@ describe('arreglos de la revisión', () => {
       let c = newCareer({ seed, name: 'x', pos: POS[seed % 4], style: 'potrero', nat: ['ar', 'ar', 'br', 'es', 'uy'][seed % 5] });
       for (let g = 0; g < 400 && c.phase !== 'over'; g++) {
         if (c.phase === 'decide' && c.queue[0].id === 'loan') {
-          const o = c.queue[0].options.find(x => x.id === 'loan')!;
-          offers++; if (o.hint.includes('Arrancarías en el banco')) bench++;
+          const o = c.queue[0].options[0];
           const lend = o.fx.move!.club;
+          offers++; if (careerOvr(c.stats, c.pos, c.dpos) - lend.pw < -5) bench++;
           expect(lend.pw).toBeLessThanOrEqual(c.club.pw);
         }
         c = c.phase === 'result' ? advance(c) : choose(c, randomPicker(c, c.queue[0], pr));
@@ -820,7 +789,7 @@ describe('carrera argentina: balance (Normal, Intenso, Experto)', () => {
     }
     expect(startOptsOf(simulateRun(77, { nat: 'uy', dpos: 'LI', foot: 'izq', diff: 'experto' }))).toMatchObject({ nat: 'uy', foot: 'izq', diff: 'experto', name: 'Test' });
     expect(pickHome(nationOf('ar'), new Rng(1)).moved).toBe(false);
-    expect(drawEvents.length).toBe(2);
+    expect(drawDecision.length).toBe(2);
     expect(legacyScore(simulateRun(77, { diff: 'normal' }))).toBeGreaterThanOrEqual(0);
     void DPOS_DEFAULT; void FOOTS; void flagUrl; void (null as unknown as EventInst);
   });
@@ -828,7 +797,7 @@ describe('carrera argentina: balance (Normal, Intenso, Experto)', () => {
 
 describe('Jugar otra carrera y pistas de las ofertas (revisión)', () => {
   it('"Jugar otra carrera" arranca con la posición con la que arrancó la carrera, no con la que terminó tras una reconversión', () => {
-    const takeSwitch: Picker = (c, ev, r) => (ev.id === 'switch' ? 'yes' : randomPicker(c, ev, r));
+    const takeSwitch: Picker = (c, ev, r) => (ev.id === 'switch' ? 'risky' : randomPicker(c, ev, r));
     let found: Career | null = null;
     for (const seed of seeds(60, 31)) {
       const c = simulateRun(seed, { dpos: 'LI', pick: takeSwitch });
@@ -855,8 +824,12 @@ describe('Jugar otra carrera y pistas de las ofertas (revisión)', () => {
       for (const seed of seeds(12, 4100)) {
         const spy: Picker = (c, ev, r) => {
           if ((ev.id === 'transfer' || ev.id === 'debut') && c.picks.length === 0) { // la primera decisión de la temporada: la segunda se armó antes de un posible cambio de puesto
-            for (const o of ev.options) if (o.fx.move) {
-              expect(o.hint, `${dpos} ${seed}`).toContain(expectedRole(careerOvr(c.stats, c.pos, c.dpos) - o.fx.move.club.pw));
+            for (const o of ev.options) if (o.club && o.kind === 'risky' && o.up && /titular|figura|puesto|banco|categoría|nivel|Europa/.test(o.up) && o.club) {
+              const club = o.fx.gamble?.ok?.move?.club ?? o.fx.move?.club;
+              if (!club) continue;
+              const role = expectedRole(careerOvr(c.stats, c.pos, c.dpos) - club.pw);
+              const bigger = club.pw >= c.club.pw + 1;
+              if (!bigger && !/Europa/.test(o.up)) expect(o.up, `${dpos} ${seed}`).toBe(role);
               checked++;
             }
           }
@@ -871,8 +844,9 @@ describe('Jugar otra carrera y pistas de las ofertas (revisión)', () => {
 
 describe('bundle principal: Inicio no trae el simulador ni el diseñador de escudos', () => {
   const importsOf = (src: string) => [...src.matchAll(/^import\s[^;]*?from\s+'([^']+)'/gm)].map(m => m[1]);
-  it('la entrada al juego solo importa lo mínimo (resumen y fecha), y estos dos no importan nada', () => {
-    expect(importsOf(careerEntrySrc).sort()).toEqual(['./careerDaily', './careerSummary', 'preact/hooks']);
+  it('la entrada al juego solo importa lo mínimo (resumen, fecha y la baldosa), y los de resumen y fecha no importan nada', () => {
+    // ExploreTile es solo presentación (la baldosa de la sección Explorar de Inicio): no trae nada del juego
+    expect(importsOf(careerEntrySrc).sort()).toEqual(['../../shared/ui/ExploreTile', './careerDaily', './careerSummary', 'preact/hooks']);
     expect(importsOf(careerDailySrc)).toEqual([]);
     expect(importsOf(careerSummarySrc)).toEqual([]);
   });

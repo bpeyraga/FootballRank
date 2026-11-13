@@ -6,6 +6,7 @@ import { lastEvent } from './quickMatch';
 import { feeError, type FeePayment } from './fees';
 import * as api from './api';
 import { EARLY_MS, applyDelete, applyInsert, lastMineOf, settleInsert } from './live';
+import { ratingOpen, voteOpensAt } from './votingCore';
 import { useLive } from './useLive';
 import { errText, type Match, type Mvp, type Score, type Signup, type Suspension } from './model';
 
@@ -16,6 +17,7 @@ export function useMatch(id: string, meId: string) {
   const [scores, setScores] = useState<Map<string, Score>>(new Map());
   const [myRatings, setMyRatings] = useState<Record<string, number>>({});
   const [mvp, setMvp] = useState<Mvp>({ mine: null, tally: new Map() });
+  const [mvpReady, setMvpReady] = useState(false); // ya se leyó mi voto de figura (hasta entonces no se sabe si me falta)
   const [busy, setBusy] = useState(false);
   const [paying, setPaying] = useState<string[]>([]); // quiénes tienen un "pagué" en camino
   const [payments, setPayments] = useState<FeePayment[]>([]); // lo que cada uno puso para la cancha
@@ -69,14 +71,27 @@ export function useMatch(id: string, meId: string) {
     catch (e: any) { setEvErr('No pudimos cargar los goles, faltas y tarjetas. ' + (e?.message ?? '')); }
   };
   // MVP aparte, por lo mismo: si falla, el resto sigue andando
-  const loadMvp = async () => { try { setMvp(await api.loadMvp(id, meId)); } catch { /* sin MVP */ } };
+  const loadMvp = async () => { try { setMvp(await api.loadMvp(id, meId)); setMvpReady(true); } catch { /* sin MVP: sin leer mi voto no se sabe si falta, así que no se reclama */ } };
+
+  // Sin resultado cargado, la votación (figura y calificar) se abre 2 h después de la hora de inicio: re-render justo entonces
+  // y se trae mi voto (si la pantalla ya estaba abierta, `load` no lo había pedido todavía).
+  useEffect(() => {
+    if (!m || m.status === 'played') return;
+    const ms = voteOpensAt(m.starts_at) - Date.now();
+    if (ms <= 0 || ms > 2 ** 31 - 1) return;
+    const t = setTimeout(() => { tick(n => n + 1); loadMvp(); }, ms + 500);
+    return () => clearTimeout(t);
+  }, [m?.starts_at, m?.status]);
 
   const load = async () => {
     let b: api.MatchBundle;
     try { b = await api.loadMatch(id, meId); } catch (e: any) { setErr(e?.message ?? 'Error de red'); return; }
     setM(b.match); setSu(b.signups); setSusp(b.suspensions); setScores(b.scores); setMyRatings(b.myRatings); setPayments(b.payments);
     if (b.match?.status === 'played') { loadEvents(); loadMvp(); }
-    else if (b.match?.live_state) loadEvents(); // partido en vivo: los eventos de hasta ahora
+    else {
+      if (b.match?.live_state) loadEvents(); // partido en vivo: los eventos de hasta ahora
+      if (b.match && ratingOpen(b.match)) loadMvp(); // sin resultado cargado pero ya se puede votar (2 h después de la hora de inicio)
+    }
   };
   useEffect(() => { load(); }, [id]);
 
@@ -223,7 +238,7 @@ export function useMatch(id: string, meId: string) {
   };
 
   return {
-    m, su, susp, scores, myRatings, mvp, events, busy, paying, err, msg, feeErr, evErr,
+    m, su, susp, scores, myRatings, mvp, mvpReady, events, busy, paying, err, msg, feeErr, evErr,
     setErr, setMsg, reload: load, run,
     payments, setPaid, setFee, setFeePayment, stepEvent, removeEv, undoLast, loadEvents, saveEdit, remove,
     // Partido en vivo: cronómetro, acciones del reloj y el resultado final

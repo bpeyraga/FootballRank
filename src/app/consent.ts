@@ -1,6 +1,6 @@
 // Consentimiento de cookies en el navegador: cookie propia (ep_consent) + copia en localStorage, y aviso a quien escuche.
 // La lógica pura está en consentCore.ts; el registro en la base lo hace track.ts (logConsent).
-import { cookieLine, CONSENT_COOKIE, CONSENT_VERSION, parseConsent, readCookie, serializeConsent, type Consent, type ConsentChoice } from './consentCore';
+import { cookieLine, CONSENT_COOKIE, CONSENT_VERSION, hasStoredSession, parseConsent, readCookie, serializeConsent, type Consent, type ConsentChoice } from './consentCore';
 
 const LS_KEY = 'fr-consent';
 const listeners = new Set<(c: Consent | null) => void>(); // elecciones hechas en esta pestaña (para registrarlas una sola vez)
@@ -48,6 +48,41 @@ try {
     syncListeners.forEach(f => { try { f(c); } catch { /* ídem */ } });
   });
 } catch { /* sin window */ }
+
+/**
+ * Aplica una elección que ya estaba registrada en la cuenta (otro dispositivo u otro dominio): igual que setConsent pero
+ * SIN avisar a onConsent (no se vuelve a registrar) y con la fecha y el id originales. Sí arranca/frena las estadísticas.
+ */
+export function restoreConsent(choice: ConsentChoice, id: string, at: number): Consent {
+  const c: Consent = { v: CONSENT_VERSION, choice, at, id };
+  try { document.cookie = cookieLine(c, location.protocol === 'https:'); } catch { /* sin cookies */ }
+  try { localStorage.setItem(LS_KEY, serializeConsent(c)); } catch { /* sin storage */ }
+  syncListeners.forEach(f => { try { f(c); } catch { /* ídem */ } });
+  return c;
+}
+
+// Con sesión guardada y sin elección acá, el aviso espera a saber qué dice la cuenta (consentSync.ts) para no aparecer de
+// balde: se libera cuando la cuenta contestó o a los 1,5 s. Sin sesión (la landing) no se espera: el aviso sale ya.
+const SYNC_TIMEOUT_MS = 1500;
+let syncing = false;
+const syncWaiters = new Set<() => void>();
+try {
+  const keys: string[] = [];
+  for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k) keys.push(k); }
+  syncing = !getConsent() && hasStoredSession(keys, location);
+} catch { /* sin storage: sin sesión guardada tampoco */ }
+/** Marca que la cuenta ya contestó (o no hay cuenta) y libera al aviso. Idempotente. */
+export function finishConsentSync() {
+  if (!syncing) return;
+  syncing = false;
+  syncWaiters.forEach(f => { try { f(); } catch { /* ídem */ } });
+  syncWaiters.clear();
+}
+if (syncing) setTimeout(finishConsentSync, SYNC_TIMEOUT_MS);
+/** ¿Se está esperando a la cuenta? Mientras sea true el aviso no se muestra solo. */
+export const isConsentSyncing = () => syncing;
+/** Se llama una vez cuando termina la espera. */
+export function onConsentSyncDone(f: () => void): () => void { syncWaiters.add(f); return () => syncWaiters.delete(f); }
 
 /** Para el link "Preferencias de cookies": vuelve a mostrar el aviso. */
 export function openConsent() { openers.forEach(f => f()); }

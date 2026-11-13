@@ -91,7 +91,7 @@ export function matchError(m: string) {
   if (m.includes('suspended')) return 'Está suspendido para este partido por ausencias.';
   if (m.includes('result_locked')) return 'El resultado ya está cargado: solo lo corrige quien lo cargó o un admin.';
   if (m.includes('bad_score')) return 'El resultado tiene que ser un número entre 0 y 99.';
-  if (m.includes('not_played')) return 'Primero hay que cargar el resultado del partido.';
+  if (m.includes('not_played')) return 'Todavía no se puede: el partido tiene que haber terminado (pasadas 2 horas de su hora de inicio, o cuando un admin carga el resultado).';
   if (m.includes('not_member')) return 'Esa persona ya no es miembro de la comunidad.';
   if (m.includes('already_started')) return 'El partido ya empezó: no podés bajarte. Avisale a un admin.';
   if (m.includes('not_editable')) return 'Solo se puede editar un partido con la lista abierta o cerrada.';

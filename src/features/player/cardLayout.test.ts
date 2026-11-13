@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  STORY_H, STORY_W, cardFileName, cardInner, cardTier, ellipsize, fitFontPx, initialOf, shieldPoints, splitRow, storyLayout, summaryTiles,
+  SHARE_URL, SITE, STORY_H, STORY_W, cardFileName, cardInner, cardTier, ctaLayout, ellipsize, fitFontPx, initialOf, qrGeometry,
+  shareMessage, shieldPoints, splitRow, storyLayout, summaryTiles, wrapLines,
   type Measure,
 } from './cardLayout';
 
@@ -8,17 +9,33 @@ import {
 const measure: Measure = (t, px) => t.length * px * 0.5;
 
 describe('storyLayout', () => {
-  const L = storyLayout();
-  it('todo entra en 1080×1920 y la carta queda centrada', () => {
-    expect(L.card.x + L.card.w / 2).toBe(STORY_W / 2);
-    expect(L.card.y + L.card.h).toBeLessThan(L.summary.y);
-    expect(L.summary.y + L.summary.h).toBeLessThan(L.footerY);
-    expect(L.footerY).toBeLessThan(STORY_H);
-    expect(L.brandY).toBeLessThan(L.communityY);
-    expect(L.communityY).toBeLessThan(L.card.y);
+  for (const hasSummary of [false, true]) {
+    const L = storyLayout(hasSummary);
+    const name = hasSummary ? 'con casillas de resumen' : 'sin casillas de resumen';
+    it(`${name}: todo entra en 1080×1920 y la carta queda centrada`, () => {
+      expect(L.card.x + L.card.w / 2).toBe(STORY_W / 2);
+      expect(L.card.x).toBe(Math.round(L.card.x));
+      expect(L.brandY).toBeLessThan(L.communityY);
+      expect(L.communityY).toBeLessThan(L.card.y);
+      expect(L.card.y + L.card.h).toBeLessThan(L.cta.y);
+      expect(L.cta.y + L.cta.h).toBeLessThan(STORY_H);
+      expect(L.cta.x).toBeGreaterThanOrEqual(0);
+      expect(L.cta.x + L.cta.w).toBeLessThanOrEqual(STORY_W);
+    });
+    it(`${name}: la carta mantiene la proporción de la app (196×280)`, () => {
+      expect(L.card.h / L.card.w).toBeCloseTo(280 / 196, 1);
+    });
+  }
+  it('las casillas de resumen van entre la carta y la invitación, y sin ellas la carta es más grande', () => {
+    const a = storyLayout(false), b = storyLayout(true);
+    expect(a.summary.h).toBe(0);
+    expect(b.summary.y).toBeGreaterThan(b.card.y + b.card.h);
+    expect(b.summary.y + b.summary.h).toBeLessThan(b.cta.y);
+    expect(a.card.w).toBeGreaterThan(b.card.w);
   });
-  it('la carta mantiene la proporción de la app (196×280)', () => {
-    expect(L.card.h / L.card.w).toBeCloseTo(280 / 196, 2);
+  it('deja el margen de abajo libre para la barra de respuesta de las historias', () => {
+    const { cta } = storyLayout();
+    expect(STORY_H - (cta.y + cta.h)).toBeGreaterThanOrEqual(150);
   });
 });
 
@@ -48,6 +65,12 @@ describe('cardInner', () => {
     expect(I.ovr.baseline).toBeLessThan(I.pos.baseline);
     expect(I.pos.baseline).toBeLessThan(I.crest.top);
   });
+  it('la línea entre columnas de stats cae entre las dos columnas y dentro de la carta', () => {
+    expect(I.divider.x).toBeGreaterThan(I.stats[0].labelLeft);
+    expect(I.divider.x).toBeLessThan(I.stats[1].valueRight - I.statPx * 1.2);
+    expect(I.divider.y1).toBeGreaterThan(I.name.baseline);
+    expect(I.divider.y2).toBeLessThan(card.y + card.h * 0.85);
+  });
   it('los puntos del escudo siguen el clip-path de la carta', () => {
     const pts = shieldPoints(card);
     expect(pts[0]).toEqual([card.x + card.w / 2, card.y]);
@@ -76,6 +99,70 @@ describe('texto', () => {
   });
   it('cardTier usa los mismos cortes que la app', () => {
     expect([null, 64, 65, 74, 75].map(cardTier)).toEqual(['none', 'bronze', 'silver', 'silver', 'gold']);
+  });
+});
+
+describe('wrapLines', () => {
+  it('parte por palabras y respeta el máximo de líneas', () => {
+    expect(wrapLines(measure, 'uno dos tres', 10, 1000, 2)).toEqual(['uno dos tres']);
+    expect(wrapLines(measure, 'uno dos tres', 10, 30, 3)).toEqual(['uno', 'dos', 'tres']); // 'uno dos' = 7*5 = 35 > 30
+    const out = wrapLines(measure, 'uno dos tres cuatro cinco', 10, 40, 2);
+    expect(out).toHaveLength(2);
+    expect(out[1].endsWith('…')).toBe(true);
+    expect(out.every(l => measure(l, 10) <= 40)).toBe(true);
+  });
+  it('una palabra más larga que el ancho no se pierde (se recorta con …) y el texto vacío no da líneas', () => {
+    expect(wrapLines(measure, 'supercalifragilistico', 10, 50, 1)).toEqual([ellipsize(measure, 'supercalifragilistico', 10, 50)]);
+    expect(wrapLines(measure, '   ', 10, 50, 2)).toEqual([]);
+  });
+});
+
+describe('QR e invitación', () => {
+  it('el link del QR lleva el ref de la carta y es el del sitio', () => {
+    expect(SHARE_URL).toBe('https://elpartidito.vercel.app/?ref=card');
+    expect(SHARE_URL).toContain(SITE);
+  });
+  it('qrGeometry: módulos enteros, zona de silencio de 4 módulos y no pasa del máximo', () => {
+    const g = qrGeometry(29, 262);
+    expect(g.quiet).toBe(4);
+    expect(Number.isInteger(g.cell)).toBe(true);
+    expect(g.size).toBe(g.cell * (29 + 8));
+    expect(g.size).toBeLessThanOrEqual(262);
+    expect(g.inner).toBe(g.cell * 29);
+    // más módulos (QR más denso) → módulos más chicos, nunca menos de 1 px
+    expect(qrGeometry(57, 262).cell).toBeLessThan(g.cell);
+    expect(qrGeometry(200, 100).cell).toBe(1);
+  });
+  it('ctaLayout: QR y leyenda dentro del bloque, y el texto no pisa al QR', () => {
+    const { cta } = storyLayout();
+    const g = qrGeometry(29, 262);
+    const K = ctaLayout(cta, g.size);
+    expect(K.qr.w).toBe(g.size);
+    expect(K.qr.x).toBeGreaterThan(cta.x);
+    expect(K.qr.x + K.qr.w).toBeLessThan(cta.x + cta.w);
+    expect(K.qr.y).toBeGreaterThan(cta.y);
+    expect(K.captionY).toBeLessThan(cta.y + cta.h);
+    expect(K.text.x + K.text.maxW).toBeLessThan(K.qr.x);
+    expect(K.text.maxW).toBeGreaterThan(400);
+    expect(K.logo.y).toBeGreaterThan(cta.y);
+    expect(K.logo.y + K.logo.size).toBeLessThan(K.headlineY);
+    expect(K.headlineY).toBeLessThan(K.subY);
+    expect(K.subY).toBeLessThan(K.pill.y);
+    expect(K.pill.y + K.pill.h).toBeLessThan(cta.y + cta.h);
+  });
+});
+
+describe('shareMessage', () => {
+  it('invita a armar la propia carta y trae el link con ?ref=card', () => {
+    const m = shareMessage('Juan', 74, true);
+    expect(m.text).toBe('Mirá mi carta en El Partidito: OVR 74. Armá la tuya: https://elpartidito.vercel.app/?ref=card');
+    expect(m.title).toBe('Mi carta en El Partidito');
+  });
+  it('de otro jugador nombra a quien es; sin OVR no inventa el número', () => {
+    const m = shareMessage('Juan', 74, false);
+    expect(m.text).toContain('la carta de Juan');
+    expect(m.title).toBe('Juan en El Partidito');
+    expect(shareMessage('Juan', null, true).text).toBe('Mirá mi carta en El Partidito. Armá la tuya: ' + SHARE_URL);
   });
 });
 

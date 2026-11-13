@@ -84,16 +84,8 @@
 .rk-trophy span{font-size:1.2rem}
 .rk-note{margin:8px 4px 10px}
 
-/* Compartir ficha (botón dentro de la carta de arriba del perfil y vista previa) */
-.fut-actions{display:flex;flex-direction:column;align-items:flex-end;gap:6px;margin-top:12px}
-.btn.fut-share{background:transparent;color:inherit;border:1.5px solid currentColor;min-height:40px;padding:0 14px}
-.btn.fut-share:disabled{opacity:.6}
-.fut-share-msg{margin:0;font-size:.85rem;text-align:right}
-.fut-share-msg.err{color:inherit;font-weight:600}
-.sc-dialog{position:fixed;inset:0;z-index:60;display:grid;place-items:center;padding:16px;background:rgba(0,0,0,.8)}
-.sc-box{display:grid;gap:12px;justify-items:center;max-width:min(100%,420px);max-height:100%}
-.sc-box img{display:block;width:auto;max-width:100%;max-height:calc(100dvh - 128px);border-radius:12px;object-fit:contain}
-.sc-actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+/* Compartir ficha: el botón y la vista previa están en share.css */
+.fut-actions{display:flex;flex-direction:column;align-items:flex-end;gap:6px;margin-top:12px;text-align:right}
 
 /* Logros e insignias */
 .ach-count{color:var(--fg);font:700 1.1rem var(--f-display)}

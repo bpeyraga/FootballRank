@@ -32,12 +32,12 @@ code{font-size:.85em;word-break:break-all}
 <body>
 <main>
 <h1>Política de Cookies y Almacenamiento Local</h1>
-<p class="muted">El Partidito · Última actualización: 12 de noviembre de 2026</p>
+<p class="muted">El Partidito · Última actualización: 13 de noviembre de 2026</p>
 
 <p>Esta política explica qué cookies y qué almacenamiento del navegador usa El Partidito, para qué sirve cada cosa y cómo podés cambiar tu elección. Complementa la <a href="/privacidad.html">política de privacidad</a>.</p>
 
 <h2>1. Qué son</h2>
-<p>Una <b>cookie</b> es un dato chico que un sitio guarda en tu navegador. El <b>almacenamiento local</b> (localStorage) y el <b>de sesión</b> (sessionStorage) cumplen una función parecida: guardan datos en tu dispositivo para que la app recuerde cosas. El de sesión se borra solo al cerrar la pestaña. Nada de esto se usa para mostrarte publicidad.</p>
+<p>Una <b>cookie</b> es un dato chico que un sitio guarda en tu navegador. El <b>almacenamiento local</b> (localStorage) y el <b>de sesión</b> (sessionStorage) cumplen una función parecida: guardan datos en tu dispositivo para que la app recuerde cosas. El de sesión se borra solo al cerrar la pestaña. Además, la app usa el <b>caché del navegador</b> para guardar una copia de sus pantallas y de lo último que viste, y así abrir rápido y poder verse sin internet. Nada de esto se usa para mostrarte publicidad.</p>
 
 <h2>2. Necesarias (siempre activas)</h2>
 <p>Sin estas la app no funciona o no recuerda lo que elegiste, por eso no se pueden desactivar desde el aviso:</p>
@@ -50,9 +50,11 @@ code{font-size:.85em;word-break:break-all}
 <tr><td><code>fr-push-on</code></td><td>localStorage</td><td>Que activaste los avisos en este dispositivo, para volver a conectarlos solos si el navegador los pierde.</td><td>Hasta que desactives los avisos o cierres sesión</td></tr>
 <tr><td><code>futrank-next</code>, <code>fr-intent</code></td><td>localStorage</td><td>A qué pantalla volver después de entrar (por ejemplo, una invitación) y si entraste como jugador o dueño de cancha.</td><td>Se borran al usarse</td></tr>
 <tr><td><code>fr-tour-v1</code>, avisos vistos del chat y de la comunidad</td><td>localStorage</td><td>Si ya viste el tutorial y hasta dónde leíste el chat.</td><td>Hasta que la borres</td></tr>
+<tr><td><code>fr-vote-skip</code></td><td>localStorage</td><td>Los partidos en los que tocaste “No jugué este partido”, para no volver a pedirte que votes la figura (hasta 30).</td><td>Hasta que la borres</td></tr>
 <tr><td><code>futrank-courts-origin</code></td><td>localStorage</td><td>Desde dónde buscás canchas.</td><td>Hasta que la borres</td></tr>
 <tr><td><code>futrank-career…</code></td><td>localStorage</td><td>Tu carrera en curso, tu mejor resultado y tus logros en “De potrero a leyenda” (la carrera queda solo en tu navegador).</td><td>Hasta que la borres</td></tr>
-<tr><td>Recarga de la app, clima del partido, aviso de dueños</td><td>sessionStorage</td><td>Estados temporales: recargar una vez si salió una versión nueva, no volver a pedir el pronóstico, no repetir un aviso.</td><td>Hasta cerrar la pestaña</td></tr>
+<tr><td>Copia de las pantallas y de lo último que viste</td><td>Caché del navegador (service worker)</td><td>Para que la app abra rápido y se pueda ver sin internet: los archivos de la app y los últimos datos que cargaste (por ejemplo tus comunidades y partidos). Queda solo en tu dispositivo.</td><td>Los archivos, hasta que salga una versión nueva; los datos, hasta que cierres sesión</td></tr>
+<tr><td>Recarga de la app, clima del partido, aviso de dueños, <code>fr-vote-later</code></td><td>sessionStorage</td><td>Estados temporales: recargar una vez si salió una versión nueva, no volver a pedir el pronóstico, no repetir un aviso, no volver a pedirte votar un partido si tocaste “Después”.</td><td>Hasta cerrar la pestaña</td></tr>
 </table></div>
 
 <h2>3. Estadísticas de uso (opcionales)</h2>
@@ -66,6 +68,7 @@ code{font-size:.85em;word-break:break-all}
 <h2>5. Cómo cambiar tu elección</h2>
 <p>La primera vez que entrás aparece un aviso abajo con <b>“Solo necesarias”</b> y <b>“Aceptar todo”</b>. Mientras no elijas, no contamos visitas. Podés cambiar tu elección cuando quieras desde <a href="/#cookies">Preferencias de cookies</a> o desde el link al pie de la pantalla de inicio.</p>
 <p>Cada elección queda registrada en nuestra base (un código al azar de la elección, cuál fue, la versión de este aviso, la fecha y, si tenés sesión, tu cuenta) como constancia de tu consentimiento.</p>
+<p>Si tenés sesión, tu elección también queda guardada en tu cuenta (con el mismo registro de arriba): así, cuando entrás desde otro dispositivo o navegador no te lo volvemos a preguntar. Lo mismo pasa con el tutorial: anotamos en tu cuenta que ya lo viste. Podés cambiar la elección cuando quieras, como se explica arriba.</p>
 <p>También podés borrar o bloquear cookies y almacenamiento desde la configuración de tu navegador. Ojo: si borrás el almacenamiento se cierra tu sesión y se pierden tus preferencias y tu carrera del juego.</p>
 
 <h2>6. Lo que no usamos</h2>

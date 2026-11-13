@@ -38,24 +38,22 @@ export function signupSummary(rows: { profile_id: string; status: string }[], me
   };
 }
 
-export interface QuickAction { href: string; label: string; sub: string; d: string; main?: boolean }
+export interface QuickAction { href: string; label: string; sub: string; d: string }
 
 /**
  * Accesos rápidos: apuntan a la comunidad del próximo partido (o a la primera) y solo a pantallas que existen.
+ * No incluye "Anotarme": ese botón ya es el del cartel de "Tu próximo partido" y repetirlo no suma.
  * `d` es el trazo del ícono.
  */
-export function quickActions(hero: Next | null, su: SignupSummary | null, comms: MyComm[] | null): QuickAction[] {
+export function quickActions(hero: Next | null, comms: MyComm[] | null): QuickAction[] {
   const heroComm = hero ? comms?.find(r => r.community.id === hero.community_id) : undefined;
   const target = heroComm ?? comms?.[0];
   const adminOf = heroComm && heroComm.role !== 'member' ? heroComm : comms?.find(r => r.role !== 'member');
   const out: QuickAction[] = [];
-  if (hero && heroComm) out.push({
-    href: `#/c/${heroComm.community.slug}/m/${hero.id}`,
-    label: su?.mine ? 'Ver lista' : hero.status !== 'open' ? 'Ver partido' : 'Anotarme', sub: heroComm.community.name,
-    main: !su?.mine && hero.status === 'open',
-    d: 'M5 12.5l4.5 4.5L19 7.5',
-  });
   if (adminOf) out.push({ href: `#/c/${adminOf.community.slug}`, label: 'Crear partido', sub: adminOf.community.name, d: 'M4 6h16v14H4zM4 10h16M8 3v4M16 3v4M12 13v5M9.5 15.5h5' });
-  if (target) out.push({ href: `#/c/${target.community.slug}/ranking`, label: 'Ranking', sub: target.community.name, d: 'M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0zM7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3' });
+  if (target) {
+    out.push({ href: `#/c/${target.community.slug}/ranking`, label: 'Ranking', sub: target.community.name, d: 'M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0zM7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3' });
+    out.push({ href: `#/c/${target.community.slug}/chat`, label: 'Chat', sub: target.community.name, d: 'M4 5h16v11H10l-4 4v-4H4zM8 9.5h8M8 12.5h5' });
+  }
   return out;
 }

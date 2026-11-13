@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  dayLong, difficultyLabel, fmtDec, fmtInt, niceMax, normalizeStats, pct, platformLabel, platformOf, plural, routeKey, sectionLabel, seriesTotal, shortDate, timeAgo,
+  dayLong, difficultyLabel, fmtDec, fmtInt, niceMax, normalizeErrors, normalizeStats, pct, platformLabel, platformOf, plural, routeKey, sectionLabel, seriesTotal, shortDate, timeAgo, uaLabel,
   type SeriesPoint,
 } from './adminCore';
 
@@ -217,5 +217,52 @@ describe('juegos en el panel', () => {
     expect(fmtDec(14.5)).toBe('14,5');
     expect(fmtDec(3)).toBe('3');
     expect(fmtDec(2.06)).toBe('2,1');
+  });
+});
+
+describe('uaLabel', () => {
+  it('navegador y sistema, con versión mayor', () => {
+    expect(uaLabel('Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36')).toBe('Chrome 126 · Android 14');
+    expect(uaLabel('Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1')).toBe('Safari 17 · iOS 17');
+    expect(uaLabel('Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/126.0.6478.153 Mobile/15E148 Safari/604.1')).toBe('Chrome 126 · iOS 17');
+    expect(uaLabel('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 Edg/126.0.2592.81')).toBe('Edge 126 · Windows');
+    expect(uaLabel('Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0')).toBe('Firefox 128 · Windows');
+    expect(uaLabel('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15')).toBe('Safari 17 · Mac');
+    expect(uaLabel('Mozilla/5.0 (Linux; Android 13; SAMSUNG SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/25.0 Chrome/121.0.0.0 Mobile Safari/537.36')).toBe('Samsung Internet 25 · Android 13');
+    expect(uaLabel('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36')).toBe('Chrome 126 · Linux');
+    expect(uaLabel('Mozilla/5.0 (X11; CrOS x86_64 14541.0.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36')).toBe('Chrome 126 · ChromeOS');
+  });
+  it('navegadores dentro de otras apps', () => {
+    expect(uaLabel('Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Instagram 330.0.0.0')).toBe('Instagram · iOS 17');
+    expect(uaLabel('Mozilla/5.0 (Linux; Android 13; SM-A135M Build/TP1A; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/126.0.0.0 Mobile Safari/537.36')).toBe('WebView · Android 13');
+  });
+  it('vacío o desconocido', () => {
+    expect(uaLabel(null)).toBe('—');
+    expect(uaLabel('')).toBe('—');
+    expect(uaLabel('curl/8.0')).toBe('Navegador · otro sistema');
+  });
+});
+
+describe('normalizeErrors', () => {
+  it('completa lo que falte y nunca rompe', () => {
+    const e = normalizeErrors(null);
+    expect(e).toMatchObject({ days: 7, events: 0, groups: 0, people: 0, items: [] });
+    expect(normalizeErrors({ items: 'x' }).items).toEqual([]);
+    expect(normalizeErrors({ items: [null, 5, {}] }).items).toHaveLength(3);
+  });
+  it('lee cada grupo', () => {
+    const e = normalizeErrors({
+      generated_at: '2026-11-13T12:00:00Z', days: 30, events: '12', groups: 2, people: 3,
+      items: [{
+        fingerprint: 'abcd1234abcd1234', message: "TypeError: x", count: 9, users: 2, logged: 1, first_at: '2026-11-12T10:00:00Z', last_at: '2026-11-13T11:00:00Z',
+        path: '#/c/foo', user_agent: 'UA', stack: 'at x', source: '/assets/a.js:1:2', app_version: 'abc1234',
+      }, { message: '', count: 0 }],
+    });
+    expect(e.days).toBe(30);
+    expect(e.events).toBe(12);
+    expect(e.items[0]).toMatchObject({ fingerprint: 'abcd1234abcd1234', count: 9, users: 2, logged: 1, path: '#/c/foo', app_version: 'abc1234', stack: 'at x' });
+    expect(e.items[1].message).toBe('(sin mensaje)');
+    expect(e.items[1].count).toBe(1); // nunca menos de 1
+    expect(e.items[1].stack).toBeNull();
   });
 });

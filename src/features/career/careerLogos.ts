@@ -253,6 +253,8 @@ export const CLUB_ESPN: Readonly<Record<string, readonly [string, string]>> = {
 
 /** Clubes que ESPN no tiene (o no se encontró): se muestran con iniciales y un color propio. */
 export const SIN_ESCUDO: readonly string[] = ["El Nacional"];
+/** El color de esos distintivos (hex sin #), para que no salgan de un gris cualquiera. */
+export const SIN_ESCUDO_COLOR: Readonly<Record<string, string>> = { "El Nacional": "c8102e" };
 
 /** Competencia (liga, copa nacional, copa continental o torneo de selecciones) -> id del logo en ESPN. Las que no están usan un ícono propio. */
 export const COMP_LOGO: Readonly<Record<string, string>> = {

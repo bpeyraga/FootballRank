@@ -1,0 +1,9 @@
+/* Aviso "Sin conexión" (OfflineBanner): arriba de todo, ocupa su lugar (no tapa la pantalla) y respeta la barra del celular.
+   No es sticky a propósito: el encabezado de la app ya se pega arriba y el aviso lo taparía al scrollear. */
+.offline-bar{display:flex;align-items:center;justify-content:center;gap:8px;max-width:1160px;margin:0 auto;
+  padding:calc(8px + env(safe-area-inset-top,0px)) 14px 8px;border-radius:0 0 12px 12px;background:var(--note-bg);color:var(--note-fg);
+  font-size:.86rem;font-weight:600;line-height:1.3;text-align:left;box-shadow:0 2px 8px rgba(0,0,0,.12)}
+.offline-dot{flex:none;width:9px;height:9px;border-radius:50%;background:currentColor;opacity:.75}
+@media (min-width:900px){
+  .offline-bar{justify-content:center;padding:10px 20px;font-size:.92rem}
+}

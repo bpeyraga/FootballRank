@@ -1,0 +1,18 @@
+/* "De potrero a leyenda": solo la entrada en Inicio (la tarjeta del juego). El resto de los estilos viaja con el chunk del juego (career.css). */
+.cr-entry{display:flex;align-items:center;gap:12px;margin-bottom:18px;padding:12px 14px;border-radius:16px;color:inherit;text-decoration:none;
+  background:linear-gradient(120deg,color-mix(in srgb,var(--ta) 16%,var(--surface)),var(--surface) 80%);
+  border:1px solid color-mix(in srgb,var(--ta) 40%,var(--line));
+  transition:border-color .15s,transform .15s,box-shadow .15s}
+.cr-entry:hover{border-color:var(--ta)}
+.cr-entry:active{transform:scale(.99)}
+.cr-entry-ico{flex:none;display:grid;place-items:center;width:44px;height:44px;border-radius:12px;background:var(--ta);color:var(--on-t);font-size:1.45rem;line-height:1}
+.cr-entry-copy{flex:1;min-width:0;display:grid;gap:1px}
+.cr-entry-copy b{font:700 1.3rem/1.1 var(--f-display);letter-spacing:.01em}
+.cr-entry-copy span{font-size:.85rem;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cr-entry-daily{font-size:.78rem !important}
+.cr-entry-ach{flex:none;padding:3px 9px;border-radius:99px;background:var(--accent-soft);font-size:.78rem;font-weight:700;white-space:nowrap}
+@media (prefers-reduced-motion:reduce){.cr-entry{transition:none}}
+@media (min-width:900px) and (hover:hover) and (pointer:fine){
+  .cr-entry:hover{transform:translateY(-2px);box-shadow:0 10px 26px rgba(0,0,0,.14)}
+  .cr-entry:active{transform:none}
+}

@@ -20,6 +20,8 @@ export interface Profile {
   nickname: string | null; shirt_number: number | null; fav_team: string | null;
   /** Roles (migración de complejos). Opcionales: sin la migración o en datos de prueba no vienen; ausente = jugador que ya eligió. */
   is_player?: boolean; is_owner?: boolean; role_chosen?: boolean;
+  /** Cuándo vio el tutorial (cuenta, no dispositivo). Opcional: sin la migración no viene. */
+  tour_seen_at?: string | null;
 }
 
 /** Nombre a mostrar: el apodo si tiene, si no el nombre. */

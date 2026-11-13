@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import type { ComponentChildren } from 'preact';
-import { loadAdminStats } from './api';
+import { loadAdminErrors, loadAdminStats } from './api';
 import {
-  dayLong, difficultyLabel, fmtDec, fmtInt, niceMax, normalizeStats, pct, platformLabel, plural, sectionLabel, seriesTotal, shortDate, timeAgo,
-  type AdminStats, type SeriesKey, type SeriesPoint,
+  dayLong, difficultyLabel, ERROR_RANGES, fmtDec, fmtInt, niceMax, normalizeErrors, normalizeStats, pct, platformLabel, plural, sectionLabel, seriesTotal, shortDate, timeAgo, uaLabel,
+  type AdminStats, type ErrorGroup, type ErrorsData, type SeriesKey, type SeriesPoint,
 } from './adminCore';
 
 const REFRESH_MS = 30_000;
@@ -37,7 +37,7 @@ const Skeleton = () => (
 // ---------- Grupos del panel ----------
 const GROUPS = [
   { id: 'vivo', label: 'En vivo' }, { id: 'personas', label: 'Personas' }, { id: 'comunidades', label: 'Comunidades' },
-  { id: 'partidos', label: 'Partidos' }, { id: 'uso', label: 'Uso de la app' }, { id: 'juegos', label: 'Juegos' },
+  { id: 'partidos', label: 'Partidos' }, { id: 'uso', label: 'Uso de la app' }, { id: 'juegos', label: 'Juegos' }, { id: 'errores', label: 'Errores' },
 ] as const;
 
 const Group = ({ id, icon, title, desc, children }: { id: string; icon: string; title: string; desc?: string; children: ComponentChildren }) => (
@@ -299,6 +299,84 @@ function Recents({ s, now }: { s: AdminStats; now: number }) {
   );
 }
 
+// ---------- Errores ----------
+function ErrorRow({ e, now }: { e: ErrorGroup; now: number }) {
+  return (
+    <li>
+      <details class="sa-err">
+        <summary>
+          <span class="sa-err-n" title="Veces que pasó" aria-label={`${fmtInt(e.count)} veces`}>×{fmtInt(e.count)}</span>
+          <span class="sa-err-main">
+            <b class="sa-err-msg">{e.message}</b>
+            <span class="sa-err-path muted">{e.path || '—'}</span>
+          </span>
+          <span class="sa-err-side muted">
+            <span>{plural(e.users, 'persona', 'personas')} · {timeAgo(e.last_at, now)}</span>
+            <span>{uaLabel(e.user_agent)}{e.app_version ? ` · v${e.app_version}` : ''}</span>
+          </span>
+          <span class="sa-err-chev" aria-hidden="true" />
+        </summary>
+        <div class="sa-err-body">
+          <dl class="sa-err-dl">
+            <div><dt>Primera vez</dt><dd>{timeAgo(e.first_at, now)}</dd></div>
+            <div><dt>Última vez</dt><dd>{timeAgo(e.last_at, now)}</dd></div>
+            <div><dt>Con sesión</dt><dd>{fmtInt(e.logged)} de {fmtInt(e.users)}</dd></div>
+            {e.source && <div><dt>Archivo</dt><dd class="sa-err-src">{e.source}</dd></div>}
+          </dl>
+          <pre class="sa-err-stack" tabindex={0} aria-label="Pila del error">{e.stack || 'Sin detalle: el navegador no mandó la pila.'}</pre>
+        </div>
+      </details>
+    </li>
+  );
+}
+
+/** Errores que la propia app avisa cuando algo se rompe (admin_errors), agrupados. Se vuelve a pedir cuando el panel se actualiza (`tick`). */
+function Errors({ tick, now }: { tick: number; now: number }) {
+  const [days, setDays] = useState<number>(7);
+  const [data, setData] = useState<ErrorsData | null>(null);
+  const [fail, setFail] = useState<'' | 'missing' | 'error'>('');
+  const [busy, setBusy] = useState(true);
+  const seq = useRef(0);
+
+  useEffect(() => {
+    const id = ++seq.current;
+    setBusy(true);
+    loadAdminErrors(days).then(r => {
+      if (id !== seq.current) return;
+      if ('missing' in r) { setData(null); setFail('missing'); }
+      else if ('forbidden' in r) { setData(null); setFail('error'); }
+      else { setData(normalizeErrors(r.data)); setFail(''); }
+    }).catch(() => { if (id === seq.current) setFail('error'); })
+      .finally(() => { if (id === seq.current) setBusy(false); });
+  }, [days, tick]);
+
+  // El texto sigue a lo que se está mostrando (mientras carga otro período, los datos son todavía del anterior)
+  const range = ERROR_RANGES.find(x => x.days === (data ? data.days : days)) ?? ERROR_RANGES.find(x => x.days === days)!;
+  return (
+    <Section title="Errores de la app" meta={data && data.events ? `${plural(data.events, 'aviso', 'avisos')} · ${plural(data.groups, 'distinto', 'distintos')}` : ''}>
+      <div class="sa-seg" role="radiogroup" aria-label="Período de los errores">
+        {ERROR_RANGES.map(x => <button role="radio" aria-checked={days === x.days} onClick={() => setDays(x.days)}>{x.label}</button>)}
+      </div>
+      {fail === 'missing' && <p class="muted sa-none">Todavía no está activada la consola de errores en la base (falta aplicar la migración).</p>}
+      {fail === 'error' && <p class="note-inline" role="status">{data ? 'No pudimos actualizar los errores ahora: mostramos lo último que trajimos.' : 'No pudimos traer los errores. Probá de nuevo en un rato.'}</p>}
+      {!data && !fail && busy && <div class="sa-sk" aria-hidden="true" style="height:120px" />}
+      {data && data.items.length === 0 && (
+        <div class="sa-err-empty" role="status"><b>Sin errores 🎉</b><span class="muted">Nadie tuvo problemas en {range.last}.</span></div>
+      )}
+      {data && data.items.length > 0 && (
+        <>
+          <p class="muted sa-err-sum">{plural(data.people, 'persona afectada', 'personas afectadas')} en {range.last}. Primero, lo más reciente.</p>
+          <ul class="sa-errs" aria-busy={busy}>{data.items.map(e => <ErrorRow key={e.fingerprint} e={e} now={now} />)}</ul>
+        </>
+      )}
+      <p class="muted sa-foot">
+        Los avisos los manda la propia app cuando algo se rompe: el mensaje, la pantalla, la versión y el navegador, con el id de la cuenta si tenía sesión
+        (sin mails ni tokens). El mismo error de la misma persona se cuenta una vez por hora. Se guardan 30 días.
+      </p>
+    </Section>
+  );
+}
+
 // ---------- Pantalla ----------
 export function Admin() {
   const [stats, setStats] = useState<AdminStats | null>(null);
@@ -425,6 +503,9 @@ export function Admin() {
           </Group>
           <Group id="juegos" icon="🎮" title="Juegos">
             <Games s={stats} />
+          </Group>
+          <Group id="errores" icon="🐞" title="Errores" desc="Lo que se rompe en los celulares y compus de la gente">
+            <Errors tick={at} now={now} />
           </Group>
         </>
       )}

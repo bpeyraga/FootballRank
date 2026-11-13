@@ -1,3 +1,4 @@
+import { ExploreTile } from '../../shared/ui/ExploreTile';
 import { statusLabel, whenLocal } from './model';
 import { useNextBooking } from './useCourts';
 
@@ -6,21 +7,26 @@ const Chev = () => <svg class="chev" viewBox="0 0 24 24" width="20" height="20" 
 /**
  * Entrada a "Canchas cerca" desde Inicio. Si ya tenés una reserva próxima, la tarjeta la muestra y lleva a "Mis reservas";
  * si no, invita a buscar cancha. Ante cualquier error al leer las reservas queda la invitación (sin ruido).
+ * `compact`: baldosa de la sección "Explorar" (la reserva próxima queda como una franja angosta debajo de las baldosas).
  */
-export function CourtsEntry() {
+export function CourtsEntry({ compact = false }: { compact?: boolean }) {
   const next = useNextBooking();
   return (
     <>
-      <a class="cn-entry" href="#/canchas">
-        <span class="cn-entry-ico" aria-hidden="true">🏟️</span>
-        <span class="cn-entry-copy">
-          <b>Canchas cerca</b>
-          <span class="muted">Buscá una cancha, mirá los horarios y reservá tu turno</span>
-        </span>
-        <Chev />
-      </a>
+      {compact
+        ? <ExploreTile kind="courts" href="#/canchas" ico="🏟️" title="Canchas cerca" sub="Buscá una cancha y reservá tu turno" />
+        : (
+          <a class="cn-entry" href="#/canchas">
+            <span class="cn-entry-ico" aria-hidden="true">🏟️</span>
+            <span class="cn-entry-copy">
+              <b>Canchas cerca</b>
+              <span class="muted">Buscá una cancha, mirá los horarios y reservá tu turno</span>
+            </span>
+            <Chev />
+          </a>
+        )}
       {next && (
-        <a class="cn-entry cn-entry-next" href="#/mis-reservas">
+        <a class={`cn-entry cn-entry-next${compact ? ' ex-wide' : ''}`} href="#/mis-reservas">
           <span class="cn-entry-dot" aria-hidden="true" />
           <span class="cn-entry-copy">
             <b class="ellipsis">{next.complex_name}</b>

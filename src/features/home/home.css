@@ -57,10 +57,31 @@
 .qa-ico{display:grid;place-items:center;width:42px;height:42px;margin-bottom:3px;border-radius:14px;background:var(--accent-soft);color:var(--accent)}
 .qa b{font-size:.92rem;line-height:1.15}
 .qa small{max-width:100%;font-size:.72rem;line-height:1.2;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.qa a.main{border-color:var(--accent)}
-.qa a.main .qa-ico{background:var(--accent);color:var(--accent-fg)}
+
+/* ---------- Explorar (baldosas chicas: canchas, zona, fútbol argentino, juego) ---------- */
+.explore{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:0 0 18px}
+.ex-tile{position:relative;display:grid;grid-template-rows:auto auto 1fr;align-content:start;gap:2px;min-width:0;padding:12px 12px 11px;border-radius:16px;
+  color:inherit;text-decoration:none;border:1px solid var(--line);
+  background:linear-gradient(130deg,color-mix(in srgb,var(--ex) 11%,var(--surface)),var(--surface) 78%);
+  transition:border-color .15s,transform .15s,box-shadow .15s}
+.ex-tile:active{transform:scale(.98)}
+.ex-courts{--ex:var(--accent);--ex-fg:var(--accent-fg)}
+.ex-fut{--ex:var(--accent);--ex-fg:var(--accent-fg)}
+.ex-game{--ex:var(--ta);--ex-fg:var(--on-t)}
+.ex-zone{--ex:var(--gold-2);--ex-fg:var(--gold-f)}
+.ex-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px}
+.ex-ico{position:relative;flex:none;display:grid;place-items:center;width:38px;height:38px;border-radius:12px;font-size:1.25rem;line-height:1;background:var(--ex);color:var(--ex-fg)}
+.ex-zone .ex-ico{background:linear-gradient(135deg,var(--gold-1),var(--gold-2))}
+.ex-dot{position:absolute;top:-3px;right:-3px;width:11px;height:11px;border-radius:50%;background:var(--danger);box-shadow:0 0 0 2px var(--surface)}
+.ex-badge{display:inline-flex;align-items:center;min-width:0}
+.ex-pill{padding:3px 8px;border-radius:99px;background:var(--accent-soft);font-size:.74rem;font-weight:700;white-space:nowrap}
+.ex-title{font:700 1.08rem/1.12 var(--f-display);letter-spacing:.01em}
+.ex-sub{font-size:.78rem;line-height:1.3;color:var(--muted);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ex-sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+/* La reserva próxima (CourtsEntry): una franja de punta a punta debajo de las baldosas */
+.explore .ex-wide{grid-column:1/-1;order:9;margin:0}
 @media (prefers-reduced-motion:reduce){
-  .nx,.qa a,.nx-bar i{transition:none}
+  .nx,.qa a,.nx-bar i,.ex-tile{transition:none}
   .nx-live i,.nx.skeleton{animation:none}
 }
 
@@ -89,10 +110,28 @@
   .qa-ico{grid-area:i;width:46px;height:46px;margin:0}
   .qa b{grid-area:b;align-self:end;font-size:1.05rem}
   .qa small{grid-area:s;align-self:start;font-size:.8rem}
+  /* Explorar: 2×2 en la columna derecha; a partir de 1200 px, las cuatro en fila */
+  .explore{gap:14px;margin-bottom:12px}
+  .ex-tile{padding:16px 16px 14px;border-radius:18px;transition:border-color .15s,transform .15s,box-shadow .15s}
+  .ex-top{margin-bottom:12px}
+  .ex-ico{width:46px;height:46px;border-radius:14px;font-size:1.5rem}
+  .ex-title{font-size:1.3rem}
+  .ex-sub{font-size:.86rem;-webkit-line-clamp:3}
+  .ex-pill{font-size:.8rem}
+}
+@media (min-width:1200px){
+  .explore{grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+  .ex-tile{padding:14px 14px 13px}
+  .ex-title{font-size:1.2rem}
 }
 @media (min-width:900px) and (hover:hover) and (pointer:fine){
   .nx:hover{transform:translateY(-2px);box-shadow:0 22px 44px -18px color-mix(in srgb,var(--accent) 70%,#000)}
   .nx:active{transform:none}
   .qa a:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 10px 26px rgba(0,0,0,.14)}
   .qa a:active{transform:none}
+  .ex-tile:hover{border-color:var(--ex);transform:translateY(-2px);box-shadow:0 10px 26px rgba(0,0,0,.14)}
+  .ex-tile:active{transform:none}
 }
+.me-btns{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.me-btns .fut-share-msg{flex-basis:100%;margin:0}
+@media (min-width:900px){.me-btns{justify-content:center}}

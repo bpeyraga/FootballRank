@@ -6,6 +6,8 @@
 // 'booking_request' / 'booking_status' (reservas de canchas; los dispara el trigger push_on_booking con { type, booking_id } y, en
 // booking_status, { status, by: 'requester' | 'staff' }) van a perfiles puntuales (el dueño y sus encargados, o quien pidió el
 // turno) y sin filtro de tipo de aviso: son sobre SU turno o SU complejo, igual que 'promoted' o 'suspended'.
+// 'mvp' / 'vote' / 'vote_last' (votar la figura y calificar al equipo: al cargar el resultado, 2 h después del partido y "última
+// llamada" al día siguiente; los dispara push_on_played / push_tick) van solo a los que jugaron y todavía no votaron la figura.
 // Secretos: VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT, PUSH_SECRET (SUPABASE_URL y
 // SUPABASE_SERVICE_ROLE_KEY los pone Supabase solo).
 import webpush from 'npm:web-push@3.6.7';
@@ -143,8 +145,11 @@ const when = (iso: string) => new Date(iso).toLocaleString('es-AR', {
 });
 const nameOf = (p: { name: string; nickname: string | null } | null) => p?.nickname || p?.name || 'Alguien';
 
-/** Manda a las suscripciones de esos perfiles que tengan ese tipo de aviso. Borra las vencidas. */
-async function send(profiles: string[], kind: Kind | null, n: Note) {
+/**
+ * Manda a las suscripciones de esos perfiles que tengan ese tipo de aviso. Borra las vencidas.
+ * `opts` pisa lo de siempre (un "recordatorio" vence a la hora, urgente salvo chat y resumen): los de votar la figura valen todo el día y no son urgentes.
+ */
+async function send(profiles: string[], kind: Kind | null, n: Note, opts: { ttl?: number; urgency?: 'normal' | 'high' } = {}) {
   if (!profiles.length) return 0;
   let q = db.from('push_subscriptions').select('endpoint,p256dh,auth').in('profile_id', profiles);
   if (kind) q = q.contains('kinds', [kind]);
@@ -153,7 +158,10 @@ async function send(profiles: string[], kind: Kind | null, n: Note) {
   await Promise.all((subs ?? []).map(async s => {
     try {
       await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
-        JSON.stringify(n), { TTL: kind === 'reminder' ? 3600 : 86400, urgency: kind === 'chat' || kind === 'weekly' ? 'normal' : 'high' });
+        JSON.stringify(n), {
+          TTL: opts.ttl ?? (kind === 'reminder' ? 3600 : 86400),
+          urgency: opts.urgency ?? (kind === 'chat' || kind === 'weekly' ? 'normal' : 'high'),
+        });
       ok++;
     } catch (e) {
       const code = (e as { statusCode?: number }).statusCode;
@@ -178,6 +186,16 @@ const members = async (c: string) =>
 const playing = async (m: string) =>
   ((await db.from('match_signups').select('profile_id').eq('match_id', m).eq('status', 'in')).data ?? [])
     .map(r => r.profile_id as string);
+/** Los que jugaron (anotados, sin ausencia) y todavía no votaron la figura; `teams` = el partido tiene equipos armados (se puede calificar al equipo). */
+const pendingVoters = async (m: string) => {
+  const [{ data: ins }, { data: vt }] = await Promise.all([
+    db.from('match_signups').select('profile_id,team').eq('match_id', m).eq('status', 'in').eq('absent', false),
+    db.from('mvp_votes').select('voter_id').eq('match_id', m),
+  ]);
+  const voted = new Set((vt ?? []).map(v => v.voter_id as string));
+  const rows = ins ?? [];
+  return { to: rows.map(r => r.profile_id as string).filter(id => !voted.has(id)), teams: rows.some(r => r.team) };
+};
 /** Anotados + lista de espera (a los que les cambia algo si se mueve o cancela el partido). */
 const involved = async (m: string) =>
   ((await db.from('match_signups').select('profile_id').eq('match_id', m).in('status', ['in', 'waitlist'])).data ?? [])
@@ -347,10 +365,20 @@ Deno.serve(async req => {
       title: `👕 Equipos armados: ${m.title}`, body: `Mirá en qué equipo te tocó (${m.community.name}).`, url, tag: `teams-${m.id}`,
     }) });
   }
-  if (p.type === 'mvp') {
-    return json({ sent: await send(await playing(m.id), 'reminder', {
-      title: `🏆 ¿Quién fue la figura?`, body: `${m.title} terminó. Votá a la figura y calificá a tu equipo.`, url, tag: `mvp-${m.id}`,
-    }) });
+  // Votar la figura (y calificar al equipo). Tres momentos, siempre solo a los que jugaron y todavía no votaron, con el tipo 'reminder':
+  //   mvp        el admin cargó el resultado (trigger push_on_played)
+  //   vote       2 h después de que empezó el partido, si nadie lo marcó como jugado (push_tick)
+  //   vote_last  "última llamada" al día siguiente (push_tick)
+  // Los tres comparten `tag`: el último reemplaza al anterior en el celular en vez de apilarse. Vencen al día y no son urgentes.
+  if (p.type === 'mvp' || p.type === 'vote' || p.type === 'vote_last') {
+    const { to, teams } = await pendingVoters(m.id);
+    const rate = teams ? ' y calificá a tu equipo' : '';
+    const note = p.type === 'mvp'
+      ? { title: `🏆 ¿Quién fue la figura?`, body: `${short(m.title, 60)} terminó. Votá a la figura${rate}.` }
+      : p.type === 'vote'
+        ? { title: `🏆 ¿Quién fue la figura del partido?`, body: `¿Cómo salió ${short(m.title, 50)}? Votá a la figura${rate} antes de que se te olvide.` }
+        : { title: `⏳ Última llamada: votá la figura`, body: `Todavía no votaste la figura de ${short(m.title, 50)}. Son 10 segundos.` };
+    return json({ sent: await send(to, 'reminder', { ...note, url, tag: `vote-${m.id}` }, { ttl: 86400, urgency: 'normal' }) });
   }
   if (p.type === 'fee') {
     const { data: rows } = await db.from('match_signups').select('profile_id,paid_at')

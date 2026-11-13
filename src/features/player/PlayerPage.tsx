@@ -94,7 +94,7 @@ export function Player({ r, rows, slug, meId, communityId, isAdmin, communityNam
           </div>
         </div>
         <div class="fut-actions">
-          <ShareCardButton card={cardData} communityId={communityId} communityName={communityName} />
+          <ShareCardButton card={cardData} communityId={communityId} communityName={communityName} own={r.profile.id === meId} />
         </div>
       </div>
       {/* Reclamar es para quien se sumó y ya estaba cargado; owner y admins cargan a los jugadores, no los reclaman */}

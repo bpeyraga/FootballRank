@@ -1,34 +1,23 @@
-// "De potrero a leyenda": el final de la carrera. Primero un momento de cierre (con "Ver resumen" y "Volver a jugar"); después el resumen:
-// tu ficha, la Selección, los premios, la vitrina y una tarjeta por cada club donde jugaste.
+// "De potrero a leyenda": el final de la carrera. Una sola pantalla que se va armando sola: tu escalón de Legado con su puntaje, "Jugar otra" bien a mano,
+// tus números, tu camino por los clubes con escudos, la vitrina, los titulares de tu carrera y, abajo, todo el detalle.
 import { useEffect, useRef } from 'preact/hooks';
 import { whatsappUrl } from '../matches/share';
-import { awardArt, isTrophyName, trophyArt } from './careerTrophies';
-import { AWARD_PTS, TROPHY_PTS } from './careerData';
-import { Chips, ClubLogo, CompLogo, Flag, Shirt, TrophyIcon, clubColor } from './CareerVisuals';
+import { awardArt, trophyArt } from './careerTrophies';
+import { AWARD_PTS, LEGACY_STEPS, RETIRE_TEXT, TROPHY_PTS } from './careerData';
+import { ClubLogo, CompLogo, Flag, Shirt, TrophyIcon, clubColor } from './CareerVisuals';
+import { Count, useConfetti } from './CareerMotion';
 import { pl } from './careerBase';
-import { cardTier, dailyShareText, legacyBlurb, shareText, tally, totals, type Career, type Legacy, type SeasonLog } from './careerCore';
+import { dailyShareText, legacy, legacyBlurb, shareText, tally, totals, type Career } from './careerCore';
 import { REC_KEYS, REC_LABEL, attemptKey, recordsOf, type AchStats, type RecKey } from './careerAchievements';
 import { activeCosmetics } from './careerCosmetics';
-import { DIFFS, DPOS_LABEL, FOOTS, fmtMult } from './careerSetup';
+import { DIFFS, DPOS_LABEL, fmtMult } from './careerSetup';
 import { nationOf } from './careerNations';
 import { Seasons } from './CareerSeasons';
-import type { Best, RetireWhy } from './careerTypes';
+import { endNear } from './careerStory';
+import type { Best, SeasonLog } from './careerTypes';
 import { fmtEuro } from './careerValue';
 import { LEAGUES } from './careerWorld';
 import { COMP_LOGO } from './careerLogos';
-
-export const RETIRE_TEXT: Record<RetireWhy, string> = {
-  elegido: 'Elegiste colgar los botines en el momento justo.',
-  edad: 'Llegaste a los 40: es hora de colgar los botines.',
-  fisico: 'El cuerpo dijo basta: ya no te daba para seguir.',
-};
-
-/** Al foco del título al cambiar de pantalla (lectores de pantalla y teclado). Una sola vez: si fuera un ref en función nuevo en cada render, cada aviso de logro que aparece o se va le robaría el foco a lo que el jugador estaba tocando. */
-function useFocusOnMount() {
-  const ref = useRef<HTMLHeadingElement>(null);
-  useEffect(() => { ref.current?.focus({ preventScroll: true }); }, []);
-  return ref;
-}
 
 /** De un premio o título al logo de su competencia ("Premier League: goleador" → Premier League). */
 const compOf = (name: string): string | null => {
@@ -36,16 +25,16 @@ const compOf = (name: string): string | null => {
   return COMP_LOGO[base] ? base : null;
 };
 
-/** Una vitrina: cada título o premio con su dibujo, el logo de la competencia, el nombre y cuántas veces lo ganaste. */
+/** Una vitrina: cada título o premio con su dibujo, el logo de la competencia, el nombre y cuántas veces lo ganaste. Salen de a uno. */
 export function TrophyShelf({ names, pts, kind }: { names: readonly string[]; pts: Record<string, number>; kind: 'trophy' | 'award' }) {
   const rows = tally(names, pts);
   if (!rows.length) return null;
   return (
     <ul class="cr-shelf">
-      {rows.map(([n, k]) => {
+      {rows.map(([n, k], i) => {
         const a = kind === 'trophy' ? trophyArt(n) : awardArt(n), comp = compOf(n);
         return (
-          <li class={`cr-trophy ${a.tone}`}>
+          <li class={`cr-trophy ${a.tone}`} style={`--i:${Math.min(i, 14)}`}>
             <span class="cr-trophy-art">
               <TrophyIcon shape={a.shape} tone={a.tone} size={54} label={n} />
               {comp && <span class="cr-trophy-logo"><CompLogo name={comp} size={20} /></span>}
@@ -59,26 +48,7 @@ export function TrophyShelf({ names, pts, kind }: { names: readonly string[]; pt
   );
 }
 
-/** Tu vitrina de títulos y premios; con `fold`, plegable (para verla durante la carrera). */
-export function Vitrina({ c, fold = false }: { c: Career; fold?: boolean }) {
-  const trophies = c.history.flatMap(h => h.trophies), awards = c.history.flatMap(h => h.awards);
-  const body = (
-    <>
-      {trophies.length > 0 && <><h3 class="cr-h3">Títulos</h3><TrophyShelf names={trophies} pts={TROPHY_PTS} kind="trophy" /></>}
-      {awards.length > 0 && <><h3 class="cr-h3">Premios</h3><TrophyShelf names={awards} pts={AWARD_PTS} kind="award" /></>}
-      {!trophies.length && !awards.length && <p class="muted cr-empty">Todavía no ganaste nada. Hay una vitrina vacía esperando.</p>}
-    </>
-  );
-  if (!fold) return <section class="card cr-vit"><h2 class="cr-h">Vitrina</h2>{body}</section>;
-  return (
-    <details class="card cr-vit cr-vit-fold">
-      <summary><span aria-hidden="true">🏆</span> Vitrina <span class="muted">({pl(trophies.length, 'título', 'títulos')}{awards.length ? ` · ${pl(awards.length, 'premio', 'premios')}` : ''})</span></summary>
-      {body}
-    </details>
-  );
-}
-
-// ---------- Etapas en los clubes ----------
+// ---------- Tu camino por los clubes ----------
 
 interface Stint { club: string; lg: SeasonLog['lg']; from: number; to: number; seasons: number; pj: number; g: number; a: number; cs: number; trophies: string[]; nth: number }
 
@@ -95,31 +65,28 @@ export function stintsOf(c: Career): Stint[] {
   return out;
 }
 
-function ClubCard({ s, keeper }: { s: Stint; keeper: boolean }) {
-  const tint = clubColor(s.club), L = LEAGUES[s.lg];
-  const t = tally(s.trophies, TROPHY_PTS);
+/** La línea de tu carrera: un nodo por club, con su escudo, los años y lo que ganaste ahí. Cada uno aparece después del anterior. */
+function Path({ c, keeper }: { c: Career; keeper: boolean }) {
+  const stints = stintsOf(c);
   return (
-    <li class="cr-club-card" style={tint ? `--tint:${tint}` : undefined}>
-      <div class="cr-cc-top">
-        <ClubLogo name={s.club} size={56} />
-        <div class="cr-cc-name">
-          <b>{s.club}{s.nth > 1 ? <small class="cr-nth"> · {s.nth}.ª etapa</small> : null}</b>
-          <span class="muted"><CompLogo name={L.name} size={15} /> {L.name}</span>
-          <span class="muted cr-cc-years">{s.from === s.to ? s.from : `${s.from}–${s.to}`} · {pl(s.seasons, 'temporada', 'temporadas')}</span>
-        </div>
-      </div>
-      <dl class="cr-cc-nums">
-        <div><dt>PJ</dt><dd>{s.pj}</dd></div>
-        <div><dt>G</dt><dd>{s.g}</dd></div>
-        <div><dt>A</dt><dd>{s.a}</dd></div>
-        {keeper && <div><dt>VI</dt><dd>{s.cs}</dd></div>}
-      </dl>
-      {t.length > 0 && (
-        <ul class="cr-cc-trophies" aria-label="Títulos en este club">
-          {t.map(([n, k]) => { const a = trophyArt(n); return <li><TrophyIcon shape={a.shape} tone={a.tone} size={24} /> <span>{n}{k > 1 ? ` ×${k}` : ''}</span></li>; })}
-        </ul>
-      )}
-    </li>
+    <ol class="cr-path" aria-label="Tus clubes">
+      {stints.map((s, i) => {
+        const tint = clubColor(s.club), L = LEAGUES[s.lg], t = tally(s.trophies, TROPHY_PTS);
+        return (
+          <li class="cr-pnode" style={`--i:${Math.min(i, 20)}${tint ? `;--tint:${tint}` : ''}`}>
+            <span class="cr-pn-crest"><ClubLogo name={s.club} size={52} /></span>
+            <div class="cr-pn-body">
+              <b class="cr-pn-name">{s.club}{s.nth > 1 ? <small> · {s.nth}.ª etapa</small> : null}</b>
+              <span class="cr-pn-meta"><CompLogo name={L.name} size={13} /> {s.from === s.to ? s.from : `${s.from}–${s.to}`} · {pl(s.seasons, 'temp.', 'temp.')}</span>
+              <span class="cr-pn-nums"><b>{s.pj}</b> PJ · <b>{s.g}</b> G{keeper ? <> · <b>{s.cs}</b> VI</> : <> · <b>{s.a}</b> A</>}</span>
+              {t.length > 0 && (
+                <span class="cr-pn-cups">{t.slice(0, 5).map(([n, k]) => { const a = trophyArt(n); return <span title={n}><TrophyIcon shape={a.shape} tone={a.tone} size={22} />{k > 1 ? <em>×{k}</em> : null}</span>; })}</span>
+              )}
+            </div>
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 
@@ -141,14 +108,14 @@ function tourneys(c: Career): { name: string; played: number; won: number }[] {
 function NationalCard({ c }: { c: Career }) {
   const t = totals(c), n = nationOf(c.nat), tours = tourneys(c);
   return (
-    <section class="card cr-nat-card">
+    <section class="cr-card2 cr-nat-card">
       <h2 class="cr-h"><Flag nat={c.nat} size={22} /> {n.team.replace(/^la /, 'La ')}</h2>
       {t.caps === 0 && <p class="muted cr-empty">Nunca te convocaron. Queda para la próxima.</p>}
       {t.caps > 0 && (
         <dl class="cr-cc-nums big">
           <div><dt>Partidos</dt><dd>{t.caps}</dd></div>
           <div><dt>Goles</dt><dd>{t.capGoals}</dd></div>
-          <div><dt>Asistencias</dt><dd>{t.capAssists}</dd></div>
+          <div><dt>Asist.</dt><dd>{t.capAssists}</dd></div>
         </dl>
       )}
       {tours.length > 0 && (
@@ -162,7 +129,7 @@ function NationalCard({ c }: { c: Career }) {
   );
 }
 
-// ---------- Las dos pantallas ----------
+// ---------- Récords y titulares ----------
 
 const recText = (k: RecKey, v: number) => (k === 'val' ? fmtEuro(v) : String(v));
 
@@ -170,7 +137,7 @@ const recText = (k: RecKey, v: number) => (k === 'val' ? fmtEuro(v) : String(v))
 export function RecordsBlock({ c, ach }: { c: Career; ach: AchStats }) {
   const now = recordsOf(c), lr = ach.lastRec && ach.lastRec.seed === attemptKey(c) ? ach.lastRec : null;
   return (
-    <section class="card cr-recs" aria-label="Récords">
+    <section class="cr-card2 cr-recs" aria-label="Récords">
       <h2 class="cr-h">Récords</h2>
       <ul class="cr-rec-list">
         {REC_KEYS.map(k => {
@@ -188,41 +155,28 @@ export function RecordsBlock({ c, ach }: { c: Career; ach: AchStats }) {
   );
 }
 
-/** El momento de cierre: tu línea final y los caminos (otra carrera en un toque, el resumen o cambiar de jugador). */
-export function Closing({ c, l, ach, onSummary, onAgain, onChange }: { c: Career; l: Legacy; ach: AchStats; onSummary: () => void; onAgain: () => void; onChange: () => void }) {
-  const ref = useFocusOnMount();
-  const cos = activeCosmetics(ach.unlocked);
-  const lr = ach.lastRec && ach.lastRec.seed === attemptKey(c) ? ach.lastRec : null;
-  return (
-    <div class="cr-end">
-      <section class={`cr-legacy lv${l.index}`} aria-labelledby="cr-title">
-        <span class="cr-hero-grass" aria-hidden="true" />
-        <span class="cr-kicker cr-kicker-light">Tu carrera llegó a su fin</span>
-        <div class="cr-closing-shirt"><Shirt nat={c.nat} surname={c.surname} num={c.num} size={88} trim={cos.trim} /></div>
-        <h1 id="cr-title" ref={ref} tabIndex={-1}>{l.label}</h1>
-        <p class="cr-score"><b>{l.score}</b> pts de Legado</p>
-        <p class="cr-blurb">{legacyBlurb(l.index)}</p>
-        {c.retire && <p class="cr-retire-msg">{RETIRE_TEXT[c.retire]}</p>}
-        {lr && lr.ks.length > 0 && <span class="cr-record">📈 ¡Nuevo récord en {lr.ks.map(k => REC_LABEL[k].toLowerCase()).join(', ')}!</span>}
-        {c.daily && <span class="cr-record">📆 Desafío del día · {l.score} pts</span>}
-      </section>
-      <div class="cr-actions cr-actions-end">
-        <button type="button" class="btn primary cr-big" onClick={onAgain}>Jugar otra carrera</button>
-        <button type="button" class="btn" onClick={onSummary}>Ver resumen</button>
-        <button type="button" class="btn sm" onClick={onChange}>Cambiar jugador</button>
-      </div>
-    </div>
-  );
+/** Los tres titulares más grandes de tu carrera, en orden cronológico. */
+function bigHeads(c: Career): SeasonLog[] {
+  const score = (h: SeasonLog) => h.trophies.length * 4 + h.awards.length * 3 + h.miles.length * 3 + (h.injury === 'grave' ? 2 : 0) + (h.promo ? 2 : 0) + (h.risk ? 1 : 0) + h.goals / 20;
+  return c.history.filter(h => h.head).sort((a, b) => score(b) - score(a)).slice(0, 3).sort((a, b) => a.n - b.n);
 }
 
-/** El resumen completo de la carrera. */
-export function Summary({ c, l, best, ach, onAgain, onChange, onAch }: { c: Career; l: Legacy; best: Best | null; ach: AchStats; onAgain: () => void; onChange: () => void; onAch: () => void }) {
-  const ref = useFocusOnMount();
-  const t = totals(c), n = nationOf(c.nat), keeper = c.pos === 'ARQ' || c.pos === 'DEF';
+/** La pantalla final de la carrera. */
+export function End({ c, ach, best, onAgain, onChange, onAch }: { c: Career; ach: AchStats; best: Best | null; onAgain: () => void; onChange: () => void; onAch: () => void }) {
+  const l = legacy(c), t = totals(c), n = nationOf(c.nat), keeper = c.pos === 'ARQ' || c.pos === 'DEF';
+  const cos = activeCosmetics(ach.unlocked);
+  const lr = ach.lastRec && ach.lastRec.seed === attemptKey(c) ? ach.lastRec : null;
   const last = c.history[c.history.length - 1];
   const record = !!best && best.seed === c.seed && best.score === l.score;
-  const stints = stintsOf(c);
-  const awards = c.history.flatMap(h => h.awards);
+  const near = endNear(l.score, l.index, t.peak, ach.rec.score > l.score ? ach.rec.score : null);
+  const cf = useConfetti();
+  const ref = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    ref.current?.focus({ preventScroll: true });
+    scrollTo({ top: 0 });
+    const id = setTimeout(() => { if (l.index >= 2) cf.fire(l.index >= 4 ? 3 : l.index >= 3 ? 2 : 1, { x: 0.5, y: 0.4 }); }, 900);
+    return () => clearTimeout(id);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const share = () => {
     const url = `${location.origin}/#/juegos/carrera`;
     const text = c.daily ? dailyShareText(c, url) : shareText(c, url);
@@ -230,65 +184,86 @@ export function Summary({ c, l, best, ach, onAgain, onChange, onAch }: { c: Care
     else window.open(whatsappUrl(text), '_blank', 'noopener');
   };
   const D = DIFFS[c.diff];
+  const heads = bigHeads(c);
+  const trophies = c.history.flatMap(h => h.trophies), awards = c.history.flatMap(h => h.awards);
+  const actions = (
+    <div class="cr-actions">
+      <button type="button" class="btn primary cr-big cr-again" onClick={onAgain}>Jugar otra carrera <span aria-hidden="true">▶</span></button>
+      <button type="button" class="btn cr-share" onClick={share}>📤 {c.daily ? 'Compartir el desafío' : 'Compartir'}</button>
+      <button type="button" class="cr-link" onClick={onChange}>Cambiar de jugador</button>
+    </div>
+  );
+
   return (
-    <div class="cr-end cr-summary">
-      <section class={`cr-legacy cr-sumhead lv${l.index}`} aria-labelledby="cr-title">
-        <span class="cr-hero-grass" aria-hidden="true" />
-        <div class="cr-sh-shirt"><Shirt nat={c.nat} surname={c.surname} num={c.num} size={96} trim={activeCosmetics(ach.unlocked).trim} /></div>
-        <div class="cr-sh-body">
-          <span class="cr-kicker cr-kicker-light">{c.surname} #{c.num} · {c.dpos} · <Flag nat={c.nat} size={14} /> {n.name}</span>
-          <h1 id="cr-title" ref={ref} tabIndex={-1}>{l.label}</h1>
-          <p class="cr-score"><b>{l.score}</b> pts de Legado{l.mult !== 1 && <small> ({l.base} × {fmtMult(l.mult).replace('×', '')} · {D.name})</small>}</p>
-          {record && <span class="cr-record">🏅 ¡Es tu mejor carrera ({D.name})!</span>}
-          {c.retire && <p class="cr-retire-msg">{RETIRE_TEXT[c.retire]}</p>}
+    <div class="cr-end">
+      <section class={`cr-fin lv${l.index}`} aria-labelledby="cr-title">
+        <canvas class="cr-confetti" ref={cf.ref} aria-hidden="true" />
+        <span class="cr-rays" aria-hidden="true" />
+        <span class="cr-kicker cr-kicker-light cr-a" style="--d:0s">TU CARRERA TERMINÓ{c.retire ? ` · ${RETIRE_TEXT[c.retire].toUpperCase()}` : ''}</span>
+        <div class="cr-fin-shirt cr-drop" style="--d:.1s"><Shirt nat={c.nat} surname={c.surname} num={c.num} size={96} trim={cos.trim} /></div>
+        <p class="cr-fin-who cr-a" style="--d:.3s"><Flag nat={c.nat} size={16} /> {c.surname} #{c.num} · {DPOS_LABEL[c.dpos]} · {pl(t.seasons, 'temporada', 'temporadas')}</p>
+        <h1 id="cr-title" ref={ref} tabIndex={-1} class="cr-tier cr-stamp2" style="--d:.55s">{l.label}</h1>
+        <p class="cr-score cr-a" style="--d:.9s"><Count to={l.score} delay={0.9} dur={1.2} /><span>pts de Legado</span></p>
+        <div class="cr-ladder cr-a" style="--d:1s" role="img" aria-label={`Escalón ${l.index + 1} de ${LEGACY_STEPS.length}`}>
+          {LEGACY_STEPS.map((_, i) => <i class={i <= l.index ? 'on' : ''} style={`--i:${i}`} />)}
         </div>
+        <p class="cr-blurb cr-a" style="--d:1.2s">{legacyBlurb(l.index)}</p>
+        {(record || (lr && lr.ks.length > 0) || c.daily || l.mult !== 1) && (
+          <p class="cr-rchips cr-a" style="--d:1.35s">
+            {record && <span class="cr-record">🏅 ¡Tu mejor carrera!</span>}
+            {lr && lr.ks.length > 0 && <span class="cr-record">📈 ¡Récord: {lr.ks.map(k => REC_LABEL[k].toLowerCase()).join(', ')}!</span>}
+            {c.daily && <span class="cr-record">📆 Desafío del día</span>}
+            {l.mult !== 1 && <span class="cr-record dim">{D.name} {fmtMult(l.mult)}</span>}
+          </p>
+        )}
+        {near && <p class="cr-near cr-a" style="--d:1.5s">😬 {near}</p>}
       </section>
 
-      <dl class="cr-grid">
-        <div><dt>Posición</dt><dd class="cr-dd-sm">{DPOS_LABEL[c.dpos]}</dd></div>
-        <div><dt>Pie</dt><dd class="cr-dd-sm">{FOOTS[c.foot].short}</dd></div>
-        <div><dt>OVR final</dt><dd class={cardTier(last?.ovr ?? 0)}>{last?.ovr ?? '—'}</dd></div>
-        <div><dt>OVR máximo</dt><dd>{t.peak}</dd></div>
-        <div><dt>Valor máximo</dt><dd>{fmtEuro(t.peakVal)}</dd></div>
-        <div><dt>Valor al retirarte</dt><dd>{fmtEuro(last?.val ?? 0)}</dd></div>
-        <div><dt>Partidos</dt><dd>{t.pj}</dd></div>
-        <div><dt>Goles</dt><dd>{t.goals}</dd></div>
-        <div><dt>Asistencias</dt><dd>{t.assists}</dd></div>
-        {keeper && <div><dt>Vallas invictas</dt><dd>{t.cs}</dd></div>}
-        <div><dt>Temporadas</dt><dd>{t.seasons}</dd></div>
-        <div><dt>Clubes</dt><dd>{t.clubs}</dd></div>
+      {actions}
+
+      <dl class="cr-kn">
+        <div style="--i:0"><dt>OVR máximo</dt><dd><Count to={t.peak} delay={0.5} dur={0.9} /></dd></div>
+        <div style="--i:1"><dt>Títulos</dt><dd><Count to={t.trophies} delay={0.6} dur={0.9} /></dd></div>
+        <div style="--i:2"><dt>{keeper ? 'Vallas inv.' : 'Goles'}</dt><dd><Count to={keeper ? t.cs : t.goals} delay={0.7} dur={1} /></dd></div>
+        <div style="--i:3"><dt>Partidos</dt><dd><Count to={t.pj} delay={0.8} dur={1} /></dd></div>
+        <div style="--i:4"><dt>Premios</dt><dd><Count to={t.awards} delay={0.9} dur={0.8} /></dd></div>
+        <div style="--i:5"><dt>Valor máx.</dt><dd class="sm">{fmtEuro(t.peakVal)}</dd></div>
       </dl>
 
-      <div class="cr-two">
-        <NationalCard c={c} />
-        <section class="card cr-aw-card">
-          <h2 class="cr-h">Premios individuales</h2>
-          {awards.length ? <TrophyShelf names={awards} pts={AWARD_PTS} kind="award" /> : <p class="muted cr-empty">Ningún premio individual esta vez.</p>}
+      {heads.length > 0 && (
+        <section class="cr-sec2" aria-label="Titulares de tu carrera">
+          <h2 class="cr-h2">📰 Titulares de tu carrera</h2>
+          <ul class="cr-heads">
+            {heads.map((h, i) => <li style={`--i:${i}`}><ClubLogo name={h.club} size={30} /><span><small>{h.age} años · {h.club}</small><b>{h.head}</b></span></li>)}
+          </ul>
         </section>
-      </div>
-
-      {c.history.some(h => h.trophies.length) && (
-        <section class="card cr-vit"><h2 class="cr-h">Vitrina de títulos</h2><TrophyShelf names={c.history.flatMap(h => h.trophies)} pts={TROPHY_PTS} kind="trophy" /></section>
       )}
 
-      <section class="cr-clubs" aria-label="Tus clubes">
-        <h2 class="cr-h cr-h-out">Tus clubes</h2>
-        <ul class="cr-club-grid">{stints.map(s => <ClubCard s={s} keeper={keeper} />)}</ul>
+      <section class="cr-sec2" aria-label="Tus clubes">
+        <h2 class="cr-h2">Tu camino</h2>
+        <Path c={c} keeper={keeper} />
       </section>
 
-      <RecordsBlock c={c} ach={ach} />
+      {(trophies.length > 0 || awards.length > 0) && (
+        <section class="cr-sec2 cr-cab" aria-label="Vitrina">
+          <h2 class="cr-h2">🏆 Tu vitrina</h2>
+          {trophies.length > 0 && <TrophyShelf names={trophies} pts={TROPHY_PTS} kind="trophy" />}
+          {awards.length > 0 && <><h3 class="cr-h3">Premios</h3><TrophyShelf names={awards} pts={AWARD_PTS} kind="award" /></>}
+        </section>
+      )}
 
-      <div class="cr-actions cr-actions-end">
-        <button type="button" class="btn primary cr-big" onClick={onAgain}>Jugar otra carrera</button>
-        <button type="button" class="btn" onClick={share}>{c.daily ? 'Compartir el desafío' : 'Compartir mi carrera'}</button>
-        <button type="button" class="btn" onClick={onChange}>Cambiar jugador</button>
-        <button type="button" class="btn" onClick={onAch}>🏅 Logros</button>
+      <div class="cr-two">
+        {t.caps > 0 || n.team ? <NationalCard c={c} /> : null}
+        <RecordsBlock c={c} ach={ach} />
       </div>
-      {best && !record && <p class="cr-best-line muted">Tu mejor carrera ({DIFFS[best.d].name}) sigue siendo {best.label} ({best.score} pts, {best.surname}).</p>}
 
-      <section class="cr-tlwrap"><h2 class="cr-h cr-h-out">Tu carrera</h2><Seasons c={c} /></section>
+      {actions}
+      <p class="cr-fin-links"><button type="button" class="cr-link" onClick={onAch}>🏅 Ver mis logros</button>{last ? <span class="muted"> · OVR final {last.ovr}</span> : null}</p>
+
+      <details class="cr-all">
+        <summary>📋 Temporada por temporada</summary>
+        <Seasons c={c} />
+      </details>
     </div>
   );
 }
-
-export { Chips, isTrophyName };

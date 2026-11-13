@@ -7,7 +7,7 @@ import { KITS, espnCrestUrl } from '../../shared/teams';
 import { Crest } from '../../shared/ui/Crest';
 import { TONES, type Tone, type TrophyShape } from './careerTrophies';
 import type { Chip } from './careerFx';
-import { CLUB_ESPN, COMP_LOGO } from './careerLogos';
+import { CLUB_ESPN, COMP_LOGO, SIN_ESCUDO_COLOR } from './careerLogos';
 import { flagUrl, nationOf } from './careerNations';
 import type { NatId } from './careerTypes';
 
@@ -44,7 +44,7 @@ export function ClubLogo({ name, size = 22 }: { name: string; size?: number }) {
     );
   }
   if (KITS[name]) return <span class="cr-logo-box" style={`width:${size}px;height:${size}px`}><Crest team={name} size={Math.round(size * 24 / 28)} /></span>;
-  return <Badge name={name} size={size} color={e?.[1] || undefined} />;
+  return <Badge name={name} size={size} color={e?.[1] || SIN_ESCUDO_COLOR[name] || undefined} />;
 }
 
 /** El color principal de un club (para teñir las tarjetas), o '' si no se conoce. */
@@ -170,8 +170,19 @@ export function TrophyIcon({ shape, tone, size = 44, label }: { shape: TrophySha
   );
 }
 
-/** Las etiquetas de una opción (efectos con números, riesgos y probabilidades). */
+/** Las etiquetas de una opción (seguro o con riesgo, lo que ganás y lo que puede salir mal). */
 export function Chips({ chips, class: cls = '' }: { chips: readonly Chip[]; class?: string }) {
   if (!chips.length) return null;
-  return <span class={`cr-chips-row ${cls}`}>{chips.map(c => <span class={`cr-chip ${c.tone}`} title={c.title}>{c.text}</span>)}</span>;
+  return <span class={`cr-chips-row ${cls}`}>{chips.map(c => <span class={`cr-chip ${c.tone}`}>{c.text}</span>)}</span>;
+}
+
+/** Una pelota (dibujo propio) para los goles que saltan en el resultado. */
+export function BallIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg class="cr-ballsvg" viewBox="0 0 24 24" width={size} height={size} aria-hidden="true">
+      <circle cx="12" cy="12" r="10.5" fill="#fff" stroke="#1d2b22" stroke-width="1.4" />
+      <path d="M12 6.6l4.2 3-1.6 4.9H9.4L7.8 9.6z" fill="#1d2b22" />
+      <path d="M12 6.6V1.8M16.2 9.6l4.4-1.5M14.6 14.5l2.8 3.8M9.4 14.5l-2.8 3.8M7.8 9.6L3.4 8.1" stroke="#1d2b22" stroke-width="1.2" stroke-linecap="round" fill="none" />
+    </svg>
+  );
 }

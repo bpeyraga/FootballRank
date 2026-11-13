@@ -121,9 +121,14 @@ export function RateTeammates({ mates, initial, busy, save }:
   );
 }
 
-export function MvpVote({ canVote, meId, mine, tally, players, busy, vote }: {
-  canVote: boolean; meId: string; mine: string | null; tally: Map<string, number>; busy: boolean;
-  players: { p: Profile; team: 'A' | 'B' }[]; vote: (pid: string) => void;
+export function MvpVote({ canVote, closed = false, meId, mine, tally, players, busy, vote }: {
+  /** Jugué y la votación está abierta. */
+  canVote: boolean;
+  /** La votación de la figura ya cerró (pasaron 7 días): se ve el resultado y nada más. */
+  closed?: boolean;
+  meId: string; mine: string | null; tally: Map<string, number>; busy: boolean;
+  /** Sin equipos armados (`team` null) se muestra una sola lista. */
+  players: { p: Profile; team: 'A' | 'B' | null }[]; vote: (pid: string) => void;
 }) {
   const [sel, setSel] = useState<string | null>(mine);
   useEffect(() => setSel(mine), [mine]);
@@ -131,6 +136,11 @@ export function MvpVote({ canVote, meId, mine, tally, players, busy, vote }: {
   const top = Math.max(0, ...tally.values());
   const winners = players.filter(x => top > 0 && tally.get(x.p.id) === top);
   const options = players.filter(x => x.p.id !== meId);
+  const hasTeams = options.some(x => x.team);
+  // Con equipos: A, B y (si hay) los que quedaron sin equipo; sin equipos: una sola lista.
+  const groups = hasTeams
+    ? ([['A', 'Equipo A'], ['B', 'Equipo B'], [null, 'Sin equipo']] as const).map(([t, label]) => ({ t, label, ps: options.filter(x => x.team === t) }))
+    : [{ t: null, label: '', ps: options }];
   return (
     <div class="card">
       <h3 style="margin-bottom:4px">🏆 MVP del partido</h3>
@@ -140,12 +150,11 @@ export function MvpVote({ canVote, meId, mine, tally, players, busy, vote }: {
         : <p class="muted" style="margin-bottom:8px">Todavía nadie votó.</p>}
       {canVote ? <>
         <p class="muted" style="margin-bottom:8px">
-          {mine ? 'Ya votaste, podés cambiar tu voto.' : 'Elegí al mejor de la cancha. Acá sí vale votar a uno del equipo contrario.'}
+          {mine ? 'Ya votaste, podés cambiar tu voto.' : `Elegí al mejor de la cancha.${hasTeams ? ' Acá sí vale votar a uno del equipo contrario.' : ''}`}
         </p>
-        {(['A', 'B'] as const).map(t => {
-          const ps = options.filter(x => x.team === t);
-          return ps.length > 0 && <div class={`team ${t}`} style="padding-left:8px;margin-bottom:8px">
-            <b class={t === 'A' ? 'ta' : 'tb'} style="font-size:.85rem">Equipo {t}</b>
+        {groups.map(({ t, label, ps }) => {
+          return ps.length > 0 && <div class={t ? `team ${t}` : ''} style={t ? 'padding-left:8px;margin-bottom:8px' : 'margin-bottom:8px'}>
+            {label && <b class={t === 'A' ? 'ta' : t === 'B' ? 'tb' : 'muted'} style="font-size:.85rem">{label}</b>}
             {ps.map(({ p }) => (
               <button type="button" class={`row rank-row mvp-opt${sel === p.id ? ' on' : ''}`} onClick={() => setSel(p.id)} aria-pressed={sel === p.id}>
                 <Avatar p={p} size={28} zoom={false} /><span class="ellipsis" style="flex:1;text-align:left">{displayName(p)}</span>
@@ -158,7 +167,7 @@ export function MvpVote({ canVote, meId, mine, tally, players, busy, vote }: {
         <button class="btn primary block" disabled={busy || !sel || sel === mine} onClick={() => sel && vote(sel)}>
           {mine ? 'Cambiar mi voto' : 'Votar MVP'}
         </button>
-      </> : <p class="muted">Votan los que jugaron el partido.</p>}
+      </> : <p class="muted">{closed ? 'La votación de la figura ya cerró.' : 'Votan los que jugaron el partido.'}</p>}
     </div>
   );
 }

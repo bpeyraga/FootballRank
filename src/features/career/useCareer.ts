@@ -20,6 +20,8 @@ const newSeed = () => ((Math.random() * 4294967296) ^ Date.now()) >>> 0;
 export function useCareer(me?: Profile | null) {
   const uid = me?.id;
   const [run, setRun] = useState<Career | null>(() => loadRun(uid));
+  /** La carrera de ahora mismo (sin esperar al próximo render): un doble toque no puede actuar sobre una pantalla que ya cambió ni arrancar dos carreras. */
+  const runRef = useRef(run);
   const [bests, setBests] = useState<Record<Difficulty, Best | null>>(() => loadBests(uid));
   const bestsRef = useRef(bests);
   const [ach, setAch] = useState<AchStats>(() => loadAch(uid));
@@ -53,6 +55,7 @@ export function useCareer(me?: Profile | null) {
 
   /** Cada paso se guarda; al terminar la carrera se actualiza la mejor de su dificultad y se cuentan los logros y los récords. */
   const commit = useCallback((c: Career | null) => {
+    runRef.current = c;
     setRun(c);
     saveRun(c, uid);
     if (!c) return;
@@ -65,6 +68,7 @@ export function useCareer(me?: Profile | null) {
   useEffect(() => { if (run?.phase === 'over') countFinish(run); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const begin = useCallback((c: Career) => {
+    if (runRef.current && runRef.current.phase !== 'over') return; // ya hay una carrera en juego (doble toque en "Empezar")
     const r = recordStart(achRef.current, attemptKey(c), today);
     if (r.stats !== achRef.current) { setAchs(r.stats, r.newly); trackGame('carrera', 'start', { difficulty: c.diff }); }
     commit(c);
@@ -92,10 +96,10 @@ export function useCareer(me?: Profile | null) {
     dismissToast: () => setToast(t => t.slice(1)),
     start, startDaily,
     /** "Jugar otra carrera": el mismo jugador, otra semilla, sin pasar por la pantalla de arranque. */
-    again: () => { if (run) start(startOptsOf(run)); },
-    pick: (optionId: string) => run && commit(choose(run, optionId)),
-    next: () => run && commit(advance(run)),
-    retire: () => run && commit(retireNow(run)),
+    again: () => { const r = runRef.current; if (r && r.phase === 'over') start(startOptsOf(r)); },
+    pick: (optionId: string) => { const r = runRef.current; if (r) commit(choose(r, optionId)); },
+    next: () => { const r = runRef.current; if (r) commit(advance(r)); },
+    retire: () => { const r = runRef.current; if (r) commit(retireNow(r)); },
     reset: () => commit(null),
   };
 }

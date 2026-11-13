@@ -1,12 +1,12 @@
 // Aviso de cookies: aparece la primera vez en cada navegador (y cuando se cambia la versión del aviso o se toca
 // "Preferencias de cookies"). La elección se guarda en una cookie propia y queda registrada en la base (track.ts).
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { getConsent, onConsentChange, onOpenConsent, setConsent } from './consent';
+import { getConsent, isConsentSyncing, onConsentChange, onConsentSyncDone, onOpenConsent, setConsent } from './consent';
 import type { ConsentChoice } from './consentCore';
 
 export function ConsentBanner() {
   // "/#cookies" (link de la política de cookies) abre el aviso aunque ya haya elegido, y se saca el #cookies de la URL.
-  const [open, setOpen] = useState(() => !getConsent() || location.hash === '#cookies');
+  const [open, setOpen] = useState(() => (!getConsent() && !isConsentSyncing()) || location.hash === '#cookies');
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (location.hash === '#cookies') try { history.replaceState(null, '', location.pathname + location.search); } catch { /* nada */ }
@@ -18,7 +18,9 @@ export function ConsentBanner() {
     });
     // Si en otra pestaña ya eligió, este aviso sobra.
     const off2 = onConsentChange(c => { if (c) setOpen(false); });
-    return () => { off1(); off2(); };
+    // Con sesión guardada se esperó a la cuenta: si no trajo ninguna elección, recién ahí corresponde preguntar.
+    const off3 = onConsentSyncDone(() => { if (!getConsent()) setOpen(true); });
+    return () => { off1(); off2(); off3(); };
   }, []);
   // Mientras está abierto, la página deja lugar abajo: si no, el aviso tapa lo último (el botón de guardar, los links del pie).
   useEffect(() => {

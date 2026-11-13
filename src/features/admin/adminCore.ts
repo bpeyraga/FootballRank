@@ -178,3 +178,61 @@ export function niceMax(max: number): number {
   const f = max / p;
   return (NICE.find(n => f <= n + 1e-9) ?? 10) * p;
 }
+
+// ---------- Consola de errores (admin_errors) ----------
+/** "Chrome 126 · Android 14", "Safari 17 · iOS 17", "Edge 126 · Windows"… a partir del user agent. Vacío → "—". */
+export function uaLabel(ua: string | null | undefined): string {
+  const s = ua || '';
+  if (!s) return '—';
+  const v = (re: RegExp) => re.exec(s)?.[1];
+  let browser: string;
+  if (/Instagram/i.test(s)) browser = 'Instagram';
+  else if (/FBAN|FBAV/.test(s)) browser = 'Facebook';
+  else if (/WhatsApp/i.test(s)) browser = 'WhatsApp';
+  else if (/Edg(?:e|A|iOS)?\/(\d+)/.test(s)) browser = `Edge ${v(/Edg(?:e|A|iOS)?\/(\d+)/)}`;
+  else if (/OPR\/(\d+)/.test(s)) browser = `Opera ${v(/OPR\/(\d+)/)}`;
+  else if (/SamsungBrowser\/(\d+)/.test(s)) browser = `Samsung Internet ${v(/SamsungBrowser\/(\d+)/)}`;
+  else if (/(?:Firefox|FxiOS)\/(\d+)/.test(s)) browser = `Firefox ${v(/(?:Firefox|FxiOS)\/(\d+)/)}`;
+  else if (/(?:Chrome|CriOS)\/(\d+)/.test(s)) browser = /; wv\)/.test(s) ? 'WebView' : `Chrome ${v(/(?:Chrome|CriOS)\/(\d+)/)}`;
+  else if (/Version\/(\d+)[\d.]*.*Safari/.test(s)) browser = `Safari ${v(/Version\/(\d+)/)}`;
+  else browser = 'Navegador';
+  let os: string;
+  if (/Android\s*(\d+)?/i.test(s)) os = `Android${v(/Android\s*(\d+)/i) ? ' ' + v(/Android\s*(\d+)/i) : ''}`;
+  else if (/iPhone|iPad|iPod/i.test(s)) os = `iOS${v(/OS (\d+)[_.]/) ? ' ' + v(/OS (\d+)[_.]/) : ''}`;
+  else if (/Windows/i.test(s)) os = 'Windows';
+  else if (/CrOS/i.test(s)) os = 'ChromeOS';
+  else if (/Macintosh|Mac OS X/i.test(s)) os = 'Mac';
+  else if (/Linux|X11/i.test(s)) os = 'Linux';
+  else os = 'otro sistema';
+  return `${browser} · ${os}`;
+}
+
+export interface ErrorGroup {
+  fingerprint: string; message: string; count: number; users: number; logged: number;
+  first_at: string | null; last_at: string | null; path: string | null; user_agent: string | null; stack: string | null;
+  source: string | null; app_version: string | null;
+}
+export interface ErrorsData { generated_at: string | null; days: number; events: number; groups: number; people: number; items: ErrorGroup[] }
+
+/** Períodos del filtro de la consola de errores. */
+export const ERROR_RANGES = [
+  { days: 1, label: '24 horas', last: 'las últimas 24 horas' },
+  { days: 7, label: '7 días', last: 'los últimos 7 días' },
+  { days: 30, label: '30 días', last: 'los últimos 30 días' },
+] as const;
+
+/** Completa lo que falte de admin_errors(): la pantalla nunca se rompe si el servidor devuelve algo parcial. */
+export function normalizeErrors(raw: unknown): ErrorsData {
+  const r = obj(raw);
+  return {
+    generated_at: str(r.generated_at), days: num(r.days) || 7, events: num(r.events), groups: num(r.groups), people: num(r.people),
+    items: arr(r.items).map(i => {
+      const o = obj(i);
+      return {
+        fingerprint: str(o.fingerprint) ?? '', message: str(o.message) ?? '(sin mensaje)', count: Math.max(1, num(o.count)), users: num(o.users), logged: num(o.logged),
+        first_at: str(o.first_at), last_at: str(o.last_at), path: str(o.path), user_agent: str(o.user_agent), stack: str(o.stack),
+        source: str(o.source), app_version: str(o.app_version),
+      };
+    }),
+  };
+}

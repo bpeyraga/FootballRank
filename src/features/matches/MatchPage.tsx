@@ -21,6 +21,8 @@ import { loadVenues } from '../venues/api';
 import { FeeCard } from './FeeCard';
 import { WeatherChip } from './WeatherChip';
 import { feeNum } from './fees';
+import { mvpOpen, myVoteState, ratingOpen, voteHeadline } from './votingCore';
+import './votePrompt.css';
 import '../player/stats.css';
 import '../community/admin.css';
 
@@ -29,7 +31,7 @@ const NEUTRAL: Stats = { rit: 50, tir: 50, pas: 50, reg: 50, def: 50, fis: 50 };
 
 export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: string; rows: Ranked[]; meId: string; isAdmin: boolean }) {
   const x = useMatch(id, meId);
-  const { m, su, susp, scores, myRatings, mvp, events, busy } = x;
+  const { m, su, susp, scores, myRatings, mvp, mvpReady, events, busy } = x;
   const [splits, setSplits] = useState<ReturnType<typeof balance<BP>> | null>(null);
   const [opt, setOpt] = useState(0);
   const [manual, setManual] = useState<Record<string, 'A' | 'B' | null> | null>(null); // armado a mano abierto (con el punto de partida)
@@ -52,6 +54,13 @@ export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: str
   }, [editing, communityId]);
 
   const byId = useMemo(() => new Map(rows.map(r => [r.profile.id, r])), [rows]);
+
+  // Votar (figura y calificar al equipo): si me falta algo, el bloque de votar sube arriba de todo y se queda ahí mientras dure la visita
+  // (si no, al votar saltaría hacia abajo).
+  const vs = m ? myVoteState(m, su, meId, mvp.mine, mvpReady, myRatings) : null;
+  const votePending = !!vs && (vs.pendingMvp || vs.pendingRate);
+  const [pinVote, setPinVote] = useState(false);
+  useEffect(() => { if (votePending) setPinVote(true); }, [votePending]);
 
   if (x.err && m === undefined) return <p class="err">{x.err}</p>;
   if (m === undefined) return <p class="muted">Cargando…</p>;
@@ -128,7 +137,7 @@ export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: str
         <Avatar p={p} size={32} />
         <span style="flex:1" class="ellipsis">{displayName(p)}{su.find(s => s.profile_id === pid && s.status === 'in' && s.team && s.captain) && <span class="cap" title="Capitán">C</span>} <span class="muted">· {posLine(p)}</span></span>
         {su.find(s => s.profile_id === pid && s.status === 'in')?.absent && <span class="pill bad">Ausente</span>}
-        {m.status === 'played' && isMvp(pid) && <span class="pill mvp" title={`MVP · ${topVotes} ${topVotes === 1 ? 'voto' : 'votos'}`}>🏆 MVP</span>}
+        {ratingOpen(m) && isMvp(pid) && <span class="pill mvp" title={`MVP · ${topVotes} ${topVotes === 1 ? 'voto' : 'votos'}`}>🏆 MVP</span>}
         {sc && <span class="pill" title={`${sc.n} ${sc.n === 1 ? 'calificación' : 'calificaciones'}`}>★ {sc.avg}</span>}
         {right}
       </div>
@@ -172,6 +181,18 @@ export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: str
     );
   };
 
+  // Votar: la figura de todo el partido y la calificación a mi equipo. Se abre con el partido jugado o, si nadie cargó el resultado, 2 h después de la hora de inicio.
+  const rateCard = !!vs?.canRate && (
+    <RateTeammates mates={vs.mates.map(prof)} initial={myRatings} busy={busy} save={x.rate} />
+  );
+  const mvpCard = ratingOpen(m) && (
+    <MvpVote canVote={!!vs?.canMvp} closed={!mvpOpen(m)} meId={meId} mine={mvp.mine} tally={mvp.tally} busy={busy}
+      players={inList.filter(s => !s.absent).map(s => ({ p: prof(s.profile_id), team: s.team }))}
+      vote={x.voteMvp} />
+  );
+  const voteTop = !!vs && (vs.canMvp || vs.canRate) && (pinVote || votePending);
+  const head = voteHeadline(!!vs?.pendingMvp, !!vs?.pendingRate);
+
   return (
     <>
       <div class="card m-info">
@@ -210,6 +231,14 @@ export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: str
         {x.msg && <p class="muted" style="margin-top:8px">{x.msg}</p>}
         {x.err && <p class="err">{x.err}</p>}
       </div>
+
+      {/* Voto pendiente: arriba de todo para que no quede enterrado (lo mismo que pide el cartel de la pantalla de inicio) */}
+      {voteTop && (
+        <div class="vote-now" id="votar" role="region" aria-label="Votar">
+          <p class="vote-now-h">{head.icon} {head.title} <span>{head.text}</span></p>
+          {vs!.pendingRate && !vs!.pendingMvp ? <>{rateCard}{mvpCard}</> : <>{mvpCard}{rateCard}</>}
+        </div>
+      )}
 
       {/* Partido en vivo: cronómetro, marcador y línea de tiempo para todos; el reloj y los botones, para los admins */}
       {isAdmin && !liveOn && canStartLive(m, Date.now()) && (
@@ -396,19 +425,8 @@ export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: str
         </div>
       )}
 
-      {/* Calificar compañeros */}
-      {m.status === 'played' && myTeam && (
-        <RateTeammates mates={inList.filter(s => s.team === myTeam && s.profile_id !== meId && !s.absent).map(s => prof(s.profile_id))}
-          initial={myRatings} busy={busy}
-          save={x.rate} />
-      )}
-
-      {/* MVP de todo el partido: se puede elegir a cualquiera de los dos equipos */}
-      {m.status === 'played' && (
-        <MvpVote canVote={!!myTeam} meId={meId} mine={mvp.mine} tally={mvp.tally} busy={busy}
-          players={inList.filter(s => s.team && !s.absent).map(s => ({ p: prof(s.profile_id), team: s.team! }))}
-          vote={x.voteMvp} />
-      )}
+      {/* Calificar compañeros y MVP de todo el partido (se puede elegir a cualquiera de los dos equipos); si hay voto pendiente están arriba */}
+      {!voteTop && <>{rateCard}{mvpCard}</>}
       {started && <Tip />}
 
       {/* Eliminar: solo owner/admins (la base también lo exige). Borra anotados, goles, calificaciones y votos. */}

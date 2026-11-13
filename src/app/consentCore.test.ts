@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { allowsStats, CONSENT_VERSION, cookieLine, parseConsent, readCookie, serializeConsent, type Consent } from './consentCore';
+import { allowsStats, CONSENT_VERSION, cookieLine, decideConsentSync, hasStoredSession, parseConsent, parseServerConsent, readCookie, serializeConsent, type Consent, type ServerConsent } from './consentCore';
 
 const c: Consent = { v: CONSENT_VERSION, choice: 'all', at: 1_731_400_000_000, id: '0f8fad5b-d9cb-469f-a165-70867728950e' };
 
@@ -34,5 +34,46 @@ describe('consentimiento de cookies', () => {
     expect(allowsStats(c)).toBe(true);
     expect(allowsStats({ ...c, choice: 'necessary' })).toBe(false);
     expect(allowsStats(null)).toBe(false);
+  });
+});
+
+describe('elección guardada en la cuenta', () => {
+  const srv: ServerConsent = { consent_id: c.id, choice: 'all', version: CONSENT_VERSION, created_at: new Date(c.at).toISOString() };
+
+  it('parsea la fila de my_consent y descarta lo roto o de otra versión', () => {
+    expect(parseServerConsent([srv])).toEqual(srv);
+    expect(parseServerConsent(srv)).toEqual(srv);
+    expect(parseServerConsent([])).toBeNull();
+    expect(parseServerConsent(null)).toBeNull();
+    expect(parseServerConsent([{ ...srv, version: CONSENT_VERSION + 1 }])).toBeNull();
+    expect(parseServerConsent([{ ...srv, choice: 'todo' }])).toBeNull();
+    expect(parseServerConsent([{ ...srv, consent_id: 'x' }])).toBeNull();
+    expect(parseServerConsent([{ ...srv, created_at: 'ayer' }])).toBeNull();
+  });
+
+  it('sin elección acá y con una en la cuenta: se aplica (sin registrar de nuevo)', () => {
+    expect(decideConsentSync(null, srv)).toBe('apply');
+  });
+  it('sin nada en la cuenta: la de acá se registra con la cuenta; sin nada en ningún lado, nada', () => {
+    expect(decideConsentSync(c, null)).toBe('record');
+    expect(decideConsentSync(null, null)).toBe('keep');
+  });
+  it('si coinciden no se registra un duplicado', () => {
+    expect(decideConsentSync(c, srv)).toBe('keep');
+    expect(decideConsentSync({ ...c, id: '0f8fad5b-d9cb-469f-a165-70867728950f' }, srv)).toBe('keep');
+  });
+  it('si difieren gana la más nueva', () => {
+    const newerHere: Consent = { ...c, choice: 'necessary', at: c.at + 5000 };
+    const olderHere: Consent = { ...c, choice: 'necessary', at: c.at - 5000 };
+    expect(decideConsentSync(newerHere, srv)).toBe('record');
+    expect(decideConsentSync(olderHere, srv)).toBe('apply');
+  });
+
+  it('detecta sesión guardada o vuelta de login para esperar a la cuenta', () => {
+    expect(hasStoredSession(['fr-vid', 'sb-abcd-auth-token'], { hash: '', search: '' })).toBe(true);
+    expect(hasStoredSession(['fr-vid', 'fr-consent'], { hash: '', search: '' })).toBe(false);
+    expect(hasStoredSession([], { hash: '#access_token=abc&x=1', search: '' })).toBe(true);
+    expect(hasStoredSession([], { hash: '', search: '?code=abc' })).toBe(true);
+    expect(hasStoredSession([], { hash: '#/c/mi-grupo', search: '' })).toBe(false);
   });
 });

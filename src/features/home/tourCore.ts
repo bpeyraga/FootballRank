@@ -32,7 +32,7 @@ export const TOUR_STEPS: TourStep[] = [
   },
   {
     emoji: '🔔', title: 'Avisos y app instalada',
-    text: 'Activá los avisos para enterarte de cada convocatoria e instalá la app en tu celular. Las dos cosas están en el menú de tu foto.',
+    text: 'Activá los avisos para enterarte de cada convocatoria e instalá la app en tu celular. Los avisos están en el menú de tu foto; instalar la app, en tu perfil, dentro de "Ajustes y ayuda".',
   },
 ];
 
@@ -60,18 +60,20 @@ export const TOUR_KEY = 'fr-tour-v1';
 type Store = Pick<Storage, 'getItem' | 'setItem'>;
 
 /**
- * "¿Ya vio el tutorial?" por dispositivo (localStorage). Si el storage falla (modo privado, bloqueado), lo
+ * "¿Ya vio el tutorial?" por dispositivo (localStorage) y por cuenta (profiles.tour_seen_at, que llega en `serverSeen`). Si el storage falla (modo privado, bloqueado), lo
  * recuerda en memoria: se muestra a lo sumo una vez por sesión de la página.
  */
 export function makeTourGate(getStore: () => Store | null) {
   let shown = false;
+  const local = () => { try { return !!getStore()?.getItem(TOUR_KEY); } catch { return false; } };
   return {
-    /** Si corresponde mostrarlo solo, ahora. */
-    due(): boolean {
-      if (shown) return false;
-      try { if (getStore()?.getItem(TOUR_KEY)) return false; } catch { /* sin storage */ }
-      return true;
+    /** Si corresponde mostrarlo solo, ahora: ni en esta página, ni en este dispositivo, ni en la cuenta (otro dispositivo). */
+    due(serverSeen = false): boolean {
+      if (shown || serverSeen) return false;
+      return !local();
     },
+    /** ¿Quedó marcado en este dispositivo? */
+    local,
     /** Lo marca como visto (en memoria y, si se puede, en el dispositivo). */
     mark(): void {
       shown = true;
@@ -80,4 +82,39 @@ export function makeTourGate(getStore: () => Store | null) {
   };
 }
 
+/**
+ * Local vs. cuenta, sin mostrar nada: 'setLocal' = la cuenta ya lo vio y este dispositivo no (se marca en silencio, no se
+ * vuelve a mostrar); 'backfill' = este dispositivo lo vio y la cuenta no (se le avisa a la cuenta una vez); 'none' = al día.
+ * `serverSeen` undefined: no se sabe (la base sin la migración): no se toca la cuenta.
+ */
+export function tourSyncAction(local: boolean, serverSeen: boolean | undefined): 'setLocal' | 'backfill' | 'none' {
+  if (serverSeen === undefined) return 'none';
+  if (serverSeen && !local) return 'setLocal';
+  if (local && !serverSeen) return 'backfill';
+  return 'none';
+}
+
 export const tourGate = makeTourGate(() => { try { return localStorage; } catch { return null; } });
+
+/** Cuánto vale un pedido de tutorial que nadie recogió (el Home se arma en un instante; pasado ese tiempo ya no es lo que quiso el usuario). */
+export const TOUR_ASK_TTL_MS = 8000;
+
+/**
+ * "Ver tutorial" desde otra pantalla (Ajustes del perfil): el tutorial vive en el Home, así que quien lo pide lo anota acá
+ * y vuelve al Home; useTour lo recoge al montarse. Se recoge una sola vez y caduca solo, para que un pedido que no llegó
+ * a destino (p. ej. un dueño que no juega y no ve el Home) no lo abra de sorpresa más tarde.
+ */
+export function makeTourRequest(ttl = TOUR_ASK_TTL_MS) {
+  let at: number | null = null;
+  return {
+    ask(now = Date.now()): void { at = now; },
+    /** ¿Lo pidieron (y sigue vigente)? Lo consume: la segunda vez da false. */
+    take(now = Date.now()): boolean {
+      const ok = at !== null && now - at <= ttl;
+      at = null;
+      return ok;
+    },
+  };
+}
+
+export const tourRequest = makeTourRequest();

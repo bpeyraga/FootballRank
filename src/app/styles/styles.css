@@ -193,6 +193,8 @@ a{color:var(--accent)}
 .menu-pop a:hover,.menu-pop button:hover{background:var(--accent-soft)}
 .menu-pop button{color:var(--danger)}
 .menu-who{display:grid;padding:8px 12px 10px;border-bottom:1px solid var(--line);margin-bottom:4px}
+.menu-pop .mi{display:inline-block;width:1.5em;margin-right:6px;text-align:center}
+.menu-sep{height:1px;margin:4px 6px;background:var(--line)}
 .me-card{display:flex;gap:16px;align-items:center;border-radius:20px;padding:16px;margin-bottom:22px;
   background:linear-gradient(135deg,var(--accent-soft),var(--surface));border:1px solid var(--line)}
 .me-copy{min-width:0;display:grid;gap:6px;justify-items:start}

@@ -35,17 +35,23 @@ describe('resúmenes', () => {
 
 describe('quickActions', () => {
   it('sin comunidades, nada', () => {
-    expect(quickActions(null, null, [])).toEqual([]);
+    expect(quickActions(null, [])).toEqual([]);
+    expect(quickActions(null, null)).toEqual([]);
   });
-  it('anotarme destacado si la lista está abierta y no estoy', () => {
-    const q = quickActions(nx('m1', '2'), { taken: 3, waiting: 0, mine: null }, [comm('1', 'admin'), comm('2')]);
-    expect(q.map(x => x.label)).toEqual(['Anotarme', 'Crear partido', 'Ranking']);
-    expect(q[0]).toMatchObject({ href: '#/c/c2/m/m1', main: true });
-    expect(q[1].href).toBe('#/c/c1');     // admin en otra comunidad
-    expect(q[2].href).toBe('#/c/c2/ranking'); // la del próximo partido
+  it('no repite el "Anotarme" del cartel del próximo partido', () => {
+    const q = quickActions(nx('m1', '2'), [comm('1', 'admin'), comm('2')]);
+    expect(q.map(x => x.label)).toEqual(['Crear partido', 'Ranking', 'Chat']);
+    expect(q.some(x => /m\/m1/.test(x.href))).toBe(false);
+    expect(q[0].href).toBe('#/c/c1');          // admin en otra comunidad
+    expect(q[1].href).toBe('#/c/c2/ranking');  // la del próximo partido
+    expect(q[2].href).toBe('#/c/c2/chat');
   });
-  it('ya anotado o lista cerrada', () => {
-    expect(quickActions(nx('m', '1'), { taken: 1, waiting: 0, mine: 'in' }, [comm('1')])[0]).toMatchObject({ label: 'Ver lista', main: false });
-    expect(quickActions(nx('m', '1', 'closed'), null, [comm('1')])[0]).toMatchObject({ label: 'Ver partido', main: false });
+  it('un miembro (sin comunidades propias) ve ranking y chat de su comunidad', () => {
+    const q = quickActions(nx('m', '1', 'closed'), [comm('1')]);
+    expect(q.map(x => x.label)).toEqual(['Ranking', 'Chat']);
+    expect(q.map(x => x.href)).toEqual(['#/c/c1/ranking', '#/c/c1/chat']);
+  });
+  it('sin próximo partido usa la primera comunidad', () => {
+    expect(quickActions(null, [comm('7', 'owner'), comm('8')]).map(x => x.href)).toEqual(['#/c/c7', '#/c/c7/ranking', '#/c/c7/chat']);
   });
 });

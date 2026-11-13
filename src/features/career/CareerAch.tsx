@@ -23,14 +23,14 @@ export function AchScreen({ ach, onBack }: { ach: AchStats; onBack: () => void }
         <div class="cr-prog big" role="progressbar" aria-valuemin={0} aria-valuemax={ACH_TOTAL} aria-valuenow={n} aria-label="Logros desbloqueados"><i style={`width:${Math.round((n / ACH_TOTAL) * 100)}%`} /></div>
         <p class="muted cr-ach-sub">{ach.careersStarted} {ach.careersStarted === 1 ? 'carrera arrancada' : 'carreras arrancadas'} · {ach.careersFinished} {ach.careersFinished === 1 ? 'terminada' : 'terminadas'} · {ach.seasonsPlayed} {ach.seasonsPlayed === 1 ? 'temporada' : 'temporadas'} · {ach.titlesWon} {ach.titlesWon === 1 ? 'título' : 'títulos'}</p>
       </header>
-      <section class="card cr-recs" aria-label="Récords">
+      <section class="cr-card2 cr-recs" aria-label="Récords">
         <h2 class="cr-h">Récords</h2>
         <ul class="cr-rec-list">
           {REC_KEYS.map(k => <li><span class="cr-rec-k">{REC_LABEL[k]}</span><b>{ach.rec[k] ? (k === 'val' ? fmtEuro(ach.rec[k]) : ach.rec[k]) : '—'}</b></li>)}
         </ul>
         {ach.streak.n > 0 && <p class="muted cr-rec-streak">🔥 Racha del desafío: {ach.streak.n} {ach.streak.n === 1 ? 'día' : 'días'} · la más larga: {ach.maxStreak}</p>}
       </section>
-      <section class="card cr-recs" aria-label="Desbloqueables">
+      <section class="cr-card2 cr-recs" aria-label="Desbloqueables">
         <h2 class="cr-h">Desbloqueables</h2>
         <ul class="cr-cos-list">
           {COSMETICS.map(c => { const on = isUnlocked(ach, c.ach), a = ACHIEVEMENTS.find(x => x.id === c.ach); return <li class={on ? 'on' : 'off'}><span class="cr-cos-dot" style={`background:${c.color}`} aria-hidden="true" /><span>{c.label}<small class="muted">{on ? ' · ¡tuyo!' : ` · con "${a?.title ?? ''}"`}</small></span></li>; })}
@@ -61,15 +61,15 @@ export function AchToast({ ids, onDone }: { ids: readonly string[]; onDone: () =
   const id = ids[0];
   useEffect(() => {
     if (!id) return;
-    const t = setTimeout(onDone, 4200);
+    const t = setTimeout(onDone, 3800);
     return () => clearTimeout(t);
   }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
   const a = ACHIEVEMENTS.find(x => x.id === id);
   if (!a) return null;
   return (
     <div class={`cr-toast ${a.tier}`} role="status" aria-live="polite" onClick={onDone}>
-      <span class="cr-toast-ico" aria-hidden="true">{a.icon}</span>
-      <span><small>¡Logro desbloqueado!</small><b>{a.title}</b>{unlockedBy(a.id).map(c => <small class="cr-toast-cos">Desbloqueaste: {c.label}</small>)}</span>
+      <span class="cr-medal" aria-hidden="true"><span class="cr-medal-in"><i>{a.icon}</i></span></span>
+      <span class="cr-toast-t"><small>¡Logro desbloqueado!</small><b>{a.title}</b>{unlockedBy(a.id).map(c => <small class="cr-toast-cos">Desbloqueaste: {c.label}</small>)}</span>
     </div>
   );
 }

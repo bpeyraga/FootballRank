@@ -13,17 +13,17 @@ import {
 } from './careerSetup';
 import { marketValue } from './careerValue';
 import { CHAMP_NEXT, CWC_CONTS, cupRun, eliminatedAt, nationalSeason, oneOff, runTournament, seasonAwards, winOdds, type Run } from './careerComps';
-import { buildFinal, drawEvents } from './careerEvents';
+import { CALL_WEAR, buildFinal, drawDecision } from './careerEvents';
+import { headlineOf, milesOf, nearOf } from './careerStory';
 import { isDay } from './careerDaily';
 import { Rng, seedState } from './careerRng';
-import type { Best, Career, ContId, StartOpts, DPos, EventInst, Fx, Legacy, LeagueId, Mods, NewCareerOpts, SeasonLog, Severity, Totals } from './careerTypes';
+import type { Best, Career, ContId, StartOpts, DPos, EventInst, Fx, Kind, Legacy, LeagueId, Mods, NewCareerOpts, SeasonLog, Severity, Totals } from './careerTypes';
 import {
   CLUB_BY_NAME, CONTS, INTL, LEAGUES, betterCont, finishRank, isCont, isClubWorldCupYear, isLeague, isU20Year, leagueAvg, qualByStrength, qualFor,
   sizeOf, tierOf, youthClub,
 } from './careerWorld';
 
 export { ageCurve, careerOvr, cardTier, MAX_AGE, MAX_STAT, MIN_STAT, RETIRE_FROM, START_AGE } from './careerBase';
-export { fxTags } from './careerEvents';
 export * from './careerTypes';
 
 const clone = <T,>(x: T): T => JSON.parse(JSON.stringify(x));
@@ -96,11 +96,11 @@ export function newCareer(o: NewCareerOpts): Career {
   const name = o.name.trim().slice(0, 24) || 'Crack';
   const daily = isDay(o.daily) ? o.daily : undefined;
   const base: Career = {
-    v: 3, seed: o.seed >>> 0, rng: r.s, y0, diff, nat, foot, name, surname: cleanSurname(o.surname ?? '') || cleanSurname(name.split(' ').pop() ?? '') || 'CRACK',
+    v: 4, seed: o.seed >>> 0, rng: r.s, y0, diff, nat, foot, name, surname: cleanSurname(o.surname ?? '') || cleanSurname(name.split(' ').pop() ?? '') || 'CRACK',
     num: cleanNum(o.num, dpos), pos, dpos, dpos0: dpos, style: style.id, fromCard: !!o.card,
     stats, potential, rate: (potential - ovr0) / remainingGrowth(START_AGE), age: START_AGE,
     club: youthClub(home), home: home.name, loan: null, qual: null, stint: 0, captain: false, trust: 0, returned: false, returning: false, lastInjury: null,
-    phase: 'decide', queue: [], mods: { ...NO_MODS }, notes: [], picks: [], history: [], retire: null, ...(daily ? { daily } : {}),
+    phase: 'decide', queue: [], mods: { ...NO_MODS }, notes: [], picks: [], pk: null, last: '', history: [], retire: null, ...(daily ? { daily } : {}),
     ...(typeof o.aid === 'number' && Number.isFinite(o.aid) ? { aid: o.aid >>> 0 } : {}),
   };
   const c = startSeason(base, r);
@@ -119,7 +119,12 @@ function startSeason(c0: Career, r: Rng): Career {
     c.qual = qualByStrength(c.club);
   }
   c.mods = { ...NO_MODS };
-  c.queue = drawEvents(c, r);
+  const d = drawDecision(c, r);
+  c.queue = [d.ev];
+  // Si te convocan y la decisión es otra, vas igual: con el desgaste que eso trae
+  if (d.cap) { c.mods.cap = true; c.mods.injury += CALL_WEAR; }
+  if (d.oly) { c.mods.oly = true; c.mods.injury += 0.02; }
+  c.pk = null;
   c.lastInjury = null;
   c.phase = 'decide';
   c.rng = r.s;
@@ -128,7 +133,9 @@ function startSeason(c0: Career, r: Rng): Career {
 
 // ---------- Decisiones ----------
 
-function applyFx(c: Career, fx: Fx, r: Rng) {
+/** Aplica lo que hace una opción. Devuelve cómo salió la apuesta (true = bien, false = mal) o null si no había. */
+let gambleSaid = '';
+function applyFx(c: Career, fx: Fx, r: Rng): boolean | null {
   const m = c.mods;
   m.growth += fx.growth ?? 0; m.injury += fx.injury ?? 0; m.minutes += fx.minutes ?? 0; m.form += fx.form ?? 0; m.team += fx.team ?? 0;
   if (fx.cap !== undefined) m.cap = fx.cap;
@@ -157,9 +164,12 @@ function applyFx(c: Career, fx: Fx, r: Rng) {
     const ok = r.chance(fx.gamble.p);
     const text = ok ? fx.gamble.okText : fx.gamble.badText;
     if (text) c.notes.push(text);
+    gambleSaid = text;
     const out = ok ? fx.gamble.ok : fx.gamble.bad;
     if (out) applyFx(c, { ...out, gamble: undefined }, r);
+    return ok;
   }
+  return null;
 }
 
 /** Elegís una opción de la decisión actual. Con la última, se juega la temporada. */
@@ -170,8 +180,11 @@ export function choose(c0: Career, optionId: string): Career {
   if (!opt) return c0;
   const c = clone(c0);
   const r = new Rng(c.rng);
-  applyFx(c, opt.fx, r);
+  gambleSaid = '';
+  const ok = applyFx(c, opt.fx, r);
   c.picks.push(opt.label);
+  c.pk = { ev: c0.queue[0].id, kind: opt.kind, ok, say: ok === null ? '' : gambleSaid };
+  c.last = c0.queue[0].id;
   c.queue.shift();
   if (!c.queue.length) playSeason(c, r);
   c.rng = r.s;
@@ -353,7 +366,9 @@ function playSeason(c: Career, r: Rng) {
     role: roleLabel(pj > 0 ? share : 0), trophies, awards, caps: nat.caps, capGoals: nat.capGoals, capAssists: nat.capAssists, tours: nat.tours, injury,
     promo: next === club ? null : next.lg === 'ar1' ? 'up' : 'down', captain: c.captain,
     val: marketValue({ ovr: ovr1, age, potential: c.potential, lg: club.lg, tier, rating }), picks: [...c.picks], lines,
+    ev: c.pk?.ev ?? '', kind: c.pk?.kind ?? null, risk: c.pk && c.pk.ok !== null ? (c.pk.ok ? 'ok' : 'bad') : null, say: c.pk?.say ?? '', head: '', near: '', miles: [],
   });
+  c.pk = null;
   c.stint += 1;
   if (c.returning) { c.returned = true; c.returning = false; }
   c.lastInjury = injury;
@@ -375,7 +390,13 @@ function playSeason(c: Career, r: Rng) {
     };
     c.phase = 'decide';
     c.queue = [buildFinal(c.tension, c)];
-  }
+  } else decorate(c);
+}
+
+/** Lo que se cuenta de la temporada que cerró: el titular, los hitos y lo que quedó cerca. */
+function decorate(c: Career) {
+  const h = c.history[c.history.length - 1];
+  h.miles = milesOf(c); h.head = headlineOf(c); h.near = nearOf(c);
 }
 
 /** Resuelve la final con la decisión de último momento: el resultado sale de la misma chance que muestra la opción. */
@@ -385,10 +406,11 @@ function resolveFinal(c0: Career, optionId: string): Career {
   const c = clone(c0);
   const r = new Rng(c.rng);
   const h = c.history[c.history.length - 1];
-  let dp = opt.fx.fin ?? 0;
+  let dp = opt.fx.fin ?? 0, penalty: boolean | null = null;
   const g = opt.fx.gamble;
   if (g) {
     const ok = r.chance(g.p);
+    penalty = ok;
     dp += (ok ? g.ok?.fin : g.bad?.fin) ?? 0;
     h.lines.push(`🎯 ${ok ? g.okText : g.badText}`);
   }
@@ -401,6 +423,7 @@ function resolveFinal(c0: Career, optionId: string): Career {
     if (t.kind === 'cont' && t.mvp && credit && r.chance(0.4 * DIFFS[c.diff].awards)) h.awards.push(contMvp(t.name));
   } else h.lines.push(t.kind === 'cont' ? `🥈 Perdiste la final de la ${t.name}.` : `🥈 Tu equipo perdió la final de la ${t.name}.`);
   h.picks = [...h.picks, opt.label];
+  if (penalty !== null) { h.ev = 'final'; h.kind = 'risky'; h.risk = penalty ? 'ok' : 'bad'; }
   if (!(h.promo === 'down')) {
     c.qual = nextQual(c, t.lg, t.rank, t.kind === 'cup' ? won : t.cupWon, t.extraWon, t.kind === 'cont' && won ? ({ won: true } as Run) : null, t.cid);
   }
@@ -409,6 +432,7 @@ function resolveFinal(c0: Career, optionId: string): Career {
   c.phase = 'result';
   c.notes = h.lines;
   c.rng = r.s;
+  decorate(c);
   return c;
 }
 
@@ -507,22 +531,6 @@ export function tally(names: readonly string[], pts: Record<string, number> = {}
   return [...m].sort((a, b) => (pts[b[0]] ?? 0) - (pts[a[0]] ?? 0) || b[1] - a[1]);
 }
 
-/** El titular de la temporada, según lo que pasó. */
-export function seasonTitle(h: SeasonLog): string {
-  if (h.awards.includes(AWARD.ballon)) return '¡Ganaste el Balón de Oro!';
-  if (h.trophies.includes(INTL.worldCup.name)) return '¡Campeón del mundo!';
-  if (h.trophies.includes(CONTS.cl.name)) return '¡Campeón de Europa!';
-  if (h.trophies.includes(CONTS.lib.name)) return '¡Campeón de América!';
-  if (NAT_CUP_LIST.some(t => h.trophies.includes(t.name)) || h.trophies.includes(INTL.olympics.name)) return '¡Campeón con la Selección!';
-  if (h.trophies.length >= 2) return 'Temporada de ensueño';
-  if (h.trophies.length === 1) return '¡Saliste campeón!';
-  if (h.injury === 'grave') return 'Un año para el olvido';
-  if (h.pj < 6) return 'Casi no jugaste';
-  if (h.rating >= 8) return 'Una temporada brillante';
-  if (h.rating >= 7.2) return 'Una buena temporada';
-  return 'Una temporada pareja';
-}
-
 /** De 1 a 5 estrellas: lo que dicen los ojeadores de hasta dónde podés llegar. */
 export const potentialStars = (potential: number): number => (potential < 66 ? 1 : potential < 73 ? 2 : potential < 80 ? 3 : potential < 87 ? 4 : 5);
 
@@ -579,25 +587,61 @@ function validFx(x: unknown, depth = 0): boolean {
   return true;
 }
 
-const validEvent = (e: unknown): boolean =>
-  isObj(e) && typeof e.id === 'string' && typeof e.title === 'string' && typeof e.text === 'string' && Array.isArray(e.options) && e.options.length > 0
-  && e.options.every(o => isObj(o) && typeof o.id === 'string' && typeof o.label === 'string' && typeof o.hint === 'string' && validFx(o.fx));
+const validOpt = (o: unknown, kind: Kind): boolean =>
+  isObj(o) && o.id === kind && o.kind === kind && typeof o.icon === 'string' && typeof o.label === 'string' && typeof o.up === 'string'
+  && (o.down === undefined || typeof o.down === 'string') && (o.club === undefined || typeof o.club === 'string') && validFx(o.fx);
 
-const validLog = (h: unknown): boolean =>
+/** Una decisión tiene que tener exactamente dos opciones: la segura y la arriesgada (con su apuesta). */
+const validEvent = (e: unknown): boolean =>
+  isObj(e) && typeof e.id === 'string' && typeof e.icon === 'string' && typeof e.title === 'string' && typeof e.text === 'string' && Array.isArray(e.options) && e.options.length === 2
+  && validOpt(e.options[0], 'safe') && validOpt(e.options[1], 'risky') && !!(e.options[1] as { fx: Fx }).fx.gamble;
+
+/** La parte del historial que ya existía en la versión 3. */
+const validLogBase = (h: unknown): boolean =>
   isObj(h) && [h.n, h.age, h.ovr0, h.ovr, h.pj, h.goals, h.assists, h.cs, h.rating, h.caps, h.capGoals, h.capAssists, h.fin, h.val].every(finite) && isTier(h.tier) && isLeague(h.lg)
   && typeof h.club === 'string' && typeof h.cont === 'string' && typeof h.role === 'string' && typeof h.captain === 'boolean'
   && isStrs(h.trophies) && isStrs(h.awards) && isStrs(h.picks) && isStrs(h.lines) && isStrs(h.tours) && (h.injury === null || SEVERITIES.includes(h.injury as string))
   && (h.promo === null || h.promo === 'up' || h.promo === 'down');
 
+const validLog = (h: unknown): boolean =>
+  validLogBase(h) && isObj(h) && typeof h.ev === 'string' && (h.kind === null || h.kind === 'safe' || h.kind === 'risky') && (h.risk === null || h.risk === 'ok' || h.risk === 'bad')
+  && typeof h.say === 'string' && typeof h.head === 'string' && typeof h.near === 'string' && isStrs(h.miles);
+
 const validTension = (t: unknown): boolean =>
   isObj(t) && (t.kind === 'cont' || t.kind === 'cup') && typeof t.name === 'string' && (t.cid === null || isCont(t.cid)) && [t.p, t.mine, t.opp, t.rank].every(finite)
   && typeof t.cupWon === 'boolean' && typeof t.extraWon === 'boolean' && typeof t.mvp === 'boolean' && isLeague(t.lg);
 
-/** Valida una carrera leída del storage (puede venir vieja, rota o tocada a mano). null si no sirve. Las de versiones anteriores se descartan. */
+/**
+ * Una carrera de la versión 3 (varias decisiones por temporada) pasa a la 4: el historial se completa con titulares e hitos, y lo que estaba por decidirse
+ * se vuelve a sortear con el formato nuevo (si había una final pendiente, se juega con calma). Siempre devuelve algo jugable.
+ */
+function migrate(c3: Omit<Career, 'v'> & { v: number }): Career {
+  const c = { ...c3, v: 4 as const, queue: [] as EventInst[], picks: [] as string[], pk: null, last: '', mods: { ...NO_MODS } } as Career;
+  const base = c3.history as unknown as SeasonLog[];
+  c.history = [];
+  for (const h of base) {
+    c.history.push({ ...h, ev: '', kind: null, risk: null, say: '', head: '', near: '', miles: [] });
+    const cur = c.history[c.history.length - 1];
+    cur.miles = milesOf(c); cur.head = headlineOf(c); cur.near = nearOf(c);
+  }
+  if (c.phase === 'over') return c;
+  if (c.phase === 'result') { c.tension = null; return c; }
+  if (c.tension) {
+    c.queue = [buildFinal(c.tension, c)];
+    return resolveFinal(c, 'safe');
+  }
+  const r = new Rng(c.rng), d = drawDecision(c, r);
+  c.queue = [d.ev]; c.rng = r.s;
+  if (d.cap) { c.mods.cap = true; c.mods.injury += CALL_WEAR; }
+  if (d.oly) { c.mods.oly = true; c.mods.injury += 0.02; }
+  return c;
+}
+
+/** Valida una carrera leída del storage (puede venir vieja, rota o tocada a mano). null si no sirve. Las de la versión 3 se migran; las anteriores se descartan. */
 export function parseCareer(raw: unknown): Career | null {
   try {
-    const c = (typeof raw === 'string' ? JSON.parse(raw) : raw) as Career | null;
-    if (!isObj(c) || c.v !== 3) return null;
+    const c = (typeof raw === 'string' ? JSON.parse(raw) : raw) as (Omit<Career, 'v'> & { v: number }) | null;
+    if (!isObj(c) || (c.v !== 3 && c.v !== 4)) return null;
     if (c.daily !== undefined && !isDay(c.daily)) return null;
     if (c.aid !== undefined && !finite(c.aid)) return null;
     if (c.tension !== undefined && c.tension !== null && !validTension(c.tension)) return null;
@@ -621,19 +665,26 @@ export function parseCareer(raw: unknown): Career | null {
     if (c.qual !== null && (!isCont(c.qual) || CONTS[c.qual].conf !== LEAGUES[c.club.lg].conf)) return null;
     if (!Array.isArray(c.history) || !Array.isArray(c.queue) || !isStrs(c.notes) || !isStrs(c.picks)) return null;
     if (!isObj(c.mods) || ['growth', 'injury', 'minutes', 'form', 'team'].some(k => !finite((c.mods as any)[k])) || typeof c.mods.cap !== 'boolean' || typeof c.mods.oly !== 'boolean') return null;
-    if (!c.queue.every(validEvent) || !c.history.every(validLog)) return null;
-    if (c.phase === 'decide' && !c.queue.length) return null;
+    if (c.v === 4 && !c.queue.every(validEvent)) return null;
+    if (!c.history.every(c.v === 4 ? validLog : validLogBase)) return null;
+    if (c.v === 4 && c.last !== undefined && typeof c.last !== 'string') return null;
+    if (c.v === 3 && c.phase === 'decide' && !c.queue.length && !c.tension) return null;
+    if (c.v === 4 && c.phase === 'decide' && !c.queue.length) return null;
     // Sin temporadas jugadas no hay resultado que mostrar
     if (c.phase === 'result' && !c.history.length) return null;
-    return c;
+    if (c.tension && !c.history.length) return null;
+    return c.v === 3 ? migrate(c) : (c as Career);
   } catch { return null; }
 }
 
 // ---------- Para tests y para balancear: jugar una carrera sola ----------
 
 export type Picker = (c: Career, ev: EventInst, r: Rng) => string;
-/** Elige al azar entre las opciones. */
+/** Elige al azar entre las dos opciones. */
 export const randomPicker: Picker = (_c, ev, r) => r.pick(ev.options).id;
+/** Siempre el camino seguro / siempre el arriesgado (para balancear). */
+export const safePicker: Picker = () => 'safe';
+export const riskyPicker: Picker = () => 'risky';
 
 /** Juega una carrera entera con un criterio de decisión (por defecto, al azar). Con `retireAt`, se retira a esa edad. */
 export function simulateRun(seed: number, o: {

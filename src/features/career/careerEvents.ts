@@ -1,14 +1,14 @@
-// "De potrero a leyenda": las situaciones que se te plantean cada temporada. Puro: reciben el estado y el generador, devuelven datos.
-// Las ofertas salen de los clubes reales de careerWorld, siempre cerca del nivel que tenés.
+// "De potrero a leyenda": las decisiones de cada temporada. Una sola por año, con dos caminos: el seguro y el que se la juega.
+// Puro: reciben el estado y el generador, devuelven datos. Las ofertas salen de los clubes reales de careerWorld, siempre cerca del nivel que tenés.
 import { SWITCH_TO } from './careerData';
-import { careerOvr, expectedRole, seasonYear } from './careerBase';
+import { careerOvr, clamp, expectedRole, seasonYear } from './careerBase';
 import { natTournament } from './careerComps';
 import { nationOf } from './careerNations';
 import type { Rng } from './careerRng';
 import { DIFFS, DPOS_LABEL, FOOT_OFFER, dposFor } from './careerSetup';
-import type { Career, Club, EventInst, Fx, LeagueId, Opt, Tension } from './careerTypes';
+import type { Career, Club, EventInst, Fx, Kind, LeagueId, Opt, Stage, Tension } from './careerTypes';
 import { fmtEuro, marketValue } from './careerValue';
-import { CLUBS, CLUB_BY_NAME, LEAGUES, asClub, clubNamed, isOlympicYear, strLabel, type ClubDef } from './careerWorld';
+import { CLUBS, CLUB_BY_NAME, LEAGUES, asClub, clubNamed, isOlympicYear, type ClubDef } from './careerWorld';
 
 /**
  * Chance de que tu Selección te convoque esta temporada: sube con el OVR, el club (más en los de élite) y la vidriera de su liga,
@@ -29,17 +29,29 @@ export function olyChance(c: Career, ovr: number): number {
   return 1 / (1 + Math.exp(-(ovr + bonus - (pw - 20.5)) / 4));
 }
 
-type Group = 'club' | 'train' | 'career';
-interface Ev {
-  id: string; group: Group;
-  /** 0 = no aplica; 50 o más = obligatorio esa temporada. */
-  weight: (c: Career, ovr: number) => number;
-  build: (c: Career, r: Rng, ovr: number) => EventInst;
+/** La etapa de la carrera en la que estás. */
+export function stageOf(c: Pick<Career, 'age' | 'club' | 'stint' | 'history'>): Stage {
+  if (c.club.tier === 0 && c.age < 19) return 'inferiores';
+  if (c.club.tier === 0 || !c.history.some(h => h.lg !== 'inf')) return 'debut';
+  if (c.age <= 24) return 'consolidacion';
+  if (c.age <= 29) return 'pico';
+  if (c.age <= 33) return 'veteranía';
+  return 'retiro';
 }
+export const STAGE_LABEL: Record<Stage, string> = { inferiores: 'Inferiores', debut: 'Debut', consolidacion: 'Consolidación', pico: 'Pico', veteranía: 'Veteranía', retiro: 'Retiro' };
+
+// ---------- Ayudas ----------
+
+/** La dificultad hace más probable que las apuestas salgan mal. */
+const RISK_ADJ = { normal: 0, intenso: -0.04, experto: -0.08 } as const;
+const P = (c: Career, p: number) => clamp(p + RISK_ADJ[c.diff], 0.15, 0.92);
+
+const safe = (icon: string, label: string, up: string, fx: Fx, club?: string): Opt => ({ id: 'safe', kind: 'safe', icon, label, up, fx, ...(club ? { club } : {}) });
+const risky = (icon: string, label: string, up: string, down: string, fx: Fx, club?: string): Opt => ({ id: 'risky', kind: 'risky', icon, label, up, down, fx, ...(club ? { club } : {}) });
+const ev = (id: string, icon: string, title: string, text: string, a: Opt, b: Opt): EventInst => ({ id, icon, title, text, options: [a, b] });
 
 const used = (c: Career) => [c.club.name, c.home, ...(c.loan ? [c.loan.name] : []), ...c.history.map(h => h.club)];
 const homeClub = (c: Career): Club => clubNamed(c.home) ?? { name: c.home, tier: 2, pw: 66, lg: 'ar1' };
-const country = (c: Club) => LEAGUES[c.lg].country;
 /** El país donde jugás en un club: el de su liga (y, en las inferiores, el de la liga del club de origen). */
 export const clubCountry = (c: Club): string => (c.lg === 'inf' ? LEAGUES[CLUB_BY_NAME.get(c.name)?.lg ?? 'ar1'].country : LEAGUES[c.lg].country);
 /** Ligas de tu país donde podés probarte al debutar (las del club donde te criaste). */
@@ -50,6 +62,18 @@ const homeLeagues = (c: Career): LeagueId[] => {
 /** Ligas donde podés dar el salto desde tus inferiores: las de tu región. */
 const UP_LEAGUES: Record<string, readonly LeagueId[]> = {
   conmebol: ['ar1', 'br', 'uy', 'cl', 'co', 'py', 'ec'], uefa: ['en', 'es', 'it', 'de', 'fr', 'pt', 'nl', 'tr'], concacaf: ['mx', 'us'], afc: ['sa'], caf: ['fr', 'es', 'pt'],
+};
+
+/** Los clásicos: cada club con su eterno rival (el que, si te ficha, te hace pasar de héroe a traidor). */
+export const RIVALS: Readonly<Record<string, string>> = {
+  'Boca Juniors': 'River Plate', 'River Plate': 'Boca Juniors', 'Racing Club': 'Independiente', 'Independiente': 'Racing Club',
+  'San Lorenzo': 'Huracán', 'Huracán': 'San Lorenzo', "Newell's Old Boys": 'Rosario Central', 'Rosario Central': "Newell's Old Boys",
+  'Estudiantes de La Plata': 'Gimnasia de La Plata', 'Gimnasia de La Plata': 'Estudiantes de La Plata', 'Talleres': 'Belgrano', 'Belgrano': 'Talleres',
+  'Banfield': 'Lanús', 'Lanús': 'Banfield', 'Peñarol': 'Nacional de Montevideo', 'Nacional de Montevideo': 'Peñarol',
+  'Flamengo': 'Fluminense', 'Fluminense': 'Flamengo', 'Palmeiras': 'Corinthians', 'Corinthians': 'Palmeiras', 'Grêmio': 'Internacional', 'Internacional': 'Grêmio',
+  'Colo-Colo': 'Universidad de Chile', 'Universidad de Chile': 'Colo-Colo', 'Olimpia': 'Cerro Porteño', 'Cerro Porteño': 'Olimpia',
+  'Real Madrid': 'Barcelona', 'Barcelona': 'Real Madrid', 'Inter': 'Milan', 'Milan': 'Inter', 'Arsenal': 'Tottenham', 'Tottenham': 'Arsenal',
+  'Manchester City': 'Manchester United', 'Manchester United': 'Manchester City', 'Benfica': 'Sporting Lisboa', 'Sporting Lisboa': 'Benfica',
 };
 
 // ---------- Elegir clubes ----------
@@ -81,358 +105,327 @@ export function pickClub(r: Rng, w: Want): Club {
   return asClub(d);
 }
 
-/** "Premier League · Mitad de tabla · Serías titular" y, si es otra liga, cómo es. */
-function offerHint(c: Career, club: Club, ovr: number): string {
+/** Cómo es el club en una palabra o dos: la categoría que ganás o perdés. */
+function clubUp(c: Career, club: Club, ovr: number): string {
   const L = LEAGUES[club.lg];
-  const base = `${L.name} · ${strLabel(club)} · ${expectedRole(ovr - club.pw)}`;
-  const toEurope = L.conf === 'uefa' && clubCountry(c.club) === 'Argentina' ? ' Pase a Europa.' : '';
-  return club.lg !== c.club.lg && L.flavor ? `${base}.${toEurope} ${L.flavor}` : base;
+  if (L.conf === 'uefa' && clubCountry(c.club) !== L.country && LEAGUES[c.club.lg].conf !== 'uefa') return 'Salto a Europa';
+  if (club.pw >= c.club.pw + 4) return 'Mucho más nivel';
+  if (club.pw >= c.club.pw + 1) return 'Más categoría';
+  return expectedRole(ovr - club.pw);
 }
 
-/**
- * Lo que cambia mudarte a un club: más fuerza = más crecimiento; si te vas a vivir a otro país (que no sea el tuyo), te tenés que adaptar.
- * Cambiar de club dentro del mismo país, o volver al tuyo, no cuesta adaptación.
- */
-function moveFx(c: Career, club: Club, extra: Fx = {}): Fx {
-  const fx: Fx = { move: { club, kind: 'transfer' }, growth: club.pw > c.club.pw + 1 ? 0.15 : club.pw < c.club.pw - 1 ? -0.1 : 0, ...extra };
-  const to = clubCountry(club);
-  if (to !== clubCountry(c.club) && to !== nationOf(c.nat).name && !fx.gamble) {
-    fx.gamble = { p: 0.6, okText: 'Te adaptaste rápido a la nueva vida.', badText: `Te costó adaptarte a ${to}.`, ok: { form: 0.05 }, bad: { minutes: -0.9, form: -0.12 }, okTag: 'Te adaptás rápido', badTag: 'Te cuesta adaptarte' };
-  }
-  return fx;
-}
+/** Lo que cambia mudarte a un club: más fuerza = más crecimiento (el riesgo de adaptación va en la chance de la apuesta). */
+const moveTo = (c: Club, from: Career, extra: Fx = {}): Fx => ({ move: { club: c, kind: 'transfer' }, growth: c.pw > from.club.pw + 1 ? 0.15 : c.pw < from.club.pw - 1 ? -0.1 : 0, ...extra });
+/** Irse a vivir a otro país (que no sea el tuyo) cuesta adaptarse: baja un poco la chance de que salga bien. */
+export const adapt = (c: Career, to: Club): number => {
+  const place = clubCountry(to);
+  return place !== clubCountry(c.club) && place !== nationOf(c.nat).name ? -0.07 : 0;
+};
 
-const EUROPE: readonly LeagueId[] = ['en', 'es', 'it', 'de', 'fr', 'pt', 'nl'];
+// ---------- Las decisiones ----------
+
+interface Ev {
+  id: string;
+  /** 0 = no aplica; 50 o más = obligatorio esa temporada. */
+  weight: (c: Career, ovr: number) => number;
+  build: (c: Career, r: Rng, ovr: number) => EventInst;
+}
 
 const EVENTS: Ev[] = [
   {
-    // La decisión de base de cada temporada: cuánto le ponés al entrenamiento.
-    id: 'plan', group: 'train', weight: () => 3.5,
+    // La base de cada temporada: cuánto le ponés al entrenamiento.
+    id: 'plan', weight: () => 3,
     build: c => {
       const a = c.age;
-      const text = a <= 20 ? 'Sos un pibe y el cuerpo te da para todo. ¿Cómo encarás la temporada?'
-        : a <= 28 ? 'Estás en plena carrera y cada detalle cuenta. ¿Cómo encarás la temporada?'
-          : 'El cuerpo ya no responde como antes. ¿Cómo encarás la temporada?';
       if (a <= 28) {
         const g = a <= 23 ? 0.75 : a <= 26 ? 0.55 : 0.35;
-        return {
-          id: 'plan', title: 'Preparación de la temporada', text,
-          options: [
-            { id: 'train', label: 'Doble turno: entrenar de más', hint: 'Crecés más, pero el cuerpo se resiente.',
-              fx: { growth: g, injury: 0.05, gamble: { p: 0.88, okText: '', badText: 'Te pasaste de rosca y llegaste cansado a los partidos.', bad: { growth: -0.8, form: -0.15 }, badTag: 'Llegás cansado' } } },
-            { id: 'club', label: 'Seguir el plan del club', hint: 'Sin sobresaltos.', fx: {} },
-            { id: 'party', label: 'Salir de joda con los pibes', hint: 'Armás vestuario… mientras nadie te vea.',
-              fx: { growth: -0.5, form: 0.1, team: 0.04, gamble: { p: 0.72, okText: '', badText: 'Te sacaron fotos saliendo del boliche y el DT se enojó.', bad: { minutes: -1.5, trust: -1 }, badTag: 'Te pesca el DT' } } },
-          ],
-        };
+        return ev('plan', '🏋️', 'Pretemporada', a <= 20 ? 'Sos un pibe: el cuerpo aguanta todo.' : 'Cada detalle cuenta este año.',
+          safe('📋', 'Seguir el plan del club', 'Sin sobresaltos', { growth: 0.1 }),
+          risky('💪', 'Doble turno de entrenamiento', 'Crecés más', 'Te pasás de rosca', {
+            growth: g * 1.4, injury: 0.05,
+            gamble: { p: P(c, 0.64), okText: 'Doble turno: llegás volando.', badText: 'Te pasaste de rosca: llegás cansado.', ok: { growth: 0.25 }, bad: { growth: -1, form: -0.2, injury: 0.08 } },
+          }));
       }
-      return {
-        id: 'plan', title: 'Preparación de la temporada', text,
-        options: [
-          { id: 'care', label: 'Cuidar el cuerpo: fisio, dieta y descanso', hint: 'Menos riesgo de lesión; el físico lo agradece.', fx: { injury: -0.07, growth: 0.15 } },
-          { id: 'club', label: 'Seguir el plan del club', hint: 'Sin sobresaltos.', fx: {} },
-          { id: 'train', label: 'Entrenar como un pibe', hint: 'Podés sumar un poco, pero te la jugás.',
-            fx: { growth: 0.4, injury: 0.07, gamble: { p: 0.85, okText: '', badText: 'Te pasó factura: arrancaste la temporada fundido.', bad: { growth: -0.6 }, badTag: 'Arrancás fundido' } } },
-        ],
-      };
+      return ev('plan', '🏋️', 'Pretemporada', 'El cuerpo ya no responde como antes.',
+        safe('🧘', 'Cuidar el cuerpo', 'Menos lesiones', { injury: -0.07, growth: 0.15 }),
+        risky('🔥', 'Entrenar como un pibe', 'Sumás nivel', 'Te rompés', {
+          growth: 0.5, injury: 0.05,
+          gamble: { p: P(c, 0.6), okText: 'Arrancaste como a los veinte.', badText: 'Arrancaste fundido: el cuerpo avisó.', ok: { growth: 0.3 }, bad: { growth: -0.9, injury: 0.1 } },
+        }));
     },
   },
   {
-    id: 'mentor', group: 'train', weight: c => (c.age <= 23 ? 1.5 : 0),
-    build: () => ({
-      id: 'mentor', title: 'Un veterano te tiende una mano',
-      text: 'El capitán del plantel, un veterano de mil batallas, se ofrece a entrenarte aparte después de la práctica.',
-      options: [
-        { id: 'yes', label: 'Dejarte aconsejar', hint: 'Aprendés rápido, si el consejo es bueno.',
-          fx: { growth: 0.55, form: 0.05, gamble: { p: 0.8, okText: 'Aprendiste un montón de sus mañas.', badText: 'Te llenó la cabeza con mañas que no te sirvieron.', bad: { growth: -0.3, form: -0.1 }, okTag: 'Aprendés sus mañas', badTag: 'Mañas que no sirven' } } },
-        { id: 'no', label: 'Ir por tu cuenta', hint: 'Tu camino, tus reglas.', fx: { growth: 0.1 } },
-      ],
-    }),
+    id: 'night', weight: c => (c.age >= 19 && c.age <= 28 && c.club.tier >= 1 ? 1.2 : 0),
+    build: c => ev('night', '🎉', 'Cena con el plantel', 'Los pibes arman una salida. Después, boliche.',
+      safe('🏠', 'Quedarte descansando', 'Cuerpo fresco', { injury: -0.02, growth: 0.1 }),
+      risky('🥂', 'Salir con el plantel', 'Vestuario unido', 'Te pescan', {
+        team: 0.05, form: 0.1,
+        gamble: { p: P(c, 0.65), okText: 'Se armó un grupo bárbaro.', badText: 'Salieron las fotos y el DT te borró.', ok: { team: 0.04 }, bad: { minutes: -1.8, trust: -1, form: -0.1 } },
+      })),
   },
   {
-    id: 'derby', group: 'train', weight: c => (c.club.tier >= 1 ? 1.1 : 0),
-    build: () => ({
-      id: 'derby', title: 'Se viene el clásico',
-      text: 'El tobillo te molesta justo antes del clásico. El DT te deja la decisión a vos.',
-      options: [
-        { id: 'play', label: 'Jugarlo infiltrado', hint: 'Si sale bien, sos el héroe. Si no, te cuesta.',
-          fx: { form: 0.2, team: 0.07, injury: 0.08, gamble: { p: 0.45, okText: 'Fuiste el héroe del clásico.', badText: '', ok: { form: 0.25, team: 0.05 }, bad: {}, okTag: 'Héroe del clásico' } } },
-        { id: 'rest', label: 'Cuidarte y mirarlo desde el banco', hint: 'Menos riesgo; el equipo te extraña.', fx: { injury: -0.03, team: -0.03 } },
-      ],
-    }),
+    id: 'hype', weight: (c, ovr) => (c.age <= 24 && ovr >= 58 && c.club.tier >= 1 ? 1.1 : 0),
+    build: c => ev('hype', '📣', 'La prensa habla de vos', 'Te comparan con un crack. ¿Cómo lo llevás?',
+      safe('🧊', 'Bajar el perfil', 'Cabeza fría', { growth: 0.2, form: 0.03 }),
+      risky('📢', 'Subirte al personaje', 'Pura confianza', 'Se te sube', {
+        form: 0.12,
+        gamble: { p: P(c, 0.55), okText: 'Jugás con una confianza enorme.', badText: 'Se te subió a la cabeza.', ok: { form: 0.2, growth: 0.4 }, bad: { form: -0.3, minutes: -0.6, trust: -1 } },
+      })),
+  },
+  {
+    id: 'derby', weight: c => (c.club.tier >= 1 ? 1.3 : 0),
+    build: c => ev('derby', '🔥', 'Se viene el clásico', 'Te molesta el tobillo. Elegís vos.',
+      safe('🪑', 'Mirarlo desde el banco', 'Cuidás el cuerpo', { injury: -0.03, team: -0.03 }),
+      risky('💉', 'Jugarlo infiltrado', 'Gloria eterna', 'Te lesionás', {
+        form: 0.1, team: 0.05, injury: 0.06,
+        gamble: { p: P(c, 0.5), okText: 'Fuiste el héroe del clásico.', badText: 'Se te hinchó el tobillo en el clásico.', ok: { form: 0.25, team: 0.08 }, bad: { form: -0.1, injury: 0.1 } },
+      })),
   },
   {
     // Fin de las inferiores: obligatorio a los 19 (o antes, si ya sos de los mejores).
-    id: 'debut', group: 'club', weight: (c, ovr) => (c.club.tier !== 0 ? 0 : c.age >= 19 ? 100 : c.age >= 18 && ovr >= 57 ? 4 : ovr >= 59 ? 3 : 0),
+    id: 'debut', weight: (c, ovr) => (c.club.tier !== 0 ? 0 : c.age >= 19 ? 100 : c.age >= 18 && ovr >= 57 ? 4 : ovr >= 59 ? 3 : 0),
     build: (c, r, ovr) => {
-      const avoid = used(c);
-      const home = homeClub(c);
-      const other = pickClub(r, { target: Math.max(home.pw, ovr + 4), sd: 4, leagues: homeLeagues(c), avoid, age: c.age });
-      const opts: Opt[] = [
-        { id: 'home', label: `Debutar en ${home.name}`, hint: offerHint(c, home, ovr), fx: { move: { club: home, kind: 'transfer' }, growth: 0.1 } },
-        { id: 'other', label: `Probarte en ${other.name}`, hint: offerHint(c, other, ovr), fx: moveFx(c, other) },
-      ];
-      if (ovr >= 60) {
-        const up = pickClub(r, { target: ovr + 7, sd: 4, leagues: UP_LEAGUES[LEAGUES[home.lg].conf] ?? homeLeagues(c), avoid: [...avoid, other.name], age: c.age });
-        opts.push({ id: 'up', label: `Dar el salto a ${up.name}`, hint: offerHint(c, up, ovr), fx: moveFx(c, up, { growth: 0.2 }) });
-      }
-      return {
-        id: 'debut', title: c.age >= 19 ? 'Se terminaron las inferiores' : '¡Te quieren en el plantel profesional!',
-        text: `Es hora de dar el salto al fútbol de verdad. ¿Dónde querés debutar, ${c.name}?`, options: opts,
-      };
+      const avoid = used(c), home = homeClub(c);
+      const up = pickClub(r, {
+        target: Math.max(home.pw + 3, ovr + 6), sd: 4, leagues: ovr >= 60 ? UP_LEAGUES[LEAGUES[home.lg].conf] ?? homeLeagues(c) : homeLeagues(c), avoid, age: c.age,
+      });
+      return ev('debut', '🌟', c.age >= 19 ? 'Se acabaron las inferiores' : '¡Te quieren en Primera!', 'Hora de debutar como profesional.',
+        safe('🏠', `Debutar en ${home.name}`, 'Tu casa, tus minutos', { move: { club: home, kind: 'transfer' }, growth: 0.1 }, home.name),
+        risky('🚀', `Dar el salto a ${up.name}`, clubUp(c, up, ovr), 'Se cae el pase', {
+          gamble: {
+            p: P(c, 0.62 + adapt(c, up)), okText: `Te firmaron en ${up.name}.`, badText: `Se cayó el pase: volvés a ${home.name}.`,
+            ok: moveTo(up, c, { growth: 0.3 }), bad: { move: { club: home, kind: 'transfer' }, minutes: -0.9, growth: -0.1 },
+          },
+        }, up.name));
     },
   },
   {
-    id: 'transfer', group: 'club',
+    id: 'transfer',
     weight: (c, ovr) => {
       if (c.club.tier === 0 || c.age < 19 || c.stint < 1 || c.loan) return 0;
-      const gap = ovr + 2 - c.club.pw;
-      const deals = DIFFS[c.diff].deals;
-      if (gap >= 4) return (5 + Math.min(6, (gap - 4) * 0.7)) * deals;
+      const gap = ovr + 2 - c.club.pw, deals = DIFFS[c.diff].deals;
+      if (gap >= 4) return (5.5 + Math.min(6, (gap - 4) * 0.7)) * deals;
       if (ovr < c.club.pw - 7) return 3.5 * deals;
-      return 1.2 * deals;
+      return 1.5 * deals;
     },
     build: (c, r, ovr) => {
-      // Hasta tres tipos de oferta: una más arriba de lo que das, una justa y una más cómoda.
       const lift = DIFFS[c.diff].offers + FOOT_OFFER[c.foot]; // la dificultad y el pie mueven el nivel de los clubes que te quieren
-      const slots: [number, number][] = [[ovr + 5 + lift, 0.6], [ovr + lift, 0.85], [ovr - 5 + lift, 0.5]];
-      const k = r.int(1, 3);
-      const targets: number[] = [];
-      for (let i = 0; i < k; i++) {
-        const t = r.weighted(slots.filter(([x]) => !targets.includes(x)).map(([x, w]) => [x, w] as const));
-        if (t !== undefined) targets.push(t);
-      }
-      const avoid = used(c);
-      const conf = nationOf(c.nat).conf;
-      const clubs = targets.map(t => { const club = pickClub(r, { target: t, avoid, age: c.age, conf }); avoid.push(club.name); return club; }).sort((a, b) => b.pw - a.pw);
-      const opts: Opt[] = clubs.map((club, i) => ({ id: `o${i}`, label: `Fichar por ${club.name}`, hint: offerHint(c, club, ovr), fx: moveFx(c, club) }));
-      opts.push({ id: 'stay', label: `Quedarte en ${c.club.name}`, hint: 'Seguís donde estás, con lo bueno y lo malo.', fx: {} });
-      return {
-        id: 'transfer', title: clubs.length > 1 ? 'Te llegan ofertas' : 'Te llega una oferta',
-        text: c.club.lg === 'ar1' || c.club.lg === 'ar2'
-          ? `Se corrió la voz de lo que hacés en la cancha y el teléfono no para de sonar. En el club hablan de una cláusula de salida de unos ${fmtEuro(marketValue({ ovr, age: c.age, potential: c.potential, lg: c.club.lg, tier: c.club.tier, rating: c.history[c.history.length - 1]?.rating }) * 1.5)}. ¿Te quedás o te vas?`
-          : 'Se corrió la voz de lo que hacés en la cancha y el teléfono no para de sonar. ¿Te quedás o te vas?', options: opts,
-      };
+      const reach = r.chance(0.55) ? 6 : 3;
+      const club = pickClub(r, { target: ovr + reach + lift, avoid: used(c), age: c.age, conf: nationOf(c.nat).conf });
+      const fee = marketValue({ ovr, age: c.age, potential: c.potential, lg: c.club.lg, tier: c.club.tier, rating: c.history[c.history.length - 1]?.rating });
+      const far = clubCountry(club) !== clubCountry(c.club);
+      // Si el pase se cae, o no se concreta (seguís donde estás) o llegás y no jugás
+      const falls = r.chance(0.4);
+      const p = P(c, clamp(0.8 - Math.max(0, club.pw - ovr - 2) * 0.035 + adapt(c, club), 0.35, 0.82));
+      return ev('transfer', '📞', `Te quiere ${club.name}`, `Ofrecen ${fmtEuro(Math.round(fee * clamp(0.9 + (club.pw - c.club.pw) * 0.02, 0.7, 1.6) / 10_000) * 10_000)} por vos.`,
+        safe('🛡️', `Quedarte en ${c.club.name}`, 'Más minutos', { minutes: 0.3, trust: 1 }),
+        risky(far ? '✈️' : '🔁', `Fichar por ${club.name}`, clubUp(c, club, ovr), falls ? 'Se cae el pase' : 'Terminás en el banco', {
+          gamble: falls
+            ? { p, okText: `Firmaste con ${club.name}.`, badText: `Se cayó el pase: seguís en ${c.club.name}.`, ok: moveTo(club, c, { form: 0.05 }), bad: { trust: -1, minutes: -0.4 } }
+            : { p, okText: `Firmaste con ${club.name}.`, badText: `Llegaste a ${club.name} y no jugás.`, ok: moveTo(club, c, { form: 0.05 }), bad: moveTo(club, c, { minutes: -1.4, form: -0.1 }) },
+        }, club.name));
     },
   },
   {
-    id: 'loan', group: 'club',
-    weight: (c, ovr) => (c.club.tier >= 1 && c.club.pw >= 58 && c.age <= 24 && c.stint >= 1 && !c.loan && ovr < c.club.pw - 2 ? 6 : 0),
+    id: 'loan', weight: (c, ovr) => (c.club.tier >= 1 && c.club.pw >= 58 && c.age <= 24 && c.stint >= 1 && !c.loan && ovr < c.club.pw - 2 ? 6 : 0),
     build: (c, r, ovr) => {
       const avoid = used(c);
-      // un club de menos categoría pero a tu altura: así la cesión es para jugar (nunca para empezar en el banco)
-      // (y de tu región: una cesión no te manda al otro lado del mundo)
-      const w = { target: ovr + 1, sd: 2.5, avoid, age: c.age, max: Math.min(c.club.pw - 1, ovr + 3), min: 50, leagues: UP_LEAGUES[LEAGUES[c.club.lg].conf] };
-      const lend = pickClub(r, w);
-      const sell = pickClub(r, { ...w, avoid: [...avoid, lend.name] });
-      return {
-        id: 'loan', title: 'Casi no jugás',
-        text: `En ${c.club.name} hay mucha gente delante tuyo y los minutos no aparecen. ¿Qué hacés?`,
-        options: [
-          { id: 'loan', label: `Ir cedido a ${lend.name}`, hint: `${LEAGUES[lend.lg].name} · ${expectedRole(ovr - lend.pw)}. Después volvés a ${c.club.name}.`, fx: { move: { club: lend, kind: 'loan' }, growth: 0.2 } },
-          { id: 'stay', label: 'Quedarte y pelear el puesto', hint: 'Entrenás con los mejores, pero podés no jugar nunca.',
-            fx: { growth: 0.2, minutes: -0.2, gamble: { p: 0.3, okText: 'El DT terminó dándote bola.', badText: '', ok: { minutes: 1.8, trust: 1 }, bad: {}, okTag: 'Pasás a ser titular', badTag: 'Seguís en el banco' } } },
-          { id: 'sell', label: `Pedir la salida a ${sell.name}`, hint: `${LEAGUES[sell.lg].name} · te vas para siempre a un club que te dé lugar.`, fx: { move: { club: sell, kind: 'transfer' } } },
-        ],
-      };
+      // un club de menos categoría pero a tu altura: así la cesión es para jugar (y de tu región: una cesión no te manda al otro lado del mundo)
+      const lend = pickClub(r, { target: ovr + 1, sd: 2.5, avoid, age: c.age, max: Math.min(c.club.pw - 1, ovr + 3), min: 50, leagues: UP_LEAGUES[LEAGUES[c.club.lg].conf] });
+      return ev('loan', '🪑', 'Casi no jugás', `Hay mucha gente delante tuyo en ${c.club.name}.`,
+        safe('🔄', `Ir cedido a ${lend.name}`, 'Jugás seguro', { move: { club: lend, kind: 'loan' }, growth: 0.2 }, lend.name),
+        risky('⚔️', 'Pelear el puesto acá', 'Pasar a titular', 'Seguís en el banco', {
+          growth: 0.2, minutes: -0.2,
+          gamble: { p: P(c, 0.4), okText: 'El DT terminó dándote bola.', badText: 'Seguís mirando desde el banco.', ok: { minutes: 1.8, trust: 1 }, bad: { minutes: -0.3 } },
+        }));
     },
   },
   {
-    id: 'coach', group: 'club',
-    weight: (c, ovr) => (c.club.tier >= 1 && c.age >= 20 && !c.loan && c.trust <= 0 && ovr >= c.club.pw - 4 ? 2.2 : 0),
-    build: c => ({
-      id: 'coach', title: 'El DT no confía en vos',
-      text: `Entrenás bien, pero el DT de ${c.club.name} te deja afuera una y otra vez. Dicen que no le gusta tu estilo.`,
-      options: [
-        { id: 'talk', label: 'Hablar con el DT cara a cara', hint: 'Puede aclarar todo… o empeorarlo.',
-          fx: { gamble: { p: 0.55, okText: 'El DT te escuchó y te dio la chance.', badText: 'La charla no sirvió y quedaste peor parado.', ok: { trust: 2, minutes: 0.5 }, bad: { trust: -1 }, okTag: 'El DT te da la chance', badTag: 'Quedás peor parado' } } },
-        { id: 'work', label: 'Callarte y entrenar el doble', hint: 'Dejás que hablen tus piernas.', fx: { growth: 0.35, minutes: -0.2 } },
-        { id: 'press', label: 'Hacerte oír en la prensa', hint: 'Apuesta fuerte: la hinchada o el DT.',
-          fx: { gamble: { p: 0.35, okText: 'La hinchada se puso de tu lado y el DT tuvo que ceder.', badText: 'El DT se ofendió y te mandó a la tribuna.', ok: { trust: 2, minutes: 0.8, form: 0.1 }, bad: { trust: -2, minutes: -0.6 }, okTag: 'La hinchada te banca', badTag: 'Te mandan a la tribuna' } } },
-      ],
-    }),
+    id: 'coach', weight: (c, ovr) => (c.club.tier >= 1 && c.age >= 20 && !c.loan && c.trust <= 0 && ovr >= c.club.pw - 4 ? 2.2 : 0),
+    build: (c, r) => {
+      const press = r.chance(0.4);
+      return ev('coach', '😤', 'El DT no te pone', 'Entrenás bien, pero te deja afuera.',
+        safe('🤐', 'Callarte y entrenar el doble', 'Ganás nivel', { growth: 0.3, minutes: -0.1 }),
+        press
+          ? risky('🎤', 'Hablar en la prensa', 'La hinchada te banca', 'Te mandan a la tribuna', {
+            gamble: { p: P(c, 0.4), okText: 'La hinchada te bancó y el DT cedió.', badText: 'El DT se ofendió: a la tribuna.', ok: { trust: 2, minutes: 0.8, form: 0.1 }, bad: { trust: -2, minutes: -0.6 } },
+          })
+          : risky('🗣️', 'Hablar con el DT', 'Ganás su confianza', 'Quedás peor parado', {
+            gamble: { p: P(c, 0.52), okText: 'El DT te escuchó y te dio la chance.', badText: 'La charla salió mal.', ok: { trust: 2, minutes: 0.5 }, bad: { trust: -1 } },
+          }));
+    },
   },
   {
-    id: 'captain', group: 'club', weight: c => (c.age >= 24 && c.stint >= 3 && !c.captain && c.club.tier >= 1 && !c.loan ? 2 : 0),
-    build: c => ({
-      id: 'captain', title: '¡Te ofrecen la cinta de capitán!',
-      text: `Después de tantas temporadas en ${c.club.name}, el plantel te quiere de capitán.`,
-      options: [
-        { id: 'yes', label: 'Aceptar la cinta', hint: 'Más peso en el vestuario y más presión.',
-          fx: { captain: true, team: 0.06, trust: 1, gamble: { p: 0.8, okText: '', badText: 'La presión de ser capitán se hizo sentir.', bad: { form: -0.2 }, badTag: 'Pesa la cinta' } } },
-        { id: 'no', label: 'Dejársela a otro compañero', hint: 'Enfocado solo en jugar.', fx: { growth: 0.15, form: 0.05 } },
-      ],
-    }),
+    id: 'captain', weight: c => (c.age >= 24 && c.stint >= 3 && !c.captain && c.club.tier >= 1 && !c.loan ? 2 : 0),
+    build: c => ev('captain', '🎖️', '¡La cinta de capitán!', `El plantel de ${c.club.name} te quiere de capitán.`,
+      safe('🙅', 'Dejársela a otro', 'Solo jugar', { growth: 0.15, form: 0.05 }),
+      risky('©️', 'Aceptar la cinta', 'Líder del vestuario', 'Pesa la presión', {
+        captain: true, team: 0.06, trust: 1,
+        gamble: { p: P(c, 0.72), okText: 'La cinta te sienta de maravillas.', badText: 'La presión de ser capitán se hizo sentir.', ok: { form: 0.1 }, bad: { form: -0.3 } },
+      })),
   },
   {
-    id: 'abroad', group: 'club',
-    weight: (c, ovr) => (c.age >= 18 && c.age <= 24 && c.club.tier >= 1 && LEAGUES[c.club.lg].conf !== 'uefa' && ovr >= 60 && c.potential >= 76 && !c.loan ? 4.5 * DIFFS[c.diff].deals : 0),
+    id: 'abroad', weight: (c, ovr) => (c.age >= 18 && c.age <= 24 && c.club.tier >= 1 && LEAGUES[c.club.lg].conf !== 'uefa' && ovr >= 60 && c.potential >= 76 && !c.loan ? 4.5 * DIFFS[c.diff].deals : 0),
     build: (c, r, ovr) => {
       const club = pickClub(r, { target: ovr + 6 + DIFFS[c.diff].offers + FOOT_OFFER[c.foot], sd: 4, leagues: EUROPE, avoid: used(c), age: c.age, conf: nationOf(c.nat).conf });
-      return {
-        id: 'abroad', title: 'Una oferta desde Europa',
-        text: `${club.name} (${LEAGUES[club.lg].name}) quiere llevarte de pibe. Es la gran chance, pero lejos de todo lo que conocés.`,
-        options: [
-          { id: 'go', label: `Irte a ${club.name}`, hint: `${offerHint(c, club, ovr)} Riesgo de adaptación.`,
-            fx: moveFx(c, club, { growth: 0.4, gamble: { p: 0.5, okText: 'Te adaptaste de maravillas a Europa.', badText: 'Extrañás todo y te cuesta adaptarte.', ok: { growth: 0.5, form: 0.05 }, bad: { minutes: -1.2, form: -0.15 }, okTag: 'Te adaptás de maravillas', badTag: 'Extrañás todo' } }) },
-          { id: 'stay', label: `Quedarte en ${c.club.name}`, hint: 'Seguís creciendo en casa.', fx: { growth: 0.15, minutes: 0.3 } },
-        ],
-      };
+      return ev('abroad', '🌍', `${club.name} te quiere`, `${LEAGUES[club.lg].name}: Europa te llama de pibe.`,
+        safe('🏡', 'Seguir creciendo en casa', 'Más minutos', { growth: 0.15, minutes: 0.3 }),
+        risky('✈️', `Irte a ${club.name}`, 'Salto a Europa', 'Te cuesta adaptarte', {
+          gamble: {
+            p: P(c, 0.5), okText: 'Te adaptaste de maravillas a Europa.', badText: 'Extrañás todo y te cuesta adaptarte.',
+            ok: moveTo(club, c, { growth: 0.7, form: 0.05 }), bad: moveTo(club, c, { minutes: -1.4, form: -0.15 }),
+          },
+        }, club.name));
     },
   },
   {
     // Plata de sobra a cambio de menos vidriera: Arabia Saudita, la MLS o México.
-    id: 'cash', group: 'club',
-    weight: c => (c.age >= 28 && c.club.tier >= 2 && !c.loan && !['sa', 'us', 'mx'].includes(c.club.lg) ? (c.age >= 31 ? 3 : 1.6) : 0),
+    id: 'cash', weight: c => (c.age >= 28 && c.club.tier >= 2 && !c.loan && !['sa', 'us', 'mx'].includes(c.club.lg) ? (c.age >= 31 ? 3 : 1.6) : 0),
     build: (c, r, ovr) => {
       const lg = r.weighted<LeagueId>([['sa', 0.4], ['us', 0.3], ['mx', 0.3]])!;
       const club = pickClub(r, { target: ovr + 2, leagues: [lg], avoid: used(c), age: c.age });
-      const L = LEAGUES[lg];
-      return {
-        id: 'cash', title: 'Una oferta que no se rechaza',
-        text: `${club.name} (${L.name}) te ofrece un contrato gigante. ${L.flavor}`,
-        options: [
-          { id: 'go', label: `Irte a ${club.name}`, hint: `${L.name} · ${expectedRole(ovr - club.pw)}. Plata de sobra, pero menos exigencia y menos vidriera.`, fx: moveFx(c, club, { minutes: 0.6, growth: -0.1 }) },
-          { id: 'stay', label: `Seguir en ${c.club.name}`, hint: 'Todavía tenés cosas que ganar acá.', fx: {} },
-        ],
-      };
+      return ev('cash', '💰', 'Una oferta que no se rechaza', `${club.name} (${LEAGUES[lg].name}) abre la billetera.`,
+        safe('🏟️', `Seguir en ${c.club.name}`, 'Todavía hay cuerda', {}),
+        risky('💰', `Irte a ${club.name}`, 'Plata y minutos', 'Perdés vidriera', {
+          gamble: { p: P(c, 0.65), okText: 'Plata de sobra y minutos de más.', badText: 'La liga es floja y te oxidás.', ok: moveTo(club, c, { minutes: 0.8 }), bad: moveTo(club, c, { growth: -0.6, form: -0.1 }) },
+        }, club.name));
     },
   },
   {
-    id: 'comeback', group: 'career', weight: c => (c.lastInjury === 'grave' ? 100 : 0),
-    build: () => ({
-      id: 'comeback', title: 'Volvés de una lesión grave',
-      text: 'Te perdiste buena parte del año pasado. Ahora hay que decidir cómo volvés.',
-      options: [
-        { id: 'slow', label: 'Rehabilitación a fondo', hint: 'No volvés hasta estar al 100 %.', fx: { growth: 0.5, injury: -0.05, minutes: -0.3 } },
-        { id: 'fast', label: 'Apurar la vuelta', hint: 'El equipo te necesita ya.', fx: { injury: 0.07, minutes: 0.4 } },
-        { id: 'doc', label: 'Operarte con un especialista famoso', hint: 'Puede salir muy bien… o no.',
-          fx: { gamble: { p: 0.5, okText: 'El especialista hizo magia.', badText: 'La recuperación se complicó.', ok: { growth: 1 }, bad: { growth: -0.3, minutes: -0.4 }, okTag: 'Sale perfecto', badTag: 'Se complica' } } },
-      ],
-    }),
+    id: 'comeback', weight: c => (c.lastInjury === 'grave' ? 100 : 0),
+    build: c => ev('comeback', '🩹', 'La vuelta tras la lesión', 'Fue grave. ¿Cómo volvés?',
+      safe('🩺', 'Rehabilitación a fondo', 'Volvés al 100 %', { growth: 0.5, injury: -0.05, minutes: -0.3 }),
+      risky('⚡', 'Apurar la vuelta', 'Minutos ya', 'Una recaída', {
+        injury: 0.05, minutes: 0.4,
+        gamble: { p: P(c, 0.5), okText: 'Volviste antes y jugaste a pleno.', badText: 'Recaíste: la lesión se complicó.', ok: { growth: 0.5, form: 0.15 }, bad: { injury: 0.15, growth: -0.4 } },
+      })),
   },
   {
-    id: 'switch', group: 'career', weight: c => (c.age >= 20 && c.age <= 30 && c.club.tier >= 1 && SWITCH_TO[c.pos].length ? 0.8 : 0),
+    id: 'switch', weight: c => (c.age >= 20 && c.age <= 30 && c.club.tier >= 1 && SWITCH_TO[c.pos].length ? 0.8 : 0),
     build: (c, r) => {
       const to = r.pick(SWITCH_TO[c.pos]);
       const nd = dposFor(c.dpos, to);
       const was = DPOS_LABEL[c.dpos].toLowerCase(), now = DPOS_LABEL[nd].toLowerCase();
-      return {
-        id: 'switch', title: `Te quieren de ${now}`,
-        text: `El DT te quiere probar de ${now} en vez de ${was}. Dice que le vas a rendir más.`,
-        options: [
-          { id: 'yes', label: `Aceptar el cambio a ${now}`, hint: 'Cambia cómo se mide tu juego. Puede salir bien o mal.',
-            fx: { pos: to, dpos: nd, gamble: { p: 0.55, okText: 'Le encontraste la vuelta al puesto nuevo.', badText: 'Te cuesta el cambio de puesto.', ok: { growth: 0.3, form: 0.05 }, bad: { growth: -0.2, form: -0.1 }, okTag: 'Le encontrás la vuelta', badTag: 'Te cuesta el cambio' } } },
-          { id: 'no', label: `Seguir de ${was}`, hint: 'Lo que sabés hacer.', fx: { form: 0.05 } },
-        ],
-      };
+      return ev('switch', '🔀', `Te quieren de ${now}`, `El DT dice que de ${now} rendís más.`,
+        safe('✋', `Seguir de ${was}`, 'Lo que sabés', { form: 0.05 }),
+        risky('🔀', `Probarte de ${now}`, 'Más rendimiento', 'Te cuesta el cambio', {
+          pos: to, dpos: nd,
+          gamble: { p: P(c, 0.55), okText: 'Le encontraste la vuelta al puesto.', badText: 'Te cuesta el cambio de puesto.', ok: { growth: 0.3, form: 0.05 }, bad: { growth: -0.2, form: -0.1 } },
+        }));
     },
   },
   {
-    id: 'home', group: 'club', weight: c => (c.age >= 30 && !c.returned && !c.returning && c.club.name !== c.home && c.club.tier >= 1 && !c.loan ? (c.age >= 34 ? 9 : c.age >= 32 ? 6.5 : 4.5) : 0),
-    build: c => ({
-      id: 'home', title: 'Te llaman del club de tus inferiores',
-      text: `${c.home} te quiere de vuelta. El barrio entero te espera en la puerta del club.`,
-      options: [
-        { id: 'back', label: `Volver a ${c.home}`, hint: 'Cumplir el sueño del pibe del barrio. Un clásico final de carrera.', fx: { move: { club: homeClub(c), kind: 'return' }, form: 0.1 } },
-        { id: 'stay', label: `Seguir en ${c.club.name}`, hint: 'Todavía tenés cuerda.', fx: {} },
-      ],
-    }),
+    id: 'home', weight: c => (c.age >= 30 && !c.returned && !c.returning && c.club.name !== c.home && c.club.tier >= 1 && !c.loan ? (c.age >= 34 ? 9 : c.age >= 32 ? 6.5 : 4.5) : 0),
+    build: c => {
+      const home = homeClub(c);
+      return ev('home', '❤️', `Te llama ${c.home}`, 'El club de tus inferiores. El barrio te espera.',
+        safe('🏟️', `Seguir en ${c.club.name}`, 'Todavía hay cuerda', {}),
+        risky('❤️', `Volver a ${c.home}`, 'Cumplir el sueño', 'El club está en crisis', {
+          move: { club: home, kind: 'return' }, form: 0.1,
+          gamble: { p: P(c, 0.65), okText: 'El barrio te llevó en andas.', badText: 'El club está en crisis y no levanta.', ok: { team: 0.05, form: 0.1 }, bad: { team: -0.12 } },
+        }, home.name));
+    },
+  },
+  {
+    id: 'rival', weight: c => {
+      const r = RIVALS[c.club.name];
+      return r && CLUB_BY_NAME.has(r) && c.club.tier >= 2 && c.age >= 21 && c.age <= 33 && c.stint >= 2 && !c.loan && c.club.lg !== 'inf' ? 1.6 : 0;
+    },
+    build: c => {
+      const rival = clubNamed(RIVALS[c.club.name])!;
+      return ev('rival', '😈', `Te quiere ${rival.name}`, `El rival de siempre. La hinchada mira.`,
+        safe('💚', 'Honrar la camiseta', 'Ídolo del club', { trust: 1, form: 0.05, team: 0.02 }),
+        risky('🔥', `Pasarte a ${rival.name}`, 'Un desafío nuevo', 'La hinchada te escracha', {
+          gamble: { p: P(c, 0.5), okText: `Brillás en ${rival.name} y nadie habla.`, badText: 'Te escrachan en cada cancha.', ok: moveTo(rival, c, { growth: 0.3, form: 0.1 }), bad: moveTo(rival, c, { form: -0.25, minutes: -0.5 }) },
+        }, rival.name));
+    },
+  },
+  {
+    id: 'renewal', weight: c => (c.stint >= 3 && c.club.tier >= 1 && c.age >= 22 && c.age <= 31 && !c.loan ? 1.5 : 0),
+    build: (c, r, ovr) => {
+      const avoid = used(c);
+      const better = pickClub(r, { target: ovr + 4, avoid, age: c.age, conf: nationOf(c.nat).conf });
+      const worse = pickClub(r, { target: Math.min(c.club.pw - 3, ovr - 3), avoid: [...avoid, better.name], age: c.age, max: c.club.pw, conf: nationOf(c.nat).conf });
+      return ev('renewal', '✍️', 'Se vence tu contrato', `${c.club.name} te ofrece renovar.`,
+        safe('✍️', 'Renovar con el club', 'Seguridad y minutos', { trust: 1, minutes: 0.2 }),
+        risky('🕵️', 'Esperar mejores ofertas', 'Un club más grande', 'Te quedás sin ofertas', {
+          gamble: { p: P(c, 0.55), okText: `Se abrió la puerta de ${better.name}.`, badText: `Solo te queda ${worse.name}.`, ok: moveTo(better, c, { growth: 0.2 }), bad: moveTo(worse, c, { form: -0.05 }) },
+        }, better.name));
+    },
+  },
+  {
+    id: 'sunset', weight: c => (c.age >= 34 && c.club.tier >= 1 ? 4 : 0),
+    build: c => ev('sunset', '🌇', 'Ya no sos el de antes', 'El cuerpo pasa factura. ¿Cómo cerrás?',
+      safe('🧊', 'Jugar más tranquilo', 'Menos lesiones', { injury: -0.06, growth: 0.1, minutes: -0.2 }),
+      risky('🔥', 'Una última gran temporada', 'Volver a brillar', 'Se rompe el físico', {
+        growth: 0.2, injury: 0.05,
+        gamble: { p: P(c, 0.45), okText: 'Volviste a brillar como en los viejos tiempos.', badText: 'El físico dijo basta.', ok: { growth: 1.2, form: 0.25 }, bad: { growth: -0.5, injury: 0.12 } },
+      })),
+  },
+  {
+    id: 'youth', weight: (c, ovr) => (c.club.tier === 0 && c.age >= 18 && ovr >= 54 ? 3 : 0),
+    build: c => ev('youth', '⚡', 'El DT de Primera te llama', 'Te invitan a entrenar con los grandes.',
+      safe('🌱', 'Seguir en juveniles', 'Crecés tranquilo', { growth: 0.25, injury: -0.01 }),
+      risky('⚡', 'Entrenar con los grandes', 'Salto de nivel', 'Te pasan por arriba', {
+        growth: 0.3,
+        gamble: { p: P(c, 0.5), okText: 'El plantel grande te adoptó.', badText: 'Los grandes te pasaron por arriba.', ok: { growth: 0.7, form: 0.1 }, bad: { growth: -0.4 } },
+      })),
   },
 ];
 
+const EUROPE: readonly LeagueId[] = ['en', 'es', 'it', 'de', 'fr', 'pt', 'nl'];
 const BY_ID = new Map(EVENTS.map(e => [e.id, e]));
 
-/** La convocatoria a la Selección (no sale del sorteo: depende de tu OVR). */
+/** La convocatoria a la Selección: ir (con riesgo de lesión) o pedir descanso. Si no sale en el sorteo, vas igual (con un poco de desgaste). */
 function buildSelec(c: Career): EventInst {
   const tour = natTournament(seasonYear(c), nationOf(c.nat));
-  return {
-    id: 'selec', title: '¡Te convocó la Selección!',
-    text: `Llegó el llamado para vestir la camiseta de ${nationOf(c.nat).team}.${tour ? ` Y este año se juega ${tour.name}.` : ''} ¿Qué hacés?`,
-    options: [
-      { id: 'go', label: 'Ir a la Selección', hint: 'Sumás partidos y goles, pero más desgaste.',
-        fx: { cap: true, injury: 0.035, gamble: { p: 0.9, okText: '', badText: 'Volviste de la Selección con una molestia.', bad: { injury: 0.15 }, badTag: 'Volvés con una molestia' } } },
-      { id: 'rest', label: 'Pedir descanso', hint: 'Cuidás el cuerpo; la Selección sigue sin vos.', fx: { cap: false, injury: -0.03, growth: 0.1 } },
-    ],
-  };
+  return ev('selec', '👕', '¡Te llamó la Selección!', tour ? `${nationOf(c.nat).team.replace(/^la /, 'La ')}: este año se juega ${tour.name}.` : `${nationOf(c.nat).team.replace(/^la /, 'La ')} te quiere.`,
+    safe('🛌', 'Pedir descanso', 'Cuerpo al 100 %', { cap: false, injury: -0.03, growth: 0.1 }),
+    risky('👕', 'Ir con la Selección', 'Gloria con la celeste', 'Volvés lesionado', {
+      cap: true, injury: 0.035,
+      gamble: { p: P(c, 0.78), okText: 'Volviste de la Selección en llamas.', badText: 'Volviste de la Selección con una molestia.', ok: { form: 0.1 }, bad: { injury: 0.18 } },
+    }));
 }
 
 /** La convocatoria a la Sub-23 para los Juegos Olímpicos (solo hasta los 23 años). */
-function buildOly(): EventInst {
-  return {
-    id: 'oly', title: '¡Te convocó la Sub-23!',
-    text: 'Se vienen los Juegos Olímpicos y el DT de la Sub-23 te quiere en la lista. ¿Qué hacés?',
-    options: [
-      { id: 'go', label: 'Ir a los Juegos Olímpicos', hint: 'Una medalla de oro es para siempre, pero hay desgaste.', fx: { oly: true, injury: 0.03 } },
-      { id: 'rest', label: 'Pedir descanso', hint: 'Cuidás el cuerpo para el club.', fx: { oly: false, injury: -0.02, growth: 0.05 } },
-    ],
-  };
+function buildOly(c: Career): EventInst {
+  return ev('oly', '🥇', '¡Te llamó la Sub-23!', 'Se vienen los Juegos Olímpicos.',
+    safe('🛌', 'Pedir descanso', 'Cuidás el cuerpo', { oly: false, injury: -0.02, growth: 0.05 }),
+    risky('🥇', 'Ir a los Juegos', 'Medalla de oro', 'Volvés lesionado', {
+      oly: true, injury: 0.03,
+      gamble: { p: P(c, 0.8), okText: 'Volviste de los Juegos más fuerte.', badText: 'Volviste de los Juegos golpeado.', ok: { growth: 0.1 }, bad: { injury: 0.15 } },
+    }));
 }
 
 /** El momento clave de una final: tu equipo llegó y vos inclinás la balanza. Las opciones llevan en `fx.fin` cuánto suman (o restan) a la fuerza del equipo en el partido. */
 export function buildFinal(t: Tension, c: Career): EventInst {
-  return {
-    id: 'final', title: '¡Llegaste a la final!',
-    text: `Tu equipo está en la final de la ${t.name}. Son los últimos minutos y se define todo: ¿cómo lo encarás, ${c.name}?`,
-    options: [
-      { id: 'calm', label: 'Jugarla con calma', hint: 'Sin sorpresas: tu equipo llega como viene.', fx: {} },
-      { id: 'all', label: 'Ir con todo', hint: 'Más garra para dar vuelta el partido, pero salís fundido.', fx: { fin: 3, growth: -0.4 } },
-      { id: 'pen', label: 'Pedir el penal decisivo', hint: 'La pelota en tus pies: o héroe o villano.',
-        fx: { gamble: { p: 0.55, okText: 'Hiciste explotar el estadio con tu penal.', badText: 'Se te fue el penal y la tribuna enmudeció.', ok: { fin: 5 }, bad: { fin: -4 }, okTag: 'Lo metés', badTag: 'Lo errás' } } },
-    ],
-  };
+  return ev('final', '⚡', `Final: ${t.name}`, 'Último minuto. La pelota te llega a vos.',
+    safe('🧘', 'Jugarla con calma', 'Llegás como venís', {}),
+    risky('🎯', 'Pedir el penal decisivo', 'Héroe de la final', 'Villano si lo errás', {
+      gamble: { p: P(c, 0.55), okText: 'Hiciste explotar el estadio con tu penal.', badText: 'Se te fue el penal y la tribuna enmudeció.', ok: { fin: 5 }, bad: { fin: -4 } },
+    }));
 }
 
 /** Peso desde el cual un evento es obligatorio esa temporada (el debut a los 19, la vuelta de una lesión grave). */
 const MUST = 50;
+/** Si te convocan y no sale esa decisión, vas igual: el desgaste de la Selección ya cuenta. */
+export const CALL_WEAR = 0.02;
+
+export interface Draw { ev: EventInst; cap: boolean; oly: boolean }
 
 /**
- * Las decisiones de la temporada: una (a veces dos). Si te convoca la Selección (o la Sub-23 en año olímpico), esa va última.
- * Dos eventos nunca son del mismo grupo (por ejemplo, dos de club que se pisarían).
- * Los obligatorios (peso de 50 o más) salen siempre: el primero se elige entre ellos y, si hay otro de un grupo distinto,
- * ocupa el segundo lugar (antes que la Selección o una decisión extra al azar).
+ * La decisión de la temporada: una sola, con dos caminos. Los obligatorios (peso de 50 o más) salen siempre; si te convoca la Selección
+ * (o la Sub-23 en año olímpico) esa decisión pesa más, y si no sale igual vas a la convocatoria. No se repite la de la temporada anterior.
  */
-export function drawEvents(c: Career, r: Rng): EventInst[] {
+export function drawDecision(c: Career, r: Rng): Draw {
   const ovr = careerOvr(c.stats, c.pos, c.dpos); // el mismo OVR que se ve en pantalla y que usa la temporada (con la posición en la cancha)
   const called = r.chance(selecChance(c, ovr));
   const oly = !called && r.chance(olyChance(c, ovr));
-  const pool = EVENTS.map(e => [e, e.weight(c, ovr)] as const).filter(([, w]) => w > 0);
+  const base = EVENTS.map(e => [e.id, e.weight(c, ovr) * (e.id === c.last ? 0.2 : 1)] as const).filter(([, w]) => w > 0);
+  const pool: (readonly [string, number])[] = [...base, ...(called ? [['selec', 3.5] as const] : oly ? [['oly', 3] as const] : [])];
   const must = pool.filter(([, w]) => w >= MUST);
-  const first = r.weighted(must.length ? must : pool) ?? BY_ID.get('plan')!;
-  const out = [first.build(c, r, ovr)];
-  const mustSecond = must.filter(([e]) => e.group !== first.group);
-  const forced = mustSecond.length ? r.weighted(mustSecond) : undefined;
-  if (forced) out.push(forced.build(c, r, ovr));
-  else if (called) out.push(buildSelec(c));
-  else if (oly) out.push(buildOly());
-  else if (c.age >= 19 && r.chance(0.3)) {
-    const rest = pool.filter(([e, w]) => e.group !== first.group && e.id !== first.id && w < MUST);
-    const second = r.weighted(rest);
-    if (second) out.push(second.build(c, r, ovr));
-  }
-  return out;
-}
-
-/** Etiquetas cortas de lo que hace una opción, para mostrar sin números. */
-export function fxTags(fx: Fx): { t: string; good: boolean | null }[] {
-  const out: { t: string; good: boolean | null }[] = [];
-  if ((fx.growth ?? 0) >= 0.3) out.push({ t: 'Crecés más', good: true });
-  if ((fx.growth ?? 0) <= -0.3) out.push({ t: 'Crecés menos', good: false });
-  if ((fx.injury ?? 0) >= 0.03) out.push({ t: 'Más riesgo de lesión', good: false });
-  if ((fx.injury ?? 0) <= -0.03) out.push({ t: 'Menos riesgo de lesión', good: true });
-  if ((fx.minutes ?? 0) >= 0.3) out.push({ t: 'Más minutos', good: true });
-  if ((fx.minutes ?? 0) <= -0.3) out.push({ t: 'Menos minutos', good: false });
-  if ((fx.form ?? 0) >= 0.1) out.push({ t: 'Mejor rendimiento', good: true });
-  if ((fx.form ?? 0) <= -0.1) out.push({ t: 'Peor rendimiento', good: false });
-  if ((fx.team ?? 0) >= 0.05) out.push({ t: 'Más chances de títulos', good: true });
-  if ((fx.team ?? 0) <= -0.03) out.push({ t: 'Menos chances de títulos', good: false });
-  if ((fx.trust ?? 0) > 0) out.push({ t: 'Confianza del DT', good: true });
-  if (fx.cap === true) out.push({ t: 'Suma partidos en la Selección', good: true });
-  if (fx.oly === true) out.push({ t: 'Juegos Olímpicos', good: true });
-  if (fx.captain) out.push({ t: 'Capitán', good: true });
-  if (fx.move) out.push({ t: fx.move.kind === 'loan' ? 'Préstamo' : fx.move.kind === 'return' ? 'Volvés a casa' : country(fx.move.club) === 'Argentina' ? 'Cambio de club' : `Te vas a ${country(fx.move.club)}`, good: null });
-  if (fx.pos) out.push({ t: 'Cambio de puesto', good: null });
-  if (fx.gamble) out.push({ t: 'Con riesgo', good: null });
-  return out;
+  const id = r.weighted(must.length ? must : pool) ?? 'plan';
+  const inst = id === 'selec' ? buildSelec(c) : id === 'oly' ? buildOly(c) : (BY_ID.get(id) ?? BY_ID.get('plan')!).build(c, r, ovr);
+  return { ev: inst, cap: called && id !== 'selec', oly: oly && id !== 'oly' };
 }
 

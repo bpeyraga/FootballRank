@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { Tip } from '../../shared/ui/Tip';
 import { displayName, hue, ovr, posLine, type Profile } from '../../shared/supabase';
 import { go } from '../../app/router';
-import { openConsent } from '../../app/consent';
 import { Avatar } from '../../shared/ui/Avatar';
 import { FutCard } from '../../shared/ui/FutCard';
 import { useInstall } from '../../app/install';
@@ -18,7 +17,10 @@ import { useTour } from './useTour';
 import { ZoneEntry } from '../zone/ZoneEntry';
 import { CourtsEntry } from '../courts/CourtsEntry';
 import { CareerEntry } from '../career/CareerEntry';
+import { ExploreTile } from '../../shared/ui/ExploreTile';
 import { isCrestUrl } from '../community/crestUrl';
+import { ShareMyCard } from '../player/ShareMyCard';
+import { VotePrompt } from '../matches/VotePrompt';
 
 /** Escudo de la comunidad: la imagen del escudo si la cargaron; si no, la portada; si no, las iniciales. */
 function CommCrest({ c }: { c: Comm }) {
@@ -44,7 +46,7 @@ export function Home({ me }: { me: Profile }) {
   const install = useInstall();
   const [tip, setTip] = useState('');
   const [alerts, setAlerts] = useState(false);
-  const tour = useTour();
+  const tour = useTour(me.tour_seen_at);
   const tourToAlerts = useRef(false);
 
   // La cuenta regresiva se actualiza sola
@@ -53,11 +55,18 @@ export function Home({ me }: { me: Profile }) {
     return () => clearInterval(t);
   }, []);
 
-  // Cerrar el menú al tocar afuera
+  // Cerrar el menú al tocar afuera o con Escape (en ese caso el foco vuelve al botón de la foto)
   useEffect(() => {
     const on = (e: Event) => { const d = menu.current; if (d?.open && !d.contains(e.target as Node)) d.open = false; };
+    const esc = (e: KeyboardEvent) => {
+      const d = menu.current;
+      if (e.key !== 'Escape' || !d?.open) return;
+      d.open = false;
+      d.querySelector('summary')?.focus();
+    };
     addEventListener('pointerdown', on);
-    return () => removeEventListener('pointerdown', on);
+    addEventListener('keydown', esc);
+    return () => { removeEventListener('pointerdown', on); removeEventListener('keydown', esc); };
   }, []);
 
   const create = async (e: Event) => {
@@ -82,7 +91,8 @@ export function Home({ me }: { me: Profile }) {
   const cd = hero ? countdown(hero.starts_at, now) : null;
   const adminOf = heroComm && heroComm.role !== 'member' ? heroComm : rows?.find(r => r.role !== 'member');
   const heroHref = hero && heroComm ? `#/c/${heroComm.community.slug}/m/${hero.id}` : '';
-  const quick = quickActions(hero, su, rows);
+  const quick = quickActions(hero, rows);
+  const closeMenu = () => { if (menu.current) menu.current.open = false; };
 
   return (
     <div class="wrap home">
@@ -92,27 +102,13 @@ export function Home({ me }: { me: Profile }) {
           <summary aria-label="Menú de la cuenta"><Avatar p={me} size={36} zoom={false} /></summary>
           <div class="menu-pop">
             <div class="menu-who"><b class="ellipsis">{displayName(me)}</b><span class="muted">{posLine(me)}</span></div>
-            <a href="#/perfil">Editar perfil</a>
-            <a href="#/zona">🏆 Ranking de tu zona</a>
-            <a href="#/mis-reservas">📅 Mis reservas</a>
-            {(me as Profile & { is_owner?: boolean }).is_owner === true && <a href="#/duenio">🏟️ Mi cancha</a>}
-            <a href="#/tema">🎨 Tema y colores</a>
-            {install.kind !== 'installed' && (
-              <a href="#" onClick={e => {
-                e.preventDefault();
-                if (install.kind === 'prompt') install.run(); else setTip(install.text);
-                menu.current && (menu.current.open = false);
-              }}>📲 Instalar app</a>
-            )}
-            <a href="#" onClick={e => { e.preventDefault(); setAlerts(a => !a); menu.current && (menu.current.open = false); }}>🔔 Avisos</a>
-            <a href="#" onClick={e => { e.preventDefault(); menu.current && (menu.current.open = false); tour.show(); }}>💡 Ver tutorial</a>
-            <a href="/como-se-usa.html" target="_blank" rel="noopener" onClick={() => { menu.current && (menu.current.open = false); }}>📖 Cómo se usa</a>
-            {staff && <a href="#/admin">📊 Panel de la app</a>}
-            <a href="/terminos.html">Términos</a>
-            <a href="/privacidad.html">Privacidad</a>
-            <a href="/cookies.html">Cookies</a>
-            <a href="#" onClick={e => { e.preventDefault(); menu.current && (menu.current.open = false); openConsent(); }}>🍪 Preferencias de cookies</a>
-            <button onClick={signOut}>Cerrar sesión</button>
+            <a href="#/perfil"><span class="mi" aria-hidden="true">👤</span>Editar perfil</a>
+            <a href="#/mis-reservas"><span class="mi" aria-hidden="true">📅</span>Mis reservas</a>
+            {(me as Profile & { is_owner?: boolean }).is_owner === true && <a href="#/duenio"><span class="mi" aria-hidden="true">🏟️</span>Mi cancha</a>}
+            <a href="#" onClick={e => { e.preventDefault(); setAlerts(a => !a); closeMenu(); }}><span class="mi" aria-hidden="true">🔔</span>Avisos</a>
+            {staff && <a href="#/admin"><span class="mi" aria-hidden="true">📊</span>Panel de la app</a>}
+            <div class="menu-sep" role="separator" />
+            <button onClick={signOut}><span class="mi" aria-hidden="true">🚪</span>Cerrar sesión</button>
           </div>
         </details>
       </header>
@@ -184,7 +180,10 @@ export function Home({ me }: { me: Profile }) {
             {me.fav_team && <span class="me-club"><Crest team={me.fav_team} size={14} /></span>}
           </div>
           <p class="muted">Tu autoevaluación. En cada comunidad el OVR sale de los votos de tus compañeros.</p>
-          <a class="btn sm" href="#/perfil">Editar ficha</a>
+          <div class="me-btns">
+            <a class="btn sm" href="#/perfil">Editar ficha</a>
+            <ShareMyCard me={me} stats={stats} />
+          </div>
         </div>
       </section>
 
@@ -192,7 +191,7 @@ export function Home({ me }: { me: Profile }) {
       {quick.length > 0 && (
         <nav class="qa" style={`--n:${quick.length}`} aria-label="Accesos rápidos">
           {quick.map(q => (
-            <a href={q.href} class={q.main ? 'main' : ''}>
+            <a href={q.href}>
               <QIco d={q.d} />
               <b>{q.label}</b>
               <small>{q.sub}</small>
@@ -200,15 +199,6 @@ export function Home({ me }: { me: Profile }) {
           ))}
         </nav>
       )}
-      <CourtsEntry />
-      <ZoneEntry />
-      <a class="fut-entry" href="#/futbol">
-        <span class="fut-entry-ico" aria-hidden="true">⚽</span>
-        <span class="fut-entry-copy"><b>Fútbol argentino</b><span class="muted">Tabla, partidos y noticias de la Liga</span></span>
-        {me.fav_team && <Crest team={me.fav_team} size={30} />}
-        <Chev />
-      </a>
-      <CareerEntry uid={me.id} />
       <div class="section-head">
         <h3>Tus comunidades</h3>
         {rows && rows.length > 0 && <span class="muted">{rows.length}</span>}
@@ -269,6 +259,18 @@ export function Home({ me }: { me: Profile }) {
         </form>
       )}
       {err && <p class="err">{err}</p>}
+
+      {/* Explorar: lo que se usa menos que las comunidades, en baldosas chicas */}
+      <div class="section-head">
+        <h3>Explorar</h3>
+      </div>
+      <div class="explore">
+        <CourtsEntry compact />
+        <ZoneEntry compact />
+        <ExploreTile kind="fut" href="#/futbol" ico="⚽" title="Fútbol argentino" sub="Tabla, partidos y noticias de la Liga"
+          badge={me.fav_team ? <Crest team={me.fav_team} size={22} /> : undefined} />
+        <CareerEntry uid={me.id} compact />
+      </div>
       <Tip />
       </div>
       </div>
@@ -276,6 +278,7 @@ export function Home({ me }: { me: Profile }) {
         onAlerts={() => { tourToAlerts.current = true; setAlerts(true); }}
         // si el tutorial abre los avisos, el foco va al panel de avisos y no vuelve al menú
         restoreFocus={() => (tourToAlerts.current ? (tourToAlerts.current = false, null) : menu.current?.querySelector('summary'))} />}
+      <VotePrompt me={me} hold={tour.View != null} />
     </div>
   );
 }

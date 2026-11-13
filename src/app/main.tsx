@@ -1,6 +1,7 @@
 import { render } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import './styles/styles.css';
+import './errors'; // avisa los errores del navegador a la consola del panel (antes que el resto, para agarrar también lo que falle al arrancar)
 import './install'; // registra el service worker y escucha "instalar app" desde el arranque
 import type { Profile } from '../shared/supabase';
 import { pushForget, pushSync } from '../features/push/push';
@@ -9,6 +10,8 @@ import { logConsent, startTracking, stopTracking, trackNow } from './track';
 import { getConsent, onConsent, onConsentChange } from './consent';
 import { allowsStats } from './consentCore';
 import { ConsentBanner } from './ConsentBanner';
+import { syncConsentWithAccount } from './consentSync';
+import { OfflineBanner } from './OfflineBanner';
 import { Loading, page, prefetch } from './lazy';
 const Login = page(() => import('../features/auth/LoginPage'), m => m.Login);
 const Onboarding = page(() => import('../features/auth/OnboardingPage'), m => m.Onboarding);
@@ -46,7 +49,7 @@ import '../features/community/cover.css';
 import '../features/seasons/seasons.css';
 import '../features/zone/zone.css';
 import '../features/courts/courts.css';
-import '../features/career/career.css';
+import '../features/career/entry.css';
 import '../features/admin/superadmin.css';
 import './styles/desktop.css';
 import './styles/themes.css';
@@ -90,6 +93,7 @@ function App() {
     return onAuthChange((ev, uid) => {
       if (ev === 'out') { pushForget(); setMe(null); setState('out'); }
       else {
+        void syncConsentWithAccount(uid); // entró después de elegir en la landing: se asocia a su cuenta
         setTimeout(trackNow, 0); // asocia la visita al usuario (con tope de 1 cada 30 s)
         if (uid !== userId.current) refresh();
       }
@@ -128,5 +132,6 @@ function App() {
 // cookies. Cada elección queda registrada en la base (logConsent).
 if (allowsStats(getConsent())) startTracking();
 onConsent(c => { if (c) void logConsent(c); });
+void syncConsentWithAccount(); // con sesión: recupera la elección de la cuenta (no vuelve a preguntar en otro dispositivo)
 onConsentChange(c => { if (allowsStats(c)) startTracking(); else stopTracking(); });
-render(<><Loading><App /></Loading><ConsentBanner /></>, document.getElementById('app')!);
+render(<><OfflineBanner /><Loading><App /></Loading><ConsentBanner /></>, document.getElementById('app')!);

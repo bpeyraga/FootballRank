@@ -7,7 +7,10 @@ import { BEST_KEY, RUN_KEY, bestKey, loadBest, loadRun, recordIfBest, runKey, sa
 import { loadSummary, summaryKey } from './careerSummary';
 import { DEFAULT_YEAR, remainingGrowth, seasonYear } from './careerBase';
 import { eliminatedAt, natTournament, runTournament } from './careerComps';
-import { drawEvents, olyChance, selecChance } from './careerEvents';
+import { drawDecision, olyChance, selecChance } from './careerEvents';
+import { headlineOf, milesOf, nearOf, endNear, nice } from './careerStory';
+import { optionChips, riskOf } from './careerFx';
+import type { Difficulty, Opt } from './careerTypes';
 import {
   CLUBS, CLUB_BY_NAME, CONTS, CONT_IDS, INTL, LEAGUES, LEAGUE_IDS, asClub, clubNamed, clubsOf, gamesCap, isClubWorldCupYear, isCopaYear, isFinalissimaYear,
   finishRank, isOlympicYear, isU20Year, isWorldCupYear, qualByStrength, qualFor, sizeOf, tierOf, youthClub,
@@ -15,9 +18,9 @@ import {
 import { KITS, TEAMS_ASCENSO, TEAMS_PRIMERA } from '../../shared/teams';
 import { Rng, seedState } from './careerRng';
 import {
-  MAX_AGE, MAX_STAT, MIN_STAT, RETIRE_FROM, advance, ageCurve, canRetire, cardStart, careerOvr, choose, currentEvent, fxTags, legacy, legacyOf,
-  legacyScore, newCareer, parseBest, parseCareer, potentialStars, randomPicker, retireFloor, retireNow, seasonTitle, shareText, simulateRun, tally, totals, youthTarget, bestOf,
-  type Career, type Club, type EventInst, type Picker, type SeasonLog,
+  MAX_AGE, MAX_STAT, MIN_STAT, RETIRE_FROM, advance, ageCurve, canRetire, cardStart, careerOvr, choose, currentEvent, legacy, legacyOf,
+  legacyScore, newCareer, parseBest, parseCareer, potentialStars, randomPicker, retireFloor, retireNow, shareText, simulateRun, tally, totals, youthTarget, bestOf,
+  type Career, type Club, type Picker, type SeasonLog,
 } from './careerCore';
 
 const EMPTY_SUMMARY = { run: null, best: {}, ach: 0, day: null, streak: { last: '', n: 0 } };
@@ -25,36 +28,21 @@ const flat = (n: number): Stats => ({ rit: n, tir: n, pas: n, reg: n, def: n, fi
 const first: Picker = (_c, ev) => ev.options[0].id;
 const seeds = (n: number, k = 7919) => Array.from({ length: n }, (_, i) => (i + 1) * k);
 
-/** Decide bien: entrena de joven y se cuida de grande, va a la Selección, se hace cargo de la lesión y ficha solo para subir. */
+/** Decide bien: se la juega donde conviene (entrenar de joven, fichar, la Selección, la final) y se cuida el resto. */
 const smart: Picker = (c, ev) => {
-  const ids = ev.options.map(o => o.id);
   switch (ev.id) {
-    case 'plan': return c.age <= 28 ? 'train' : 'care';
-    case 'selec': case 'oly': case 'abroad': return 'go';
-    case 'comeback': return 'slow';
-    case 'mentor': case 'captain': return 'yes';
-    case 'coach': return 'talk';
-    case 'debut': return ids.includes('up') ? 'up' : 'home';
-    case 'loan': return 'loan';
-    case 'cash': return 'stay';
-    case 'home': return c.age >= 34 ? 'back' : 'stay';
-    case 'transfer': {
-      const best = ev.options.filter(o => o.fx.move).sort((a, b) => b.fx.move!.club.pw - a.fx.move!.club.pw)[0];
-      return best && best.fx.move!.club.pw > c.club.pw ? best.id : 'stay';
-    }
-    default: return ev.options[0].id;
+    case 'plan': return c.age <= 28 ? 'risky' : 'safe';
+    case 'selec': case 'oly': case 'debut': case 'transfer': case 'abroad': case 'renewal': case 'youth': case 'captain': case 'final': return 'risky';
+    case 'home': return c.age >= 34 ? 'risky' : 'safe';
+    default: return 'safe';
   }
 };
-/** Decide mal: sale de joda, rechaza la Selección, se apura con las lesiones y nunca se mueve de club. */
+/** Decide mal: se la juega donde no conviene (joda, prensa, clásico lesionado) y rechaza lo que hace crecer. */
 const bad: Picker = (c, ev) => {
   switch (ev.id) {
-    case 'plan': return c.age <= 28 ? 'party' : 'train';
-    case 'selec': case 'oly': return 'rest';
-    case 'comeback': return 'fast';
-    case 'coach': return 'press';
-    case 'debut': return 'home';
-    case 'transfer': case 'abroad': case 'cash': return 'stay';
-    default: return ev.options[ev.options.length - 1].id;
+    case 'plan': return c.age <= 28 ? 'safe' : 'risky';
+    case 'night': case 'hype': case 'derby': case 'coach': case 'comeback': case 'sunset': case 'rival': return 'risky';
+    default: return 'safe';
   }
 };
 
@@ -267,55 +255,75 @@ describe('decisiones', () => {
     expect(currentEvent(done)).toBeNull();
     expect(currentEvent(c)).toBe(c.queue[0]);
   });
-  it('cada temporada hay una decisión (a veces dos), con 2 a 4 opciones y su pista', () => {
-    let two = 0, total = 0;
-    for (const seed of seeds(30)) {
+  it('cada temporada hay UNA decisión con exactamente dos opciones: la segura y la arriesgada (con apuesta real)', () => {
+    let total = 0;
+    const ids = new Set<string>();
+    for (const seed of seeds(40)) {
       const pr = new Rng(seedState(seed));
       let c = newCareer({ seed, name: 'x', pos: POS[seed % 4], style: 'potrero' });
       for (let g = 0; g < 400 && c.phase !== 'over'; g++) {
-        if (c.phase === 'decide' && c.picks.length === 0) {
+        if (c.phase === 'decide') {
           total++;
-          if (c.queue.length >= 2) two++;
-          expect(c.queue.length).toBeGreaterThanOrEqual(1);
-          expect(c.queue.length).toBeLessThanOrEqual(2);
-          for (const ev of c.queue) {
-            expect(ev.options.length).toBeGreaterThanOrEqual(2); expect(ev.options.length).toBeLessThanOrEqual(4);
-            expect(new Set(ev.options.map(o => o.id)).size).toBe(ev.options.length);
-            expect(ev.options.every(o => o.label && o.hint)).toBe(true);
-          }
+          expect(c.queue.length).toBe(1);
+          const ev = c.queue[0];
+          ids.add(ev.id);
+          expect(ev.options.length).toBe(2);
+          const [s, r] = ev.options;
+          expect(s.kind).toBe('safe'); expect(r.kind).toBe('risky');
+          expect(s.id).toBe('safe'); expect(r.id).toBe('risky');
+          for (const o of ev.options) expect(o.label && o.up && o.icon).toBeTruthy();
+          // textos cortos: la situación una línea, las opciones hasta 8 palabras
+          expect(ev.text.split(/\s+/).length).toBeLessThanOrEqual(12);
+          for (const o of ev.options) expect(o.label.split(/\s+/).length).toBeLessThanOrEqual(10);
+          // la segura no se juega nada; la arriesgada sí, con una chance real de salir mal
+          expect(r.fx.gamble).toBeTruthy();
+          expect(r.fx.gamble!.p).toBeGreaterThanOrEqual(0.15); expect(r.fx.gamble!.p).toBeLessThanOrEqual(0.92); expect(r.down).toBeTruthy();
+          expect(s.fx.gamble).toBeUndefined();
         }
         c = c.phase === 'result' ? advance(c) : choose(c, randomPicker(c, c.queue[0], pr));
       }
     }
-    expect(two / total).toBeGreaterThan(0.1);
-    expect(two / total).toBeLessThan(0.7);
+    expect(total).toBeGreaterThan(400);
+    for (const id of ['plan', 'transfer', 'debut', 'derby']) expect(ids.has(id), id).toBe(true);
+    expect(ids.size).toBeGreaterThanOrEqual(10);
   });
-  it('las etiquetas de una opción cuentan lo que hace', () => {
-    expect(fxTags({ growth: 0.9, injury: 0.05 }).map(t => t.t)).toEqual(['Crecés más', 'Más riesgo de lesión']);
-    expect(fxTags({}).length).toBe(0);
-    expect(fxTags({ gamble: { p: 0.5, okText: '', badText: '' } }).some(t => t.t === 'Con riesgo')).toBe(true);
+  it('las etiquetas dicen "Seguro" o el nivel de riesgo con la probabilidad real de la apuesta', () => {
+    for (const seed of seeds(25)) {
+      const pr = new Rng(seedState(seed));
+      let c = newCareer({ seed, name: 'x', pos: POS[seed % 4], style: 'potrero' });
+      for (let g = 0; g < 400 && c.phase !== 'over'; g++) {
+        if (c.phase === 'decide') {
+          const [s, r] = c.queue[0].options;
+          expect(optionChips(c, s)[0].text).toBe('🛡️ Seguro');
+          const chips = optionChips(c, r);
+          expect(chips[0].text).toMatch(/^🔥 Riesgo (bajo|medio|alto)$/);
+          const k = riskOf(r);
+          expect(chips.some(x => x.text.includes(`${Math.round(k.pBad * 100)} %`))).toBe(true);
+        }
+        c = c.phase === 'result' ? advance(c) : choose(c, randomPicker(c, c.queue[0], pr));
+      }
+    }
+    const o = (p?: number): Opt => ({ id: 'x', kind: 'risky', icon: '', label: '', up: '', fx: p === undefined ? {} : { gamble: { p, okText: '', badText: '' } } });
+    expect(riskOf(o()).level).toBe('ninguno');
+    expect(riskOf(o(0.5)).level).toBe('alto');
+    expect(riskOf(o(0.65)).level).toBe('medio');
+    expect(riskOf(o(0.8)).level).toBe('bajo');
   });
-  it('los obligatorios salen SIEMPRE, en cualquier semilla: el debut a los 19 en inferiores y la vuelta tras una lesión grave', () => {
+  it('los obligatorios salen SIEMPRE: el debut a los 19 en inferiores y la vuelta tras una lesión grave', () => {
     let debuts = 0, comebacks = 0;
     for (const seed of seeds(500, 31)) {
       const pr = new Rng(seedState(seed));
       let c = newCareer({ seed, name: 'T', pos: POS[seed % 4], style: 'potrero' });
-      let afterGrave = false;
       for (let g = 0; g < 400 && c.phase !== 'over'; g++) {
-        if (c.phase === 'decide' && c.picks.length === 0 && c.age >= 19 && c.club.tier === 0) {
+        if (c.phase === 'decide' && !c.tension && c.age >= 19 && c.club.tier === 0) {
           debuts++;
-          const debut = c.queue.find(e => e.id === 'debut');
-          expect(debut).toBeDefined();
-          expect(debut!.options.length).toBeGreaterThanOrEqual(2);
-          if (!afterGrave) expect(c.queue[0].id).toBe('debut'); // el obligatorio se elige primero, no queda a la suerte del sorteo
+          expect(['debut', 'comeback']).toContain(c.queue[0].id);
         }
         if (c.phase === 'result') {
-          afterGrave = c.history[c.history.length - 1].injury === 'grave' && !c.retire;
-          if (afterGrave) {
+          const grave = c.history[c.history.length - 1].injury === 'grave' && !c.retire;
+          if (grave) {
             comebacks++;
-            const ids = advance(c).queue.map(e => e.id);
-            expect(ids).toContain('comeback');
-            if (!ids.includes('debut')) expect(ids[0]).toBe('comeback');
+            expect(['comeback', 'debut']).toContain(advance(c).queue[0].id);
           }
         }
         c = c.phase === 'result' ? advance(c) : choose(c, randomPicker(c, c.queue[0], pr));
@@ -324,19 +332,73 @@ describe('decisiones', () => {
     expect(debuts).toBeGreaterThan(100);
     expect(comebacks).toBeGreaterThan(10);
   });
-  it('si coinciden dos obligatorios de grupos distintos (debut + vuelta de una lesión grave) salen los dos, sin pasar de dos decisiones', () => {
-    for (const seed of seeds(300)) {
+  it('si coinciden dos obligatorios (debut + vuelta de una lesión grave) sale uno solo', () => {
+    for (const seed of seeds(100)) {
       const base = newCareer({ seed, name: 'x', pos: POS[seed % 4], style: 'potrero' });
-      const ev = drawEvents({ ...base, age: 19, lastInjury: 'grave' }, new Rng(seedState(seed)));
-      expect(ev.map(e => e.id).sort()).toEqual(['comeback', 'debut']);
+      const d = drawDecision({ ...base, age: 19, lastInjury: 'grave' }, new Rng(seedState(seed)));
+      expect(['comeback', 'debut']).toContain(d.ev.id);
     }
   });
   it('el cambio de puesto nombra el puesto en palabras, no con la sigla', () => {
-    const c = find(x => x.phase === 'decide' && x.queue.some(e => e.id === 'switch'), 900);
-    const ev = c.queue.find(e => e.id === 'switch')!;
-    const yes = ev.options.find(o => o.id === 'yes')!;
-    expect(yes.label).toMatch(/^Aceptar el cambio a [a-záéíóú ]+$/);
-    expect(yes.label).toContain(DPOS_LABEL[yes.fx.dpos!].toLowerCase());
+    const c = find(x => x.phase === 'decide' && x.queue[0].id === 'switch', 1500);
+    const r = c.queue[0].options[1];
+    expect(r.label).toMatch(/^Probarte de [a-záéíóú ]+$/);
+    expect(r.label).toContain(DPOS_LABEL[r.fx.dpos!].toLowerCase());
+  });
+  it('no se repite la misma decisión dos temporadas seguidas', () => {
+    let rep = 0, tot = 0;
+    for (const seed of seeds(30)) {
+      const pr = new Rng(seedState(seed));
+      let c = newCareer({ seed, name: 'x', pos: POS[seed % 4], style: 'potrero' });
+      let last = '';
+      for (let g = 0; g < 400 && c.phase !== 'over'; g++) {
+        if (c.phase === 'decide' && !c.tension) { tot++; if (c.queue[0].id === last) rep++; last = c.queue[0].id; }
+        c = c.phase === 'result' ? advance(c) : choose(c, randomPicker(c, c.queue[0], pr));
+      }
+    }
+    expect(rep / tot).toBeLessThan(0.12);
+  });
+  it('la apuesta sale como dice su probabilidad y la dificultad la empeora', () => {
+    let ok = 0, n = 0, p = 0;
+    for (const seed of seeds(300)) {
+      let c = newCareer({ seed, name: 'x', pos: 'MED', style: 'potrero' });
+      for (let g = 0; g < 30 && c.phase !== 'over' && !(c.phase === 'decide' && c.queue[0].id === 'plan'); g++) c = c.phase === 'result' ? advance(c) : choose(c, 'safe');
+      if (c.phase !== 'decide' || c.queue[0].id !== 'plan') continue;
+      p += c.queue[0].options[1].fx.gamble!.p;
+      const d = choose(c, 'risky');
+      n++; if (d.history[d.history.length - 1].risk === 'ok') ok++;
+    }
+    expect(n).toBeGreaterThan(150);
+    expect(Math.abs(ok / n - p / n)).toBeLessThan(0.08);
+    const pOf = (diff: Difficulty) => {
+      let x = newCareer({ seed: 3, name: 'x', pos: 'MED', style: 'potrero', diff });
+      for (let g = 0; g < 30 && !(x.phase === 'decide' && x.queue[0].id === 'plan'); g++) x = x.phase === 'result' ? advance(x) : choose(x, 'safe');
+      return x.queue[0].options[1].fx.gamble!.p;
+    };
+    expect(pOf('normal')).toBeGreaterThan(pOf('intenso')); expect(pOf('intenso')).toBeGreaterThan(pOf('experto'));
+  });
+  it('riesgo vs seguro: con el mismo punto de partida, la arriesgada puede dar bastante más o bastante menos, y en promedio no es peor', () => {
+    const diffs: number[] = [];
+    for (const seed of seeds(120, 53)) {
+      const pr = new Rng(seedState(seed));
+      let c = newCareer({ seed, name: 'x', pos: POS[seed % 4], style: 'potrero' });
+      for (let g = 0; g < 60 && c.phase !== 'over'; g++) {
+        if (c.phase === 'decide' && !c.tension && c.age >= 19) {
+          for (let k = 0; k < 3; k++) {
+            const base = { ...c, rng: (c.rng + k * 7919) >>> 0 };
+            const a = choose(base, 'safe'), b = choose(base, 'risky');
+            const ha = a.history[a.history.length - 1], hb = b.history[b.history.length - 1];
+            if (ha && hb && !a.tension && !b.tension) diffs.push(hb.ovr - hb.ovr0 + hb.rating / 4 - (ha.ovr - ha.ovr0 + ha.rating / 4));
+          }
+        }
+        c = c.phase === 'result' ? advance(c) : choose(c, randomPicker(c, c.queue[0], pr));
+      }
+    }
+    const m = diffs.reduce((t, x) => t + x, 0) / diffs.length;
+    expect(diffs.length).toBeGreaterThan(300);
+    expect(diffs.filter(x => x >= 0.6).length / diffs.length).toBeGreaterThan(0.1); // de verdad puede salir mejor
+    expect(diffs.filter(x => x <= -0.6).length / diffs.length).toBeGreaterThan(0.1); // y de verdad puede salir peor
+    expect(m).toBeGreaterThan(-0.4); expect(m).toBeLessThan(0.8);
   });
 });
 
@@ -356,41 +418,53 @@ describe('categorías y traspasos', () => {
     expect(avg('br')).toBeGreaterThan(avg('ar1')); expect(avg('br')).toBeLessThan(avg('es'));
     for (const id of ['mx', 'us', 'sa'] as const) expect(Math.max(...clubsOf(id).map(c => c.pw))).toBeLessThan(77);
   });
-  it('aceptar una oferta te manda al club y la categoría de la oferta', () => {
-    const c = find(x => x.phase === 'decide' && x.queue[0].id === 'transfer' && x.queue[0].options.some(o => o.fx.move));
-    const offer = c.queue[0].options.find(o => o.fx.move)!;
-    const club = offer.fx.move!.club;
-    const played = finish(choose(c, offer.id));
-    expect(played.history[played.history.length - 1].club).toBe(club.name);
-    expect(played.history[played.history.length - 1].tier).toBe(club.tier);
+  it('aceptar una oferta (si la apuesta sale bien) te manda al club y la categoría de la oferta; si se cae, seguís donde estás o jugás mal', () => {
+    const c = find(x => x.phase === 'decide' && !x.tension && x.queue[0].id === 'transfer');
+    const offer = c.queue[0].options[1];
+    const club = offer.fx.gamble!.ok!.move!.club;
+    expect(offer.club).toBe(club.name);
+    let ok: Career | null = null, bad: Career | null = null;
+    for (let i = 0; i < 60 && (!ok || !bad); i++) {
+      const n = choose({ ...c, rng: seedState(i * 7919 + 1) }, 'risky');
+      const h = n.history[n.history.length - 1];
+      if (h.risk === 'ok') ok = n; else bad = n;
+    }
+    expect(ok).not.toBeNull();
+    const h = ok!.history[ok!.history.length - 1];
+    expect(h.club).toBe(club.name); expect(h.tier).toBe(club.tier);
+    expect(h.say).toContain(club.name);
+    if (bad) expect(bad.history[bad.history.length - 1].say.length).toBeGreaterThan(5);
   });
   it('quedarte en el club no te mueve', () => {
-    const c = find(x => x.phase === 'decide' && x.queue[0].id === 'transfer');
-    const stay = c.queue[0].options.find(o => o.id === 'stay')!;
-    expect(stay.fx.move).toBeUndefined();
-    const played = finish(choose(c, 'stay'));
+    const c = find(x => x.phase === 'decide' && !x.tension && x.queue[0].id === 'transfer');
+    const stay = c.queue[0].options[0];
+    expect(stay.fx.move).toBeUndefined(); expect(stay.fx.gamble).toBeUndefined();
+    const played = choose(c, 'safe');
     expect(played.history[played.history.length - 1].club).toBe(c.club.name);
   });
-  it('las ofertas son de clubes reales, distintos del tuyo y entre sí', () => {
-    const c = find(x => x.phase === 'decide' && x.queue[0].id === 'transfer' && x.queue[0].options.filter(o => o.fx.move).length >= 2);
-    const names = c.queue[0].options.filter(o => o.fx.move).map(o => o.fx.move!.club.name);
-    expect(new Set(names).size).toBe(names.length);
-    expect(names).not.toContain(c.club.name);
-    const clubs = c.queue[0].options.filter(o => o.fx.move).map(o => o.fx.move!.club);
-    for (const k of clubs) {
-      expect(CLUB_BY_NAME.has(k.name)).toBe(true);
-      expect(k.tier).toBeGreaterThanOrEqual(1); expect(k.tier).toBe(tierOf(k.pw));
-      expect(LEAGUES[k.lg].name).toBeTruthy();
+  it('las ofertas son de clubes reales, distintos del tuyo, con la categoría que les toca', () => {
+    let n = 0;
+    for (const seed of seeds(60, 17)) {
+      const pr = new Rng(seedState(seed));
+      let c = newCareer({ seed, name: 'x', pos: POS[seed % 4], style: 'potrero' });
+      for (let g = 0; g < 400 && c.phase !== 'over'; g++) {
+        if (c.phase === 'decide' && !c.tension && c.queue[0].options[1].club) {
+          const k = c.queue[0].options[1].fx.gamble?.ok?.move?.club ?? c.queue[0].options[1].fx.move?.club;
+          if (k) { n++; expect(CLUB_BY_NAME.has(k.name)).toBe(true); expect(k.tier).toBe(tierOf(k.pw)); expect(LEAGUES[k.lg].name).toBeTruthy(); if (c.queue[0].id === 'transfer') expect(k.name).not.toBe(c.club.name); }
+        }
+        c = c.phase === 'result' ? advance(c) : choose(c, randomPicker(c, c.queue[0], pr));
+      }
     }
+    expect(n).toBeGreaterThan(80);
   });
   it('el préstamo te lleva a otro club y después volvés al de origen', () => {
-    const c = find(x => x.phase === 'decide' && x.queue[0].id === 'loan');
+    const c = find(x => x.phase === 'decide' && !x.tension && x.queue[0].id === 'loan');
     const parent = c.club;
-    const n = finish(choose(c, 'loan'));
-    expect(n.phase).toBe('result');
+    const n = choose(c, 'safe');
+    expect(n.phase === 'result' || n.tension).toBeTruthy();
     expect(n.history[n.history.length - 1].club).not.toBe(parent.name);
     expect(n.loan?.name).toBe(parent.name);
-    const next = advance(n);
+    const next = advance(finish(n));
     expect(next.club.name).toBe(parent.name);
     expect(next.loan).toBeNull();
   });
@@ -407,34 +481,23 @@ describe('categorías y traspasos', () => {
     expect(c.qual).toBeNull();
   });
   it('volver al club de las inferiores te lleva a ese club, con la fuerza que tiene hoy', () => {
-    const c = find(x => x.phase === 'decide' && x.queue[0].id === 'home', 900);
-    expect(c.age).toBeGreaterThanOrEqual(31);
-    const n = finish(choose(c, 'back'));
+    const c = find(x => x.phase === 'decide' && !x.tension && x.queue[0].id === 'home', 900);
+    expect(c.age).toBeGreaterThanOrEqual(30);
+    const n = choose(c, 'risky');
     const last = n.history[n.history.length - 1];
     expect(last.club).toBe(c.home);
     expect(last.tier).toBe(clubNamed(c.home)!.tier);
     expect(n.returned).toBe(true);
+    expect(last.miles).toContain('home');
   });
-  it('la vuelta al club de la infancia suma al Legado recién cuando se juega esa temporada: retirarse antes no da el bonus', () => {
-    const c = find(x => x.phase === 'decide' && x.queue[0].id === 'home', 900);
-    // Armamos una temporada con una segunda decisión (cualquiera), para poder retirarse con la vuelta ya elegida
-    const extra = newCareer({ seed: 5, name: 'x', pos: 'MED', style: 'potrero' }).queue[0];
-    const two: Career = { ...c, age: Math.max(c.age, RETIRE_FROM), queue: [c.queue[0], extra] };
-    const mid = choose(two, 'back');
-    expect(mid.phase).toBe('decide');
-    expect(mid.returned).toBe(false);
-    expect(canRetire(mid)).toBe(true);
-    const quit = retireNow(mid);
-    expect(quit.phase).toBe('over');
-    expect(quit.returned).toBe(false);
-    expect(legacyScore(quit)).toBe(legacyScore(retireNow(two)));
-    // Si se juega la temporada, ahora sí cuenta (+8)
-    const played = finish(mid);
+  it('la vuelta al club de la infancia suma al Legado recién cuando se juega esa temporada, y quedarte no da el bonus', () => {
+    const c = find(x => x.phase === 'decide' && !x.tension && x.queue[0].id === 'home', 900);
+    const played = finish(choose(c, 'risky'));
     expect(played.returned).toBe(true);
     expect(played.returning).toBe(false);
     expect(legacyScore(played)).toBe(legacyScore({ ...played, returned: false }) + 8);
-    // Y elegir otro club después no deja la marca colgada
-    expect(choose(two, 'stay').returning).toBe(false);
+    const stay = finish(choose(c, 'safe'));
+    expect(stay.returned).toBe(false); expect(stay.returning ?? false).toBe(false);
   });
   it('la Selección convoca solo con OVR alto, y más seguido a los de clubes de élite', () => {
     const base = newCareer({ seed: 2, name: 'x', pos: 'DEL', style: 'potrero' });
@@ -472,10 +535,22 @@ describe('categorías y traspasos', () => {
     for (const y0 of [2025, 2026, 2027, 2029]) expect(seasonYear({ y0, age: 19 })).toBe(y0 + 2);
   });
   it('quien va a la Selección suma partidos; quien pide descanso, no', () => {
-    const c = find(x => x.phase === 'decide' && x.queue[x.queue.length - 1].id === 'selec', 900);
-    const go = finish(c, 'selec', 'go'), rest = finish(c, 'selec', 'rest');
+    const c = find(x => x.phase === 'decide' && !x.tension && x.queue[0].id === 'selec', 1500);
+    const go = choose(c, 'risky'), rest = choose(c, 'safe');
     expect(go.history[go.history.length - 1].caps).toBeGreaterThan(0);
     expect(rest.history[rest.history.length - 1].caps).toBe(0);
+  });
+  it('si te convocan y la decisión es otra, vas igual a la Selección (con el desgaste que eso trae)', () => {
+    let n = 0;
+    for (const seed of seeds(200, 41)) {
+      const pr = new Rng(seedState(seed));
+      let c = newCareer({ seed, name: 'x', pos: 'DEL', style: 'potrero' });
+      for (let g = 0; g < 400 && c.phase !== 'over'; g++) {
+        if (c.phase === 'decide' && !c.tension && c.mods.cap && c.queue[0].id !== 'selec') { n++; expect(c.mods.injury).toBeGreaterThan(0); }
+        c = c.phase === 'result' ? advance(c) : choose(c, randomPicker(c, c.queue[0], pr));
+      }
+    }
+    expect(n).toBeGreaterThan(5);
   });
 });
 
@@ -540,7 +615,7 @@ describe('retiro', () => {
 
 describe('Legado', () => {
   it('los escalones están ordenados y el puntaje se corta exactamente en cada umbral', () => {
-    expect(LEGACY_STEPS.map(s => s.label)).toEqual(['Promesa perdida', 'Jugador de club', 'Ídolo', 'Leyenda', 'Mejor de la historia']);
+    expect(LEGACY_STEPS.map(s => s.label)).toEqual(['Promesa perdida', 'Jugador de club', 'Ídolo de barrio', 'Ídolo nacional', 'Leyenda mundial', 'Mejor de la historia']);
     expect(LEGACY_STEPS[0].min).toBe(0);
     LEGACY_STEPS.forEach((s, i) => {
       if (i) expect(s.min).toBeGreaterThan(LEGACY_STEPS[i - 1].min);
@@ -562,13 +637,13 @@ describe('Legado', () => {
     expect(plus(h => { h.goals += 30; h.tier = 5; })).toBeGreaterThan(base);
   });
   it('todos los escalones se alcanzan, y los de arriba son los raros', () => {
-    const counts = [0, 0, 0, 0, 0];
+    const counts = [0, 0, 0, 0, 0, 0];
     const n = 600;
     for (const seed of seeds(n)) counts[legacy(simulateRun(seed)).index]++;
     expect(counts.every(x => x > 0)).toBe(true);
-    expect(counts[4] / n).toBeLessThan(0.1);
+    expect(counts[5] / n).toBeLessThan(0.09);
     expect(counts[0] / n).toBeGreaterThan(0.05); expect(counts[0] / n).toBeLessThan(0.35);
-    expect(counts[4]).toBeLessThan(counts[3]); expect(counts[3]).toBeLessThan(counts[2] + counts[1]);
+    expect(counts[5]).toBeLessThan(counts[2]); expect(counts[4]).toBeLessThan(counts[3] + counts[2]); expect(counts[3] + counts[4] + counts[5]).toBeLessThan(counts[1] + counts[2] + counts[0]);
   });
   it('los títulos grandes pesan mucho más que los locales: Mundial, Champions y Libertadores contra una copa nacional', () => {
     const pts = (n: string) => TROPHY_PTS[n];
@@ -582,29 +657,27 @@ describe('Legado', () => {
     expect(AWARD_PTS[AWARD.ballon]).toBeGreaterThan(AWARD_PTS[AWARD.ballon2]); expect(AWARD_PTS[AWARD.ballon2]).toBeGreaterThan(AWARD_PTS[AWARD.ballon3]);
     expect(AWARD_PTS[AWARD.olimpiaOro]).toBeGreaterThan(AWARD_PTS[AWARD.olimpiaPlata]);
   });
-  it('tabla de Legado en 1000 carreras: al azar, bien jugadas y mal jugadas. El escalón más alto es raro, y casi imposible jugando mal', () => {
+  it('tabla de Legado en 1000 carreras: al azar, bien jugadas y mal jugadas. El escalón más alto es raro', () => {
     const table = (p: Picker | undefined) => {
-      const counts = [0, 0, 0, 0, 0];
+      const counts = [0, 0, 0, 0, 0, 0];
       for (const seed of seeds(1000)) counts[legacy(simulateRun(seed, { pick: p })).index]++;
       return counts.map(x => x / 1000);
     };
     const random = table(undefined), good = table(smart), poor = table(bad);
-    // el escalón más alto: 3-7 % con buen juego, menos de 1 % con mal juego (con un poco de margen por el azar de la muestra)
-    expect(good[4]).toBeGreaterThan(0.02); expect(good[4]).toBeLessThan(0.09);
-    expect(random[4]).toBeLessThan(0.07);
-    expect(poor[4]).toBeLessThan(0.015);
-    expect(good[4]).toBeGreaterThan(poor[4]);
-    // y todos los demás escalones existen para todos
-    for (const t of [random, good, poor]) { expect(t.every(x => x > 0 || t === poor)).toBe(true); expect(t[0] + t[1]).toBeGreaterThan(0.25); expect(t[0]).toBeLessThan(0.3); }
+    // el escalón más alto: pocos con buen juego (2-8 %) y todavía menos jugando mal
+    expect(good[5]).toBeGreaterThan(0.015); expect(good[5]).toBeLessThan(0.09);
+    expect(random[5]).toBeLessThan(0.09);
+    expect(poor[5]).toBeLessThan(good[5]);
+    for (const t of [random, good, poor]) { expect(t[0] + t[1]).toBeGreaterThan(0.25); expect(t[0]).toBeLessThan(0.3); expect(t[5]).toBeLessThan(t[1]); }
     // jugar bien mueve a la gente hacia arriba
-    const up = (t: number[]) => t[3] + t[4];
+    const up = (t: number[]) => t[3] + t[4] + t[5];
     expect(up(good)).toBeGreaterThan(up(poor));
   });
-  it('decidir bien importa: entrenar de joven y cuidarse de grande rinde más que salir de joda', () => {
-    const train: Picker = (c, ev) => (ev.id === 'plan' ? (c.age <= 28 ? 'train' : 'care') : ev.options[0].id);
-    const party: Picker = (c, ev) => (ev.id === 'plan' ? (c.age <= 28 ? 'party' : 'train') : ev.options[0].id);
+  it('decidir bien importa: entrenar fuerte de joven y cuidarse de grande rinde más que salir de joda y entrenar de más de veterano', () => {
+    const train: Picker = (c, ev) => (ev.id === 'plan' && c.age <= 28 ? 'risky' : 'safe');
+    const party: Picker = (c, ev) => (ev.id === 'plan' ? (c.age <= 28 ? 'safe' : 'risky') : ['night', 'hype'].includes(ev.id) ? 'risky' : 'safe');
     const peak = (p: Picker) => seeds(250).reduce((t, s) => t + totals(simulateRun(s, { pick: p })).peak, 0) / 250;
-    expect(peak(train)).toBeGreaterThan(peak(party) + 1);
+    expect(peak(train)).toBeGreaterThan(peak(party));
   });
   it('totales: suman la historia y el pico sale del mejor OVR', () => {
     const c = simulateRun(1234);
@@ -888,25 +961,24 @@ describe('competencias y premios en carreras enteras', () => {
     expect(homes.filter(h => CLUB_BY_NAME.get(h)!.lg === 'ar2').length / 600).toBeGreaterThan(0.25);
   });
 
-  it('las ofertas de Arabia, la MLS y México traen su propio color; Europa le llega a los pibes con potencial', () => {
+  it('las ofertas de Arabia, la MLS y México van con riesgo y plata; Europa le llega a los pibes con potencial', () => {
     const c = find(x => x.phase === 'decide' && x.queue[0].id === 'cash', 1500);
-    const go = c.queue[0].options.find(o => o.id === 'go')!;
-    const lg = go.fx.move!.club.lg;
+    const go = c.queue[0].options[1];
+    const lg = CLUB_BY_NAME.get(go.club!)!.lg;
     expect(['sa', 'us', 'mx']).toContain(lg);
-    expect(c.queue[0].text).toContain(LEAGUES[lg].flavor);
-    expect(go.hint).toMatch(/vidriera/);
+    expect(go.fx.gamble!.ok!.move!.club.name).toBe(go.club);
     expect(c.age).toBeGreaterThanOrEqual(28);
     expect(LEAGUES.sa.flavor).toBe('Te llenan de plata, pero la vidriera es menor.');
     const e = find(x => x.phase === 'decide' && x.queue[0].id === 'abroad', 900);
-    const club = e.queue[0].options.find(o => o.id === 'go')!.fx.move!.club;
+    const club = e.queue[0].options[1].fx.gamble!.ok!.move!.club;
     expect(LEAGUES[club.lg].conf).toBe('uefa');
     expect(club.tier).toBeGreaterThanOrEqual(3);
-    expect(e.age).toBeLessThanOrEqual(23);
+    expect(e.age).toBeLessThanOrEqual(24);
   });
 
   it('en los clubes de Europa las ofertas incluyen "Volver a tu club de inferiores" ya de grande, y el club es el mismo con el que arrancaste', () => {
     const c = find(x => x.phase === 'decide' && x.queue[0].id === 'home', 900);
-    const back = c.queue[0].options.find(o => o.id === 'back')!;
+    const back = c.queue[0].options[1];
     expect(back.label).toBe('Volver a ' + c.home);
     expect(back.fx.move!.kind).toBe('return');
     expect(back.fx.move!.club.name).toBe(c.home);
@@ -923,7 +995,7 @@ describe('guardado', () => {
   });
   it('rechaza lo roto, viejo o inventado sin tirar error', () => {
     const c = simulateRun(42);
-    const bad: unknown[] = [null, undefined, 5, 'x', '{', '[]', {}, { v: 3 }, { ...c, v: 1 }, { ...c, v: 2 }, { ...c, v: 4 }, { ...c, pos: 'ZZZ' }, { ...c, style: 'x' }, { ...c, phase: 'nada' },
+    const bad: unknown[] = [null, undefined, 5, 'x', '{', '[]', {}, { v: 3 }, { ...c, v: 1 }, { ...c, v: 2 }, { ...c, v: 5 }, { ...c, pos: 'ZZZ' }, { ...c, style: 'x' }, { ...c, phase: 'nada' },
       { ...c, age: NaN }, { ...c, stats: { rit: 1 } }, { ...c, history: 'no' }, { ...c, club: null }, { ...c, club: { ...c.club, tier: 9 } },
       { ...c, mods: null }, { ...c, phase: 'decide', queue: [] }, { ...c, phase: 'decide', queue: [{ id: 'x', options: [] }] }];
     for (const b of bad) expect(parseCareer(b)).toBeNull();
@@ -931,7 +1003,7 @@ describe('guardado', () => {
   it('una decisión pendiente sin opciones no se acepta: así no queda una carrera trabada', () => {
     const mid = find(x => x.phase === 'decide');
     const broken = JSON.parse(JSON.stringify(mid)) as Career;
-    (broken.queue[0] as EventInst).options = [];
+    (broken.queue[0] as { options: unknown[] }).options = [];
     expect(parseCareer(broken)).toBeNull();
   });
   it('rechaza saves que romperían la pantalla: resultado sin temporadas, categoría o club raros, opciones rotas, préstamo u origen inválidos', () => {
@@ -1040,29 +1112,75 @@ describe('guardado', () => {
 });
 
 describe('textos y resúmenes', () => {
-  const log = (o: Partial<SeasonLog> = {}): SeasonLog => ({
-    n: 1, age: 20, club: 'Colón', tier: 1, lg: 'ar2', fin: 4, cont: '', capAssists: 0, tours: [], promo: null, val: 1_000_000, ovr0: 60, ovr: 62, pj: 20, goals: 5, assists: 2, cs: 0, rating: 7, role: 'Titular', trophies: [], awards: [],
-    caps: 0, capGoals: 0, injury: null, captain: false, picks: [], lines: [], ...o,
-  });
   it('tally cuenta repetidos y pone primero lo más valioso', () => {
     expect(tally(['FA Cup', 'Premier League', 'FA Cup'], TROPHY_PTS)).toEqual([['Premier League', 1], ['FA Cup', 2]]);
     expect(tally(['Champions League', 'Copa Argentina', 'Champions League', 'Champions League'], TROPHY_PTS)).toEqual([['Champions League', 3], ['Copa Argentina', 1]]);
     expect(tally(['a', 'b', 'b'])).toEqual([['b', 2], ['a', 1]]);
     expect(tally([])).toEqual([]);
   });
-  it('el titular de la temporada cuenta lo más importante que pasó', () => {
-    expect(seasonTitle(log({ awards: [AWARD.ballon] }))).toBe('¡Ganaste el Balón de Oro!');
-    expect(seasonTitle(log({ trophies: ['Mundial'] }))).toBe('¡Campeón del mundo!');
-    expect(seasonTitle(log({ trophies: ['Champions League'] }))).toBe('¡Campeón de Europa!');
-    expect(seasonTitle(log({ trophies: ['Copa Libertadores'] }))).toBe('¡Campeón de América!');
-    expect(seasonTitle(log({ trophies: ['Copa América'] }))).toBe('¡Campeón con la Selección!');
-    expect(seasonTitle(log({ trophies: ['Liga Profesional', 'Copa Argentina'] }))).toBe('Temporada de ensueño');
-    expect(seasonTitle(log({ trophies: ['Liga Profesional'] }))).toBe('¡Saliste campeón!');
-    expect(seasonTitle(log({ injury: 'grave' }))).toBe('Un año para el olvido');
-    expect(seasonTitle(log({ pj: 2 }))).toBe('Casi no jugaste');
-    expect(seasonTitle(log({ rating: 8.3 }))).toBe('Una temporada brillante');
-    expect(seasonTitle(log({ rating: 7.4 }))).toBe('Una buena temporada');
-    expect(seasonTitle(log({ rating: 6.5 }))).toBe('Una temporada pareja');
+  it('el titular es una línea corta de diario y cuenta lo más importante que pasó', () => {
+    const base = simulateRun(2024, { nat: 'ar' });
+    const h = (o: Partial<SeasonLog>): Career => { const d = JSON.parse(JSON.stringify(base)) as Career; Object.assign(d.history[d.history.length - 1], { injury: null, promo: null, ev: '', risk: null, trophies: [], awards: [] }, o); return d; };
+    expect(headlineOf(h({ awards: [AWARD.ballon] }))).toContain('Balón de Oro');
+    expect(headlineOf(h({ trophies: ['Mundial'], awards: [] }))).toMatch(/mundo/i);
+    expect(headlineOf(h({ trophies: ['Champions League'], awards: [] }))).toMatch(/Champions|Europa/);
+    expect(headlineOf(h({ trophies: ['Copa Libertadores'], awards: [] }))).toMatch(/Libertadores|América/);
+    expect(headlineOf(h({ trophies: ['Copa América'], awards: [] }))).toMatch(/Selección/);
+    expect(headlineOf(h({ trophies: ['Liga Profesional', 'Copa Argentina'], awards: [] }))).toMatch(/ensueño/);
+    // un título de la Selección no se cuenta como del club
+    expect(headlineOf(h({ trophies: ['Mundial Sub-20'], awards: [] }))).toBe('¡Campeón del Mundial Sub-20 con Argentina!');
+    expect(headlineOf(h({ trophies: ['Finalissima'], awards: [] }))).toMatch(/Finalissima/);
+    expect(headlineOf(h({ trophies: ['Liga Profesional'], awards: [] }))).toMatch(/campeón|Salís/i);
+    expect(headlineOf(h({ injury: 'grave', trophies: [], awards: [] }))).toMatch(/grave|rodilla/i);
+    expect(headlineOf(h({ promo: 'down', injury: null, trophies: [], awards: [] }))).toMatch(/Descenso/);
+    // en todas las carreras, cada temporada trae un titular de ocho palabras o menos y nada de párrafos
+    for (const seed of seeds(40)) for (const x of simulateRun(seed).history) { expect(x.head.length).toBeGreaterThan(5); expect(x.head.split(/\s+/).length, x.head).toBeLessThanOrEqual(11); expect(x.near.length).toBeLessThan(60); }
+  });
+  it('los hitos: debut, primer gol, Selección y títulos salen una sola vez en la carrera', () => {
+    const seen: Record<string, number> = {};
+    for (const seed of seeds(120)) {
+      const c = simulateRun(seed, { nat: 'ar' });
+      const own: Record<string, number> = {};
+      for (const h of c.history) for (const m of h.miles) own[m] = (own[m] ?? 0) + 1;
+      for (const [m, n] of Object.entries(own)) { seen[m] = (seen[m] ?? 0) + 1; if (!/^(home|idol|ballon|wc)$/.test(m)) expect(n, m).toBe(1); }
+    }
+    for (const m of ['debut', 'goal1', 'caps1', 'title1', 'europe']) expect(seen[m] ?? 0, m).toBeGreaterThan(10);
+    expect(nice('DE PAUL')).toBe('De Paul');
+    expect(milesOf({ ...simulateRun(5), history: [] } as Career)).toEqual([]);
+  });
+  it('lo que quedó cerca: el escalón que falta, el OVR redondo o tu mejor carrera', () => {
+    expect(endNear(130, 1, 70, null)).toMatch(/A 5 pts de Ídolo de barrio/);
+    expect(endNear(20, 0, 88, null)).toMatch(/Te faltaron 2 de OVR para los 90/);
+    expect(endNear(100, 1, 70, 110)).toMatch(/A 10 pts de tu mejor carrera/);
+    expect(endNear(10, 0, 60, null)).toBe('');
+    expect(nearOf({ ...simulateRun(9), history: [] } as Career)).toBe('');
+  });
+  it('migra las carreras de la versión 3: queda jugable (con una decisión nueva) y nunca se rompe con lo viejo', () => {
+    const mid = find(x => x.phase === 'decide' && x.history.length > 3 && !x.tension);
+    const old = JSON.parse(JSON.stringify(mid)) as any;
+    old.v = 3;
+    old.queue = [{ id: 'plan', title: 'x', text: 'y', options: [{ id: 'a', label: 'a', hint: 'h', fx: {} }, { id: 'b', label: 'b', hint: 'h', fx: {} }, { id: 'c', label: 'c', hint: 'h', fx: {} }] }];
+    old.history = old.history.map((h: any) => { const { ev, kind, risk, say, head, near, miles, ...rest } = h; return rest; });
+    delete old.pk; delete old.last;
+    const m = parseCareer(JSON.stringify(old))!;
+    expect(m).not.toBeNull();
+    expect(m.v).toBe(4);
+    expect(m.history.length).toBe(mid.history.length);
+    expect(m.history.every(h => h.head.length > 0)).toBe(true);
+    expect(m.phase).toBe('decide');
+    expect(m.queue.length).toBe(1); expect(m.queue[0].options.length).toBe(2);
+    const next = choose(m, 'safe');
+    expect(['result', 'decide']).toContain(next.phase);
+    // en resultado, en final pendiente y terminada
+    const res = find(x => x.phase === 'result');
+    const o2 = JSON.parse(JSON.stringify(res)); o2.v = 3; o2.history = o2.history.map((h: any) => { const { ev, kind, risk, say, head, near, miles, ...rest } = h; return rest; });
+    expect(parseCareer(o2)!.phase).toBe('result');
+    const fin = find(x => !!x.tension, 3000);
+    const o3 = JSON.parse(JSON.stringify(fin)); o3.v = 3; o3.history = o3.history.map((h: any) => { const { ev, kind, risk, say, head, near, miles, ...rest } = h; return rest; });
+    const m3 = parseCareer(o3)!;
+    expect(m3.phase).toBe('result'); expect(m3.tension ?? null).toBeNull();
+    const done = JSON.parse(JSON.stringify(simulateRun(42))); done.v = 3; done.history = done.history.map((h: any) => { const { ev, kind, risk, say, head, near, miles, ...rest } = h; return rest; });
+    expect(parseCareer(done)!.phase).toBe('over');
   });
   it('las estrellas de potencial van de 1 a 5 y no bajan al subir el potencial', () => {
     let prev = 1;

@@ -1,11 +1,12 @@
-// "De potrero a leyenda": la pantalla de arranque. Todo con valores listos (Argentina, tu posición, Normal): con un toque en "Empezar" alcanza.
+// "De potrero a leyenda": la pantalla de arranque. Todo viene listo (Argentina, tu posición, Normal): con un toque en "Empezar" alcanza.
+// Lo demás (país, posición, pie, estilo, dificultad) está en "Personalizar".
 import { useMemo, useState } from 'preact/hooks';
 import { ATTRS, displayName, type Profile, type Stats } from '../../shared/model';
 import { Flag, Shirt } from './CareerVisuals';
 import { STYLES } from './careerData';
 import { cleanNum, cleanSurname, youthTarget } from './careerCore';
 import { NATIONS, nationOf } from './careerNations';
-import { DIFFS, DIFF_LIST, DPOS_DEFAULT, DPOS_LABEL, DPOS_LIST, DPOS_XY, FOOT_LIST, FOOTS } from './careerSetup';
+import { DIFF_LIST, DPOS_DEFAULT, DPOS_LABEL, DPOS_LIST, DPOS_XY, FOOT_LIST, FOOTS, fmtMult } from './careerSetup';
 import type { DailySetup } from './careerChallenge';
 import { streakShown, type Streak } from './careerDaily';
 import type { Best, DPos, Difficulty, Foot, NatId, StyleId } from './careerTypes';
@@ -58,37 +59,41 @@ function NatPicker({ value, onChange }: { value: NatId; onChange: (n: NatId) => 
         ))}
         {!list.length && <p class="muted cr-nonat">No encontramos ese país.</p>}
       </div>
-      <p class="cr-natnote"><Flag nat={n.id} size={18} /> Jugás en {n.team}.{where ? ` Como ${n.name} no tiene liga en el juego, te vas de chico a ${where}.` : ` Arrancás en las inferiores de un club de ${n.name}.`}</p>
+      {where && <p class="cr-natnote"><Flag nat={n.id} size={16} /> Sin liga propia: te vas de chico a {where}.</p>}
     </div>
   );
 }
 
-const Seg = <T extends string>({ name, label, value, items, onChange }: { name: string; label: string; value: T; items: readonly { id: T; title: string; desc: string }[]; onChange: (v: T) => void }) => (
+interface Choice<T extends string> { id: T; title: string; sub: string; emoji?: string }
+
+const Seg = <T extends string>({ name, label, value, items, onChange }: { name: string; label: string; value: T; items: readonly Choice<T>[]; onChange: (v: T) => void }) => (
   <fieldset class="cr-fs">
     <legend>{label}</legend>
     <div class="cr-seg">
       {items.map(i => (
         <label class="cr-opt">
           <input type="radio" name={name} value={i.id} checked={value === i.id} onChange={() => onChange(i.id)} />
-          <span><b>{i.title}</b><small>{i.desc}</small></span>
+          <span>{i.emoji && <i aria-hidden="true">{i.emoji}</i>}<b>{i.title}</b><small>{i.sub}</small></span>
         </label>
       ))}
     </div>
   </fieldset>
 );
 
+const DIFF_SUB: Record<Difficulty, string> = { normal: 'Parejo', intenso: 'Más difícil', experto: 'Una hazaña' };
+
 /** El Desafío del día: el mismo arranque para todos (hora de la Argentina), con tu mejor puntaje de hoy y tu racha. */
 function DailyCard({ setup, best, streak, today, onPlay }: { setup: DailySetup; best: number | null; streak: Streak; today: string; onPlay: () => void }) {
   const n = nationOf(setup.nat), s = streakShown(streak, today);
   return (
-    <section class="card cr-daily" aria-labelledby="cr-daily-t">
+    <section class="cr-daily" aria-labelledby="cr-daily-t">
       <div class="cr-daily-top">
         <h2 id="cr-daily-t" class="cr-h">📆 Desafío del día</h2>
-        {s > 0 && <span class="cr-streak" title="Días seguidos con un desafío terminado">🔥 {s} {s === 1 ? 'día seguido' : 'días seguidos'}</span>}
+        {s > 0 && <span class="cr-streak" title="Días seguidos con un desafío terminado">🔥 {s}</span>}
       </div>
-      <p class="cr-daily-setup"><Flag nat={setup.nat} size={20} /> <b>{n.name}</b> · {setup.dpos} · {FOOTS[setup.foot].short} · {DIFFS[setup.diff].name}</p>
-      <p class="muted cr-daily-note">Hoy todos arrancan con el mismo jugador y el mismo azar. {best !== null ? <>Tu mejor de hoy: <b>{best} pts</b>.</> : 'Todavía no lo jugaste hoy.'}</p>
-      <button type="button" class="btn primary block" onClick={onPlay}>{best !== null ? 'Jugarlo de nuevo' : 'Jugar el desafío de hoy'}</button>
+      <p class="cr-daily-setup"><Flag nat={setup.nat} size={20} /> <b>{n.name}</b> · {setup.dpos} · {FOOTS[setup.foot].short}</p>
+      <p class="muted cr-daily-note">{best !== null ? <>Tu mejor de hoy: <b>{best} pts</b></> : 'Mismo jugador y mismo azar para todos.'}</p>
+      <button type="button" class="btn block cr-daily-go" onClick={onPlay}>{best !== null ? 'Jugarlo de nuevo' : 'Jugar el desafío'} <span aria-hidden="true">▶</span></button>
     </section>
   );
 }
@@ -109,10 +114,13 @@ export function Start({ me, card, bests, achCount, achTotal, daily, dailyBest, s
   const [style, setStyle] = useState<StyleId>('potrero');
   const [diff, setDiff] = useState<Difficulty>('normal');
   const [useCard, setUseCard] = useState(false);
+  const [open, setOpen] = useState(() => typeof matchMedia !== 'undefined' && matchMedia('(min-width:900px)').matches);
   const avg = card ? ATTRS.reduce((t, [k]) => t + card[k], 0) / ATTRS.length : 0;
   const youth = Math.min(60, Math.max(45, Math.round(youthTarget(avg))));
   const n = Math.round(Number(num));
   const numOk = Number.isInteger(n) && n >= 1 && n <= 99;
+  const shirtNum = numOk ? n : cleanNum(undefined, dpos);
+  const who = { name: name.trim() || 'Crack', surname: cleanSurname(surname) || cleanSurname(name) || 'CRACK', num: shirtNum };
 
   /** "Usar mi perfil": tu nombre, apellido, número y posición; y, si tenés carta, arrancás con ella. La nacionalidad queda Argentina. */
   const useProfile = () => {
@@ -121,10 +129,10 @@ export function Start({ me, card, bests, achCount, achTotal, daily, dailyBest, s
   };
   const submit = (e: Event) => {
     e.preventDefault();
-    onStart({ name: name.trim() || 'Crack', surname: cleanSurname(surname) || cleanSurname(name) || 'CRACK', num: numOk ? n : cleanNum(undefined, dpos), dpos, nat, foot, diff, style, useCard: useCard && !!card });
+    onStart({ ...who, dpos, nat, foot, diff, style, useCard: useCard && !!card });
   };
   const best = bests[diff];
-  const D = DIFF_LIST.find(d => d.id === diff)!;
+  const S = STYLES.find(s => s.id === style)!;
 
   return (
     <div class="cr-start">
@@ -133,76 +141,61 @@ export function Start({ me, card, bests, achCount, achTotal, daily, dailyBest, s
         <svg class="cr-hero-pitch" viewBox="0 0 200 200" aria-hidden="true">
           <g fill="none" stroke="currentColor" stroke-width="3"><circle cx="100" cy="100" r="62" /><circle cx="100" cy="100" r="5" fill="currentColor" /><path d="M-10 100h220" /></g>
         </svg>
+        <span class="cr-hero-ball" aria-hidden="true">⚽</span>
         <span class="cr-kicker cr-kicker-light">Simulador de carrera</span>
-        <h1>De potrero a leyenda</h1>
-        <p>Arrancás en las inferiores de un club y vivís la carrera entera de un futbolista, de los 17 años hasta el retiro: Libertadores, Champions, Mundial y Balón de Oro. Vos elegís; el azar decide cómo sale. ¿Hasta dónde llegás?</p>
+        <h1>De potrero<br />a leyenda</h1>
+        <p>Elegí. Arriesgá. Hacete leyenda.</p>
         <div class="cr-hero-actions">
           <button type="button" class="btn sm" onClick={useProfile}>👤 Usar mi perfil</button>
           <button type="button" class="btn sm" onClick={onAch}>🏅 Logros {achCount}/{achTotal}</button>
         </div>
       </header>
 
-      <DailyCard setup={daily} best={dailyBest} streak={streak} today={today} onPlay={() => onDaily({ name: name.trim() || 'Crack', surname: cleanSurname(surname) || cleanSurname(name) || 'CRACK', num: numOk ? n : cleanNum(undefined, dpos) })} />
-
-      <form class="cr-form" onSubmit={submit}>
-        <section class="card cr-sec">
-          <h2 class="cr-h">Tu jugador</h2>
-          <div class="cr-ident">
-            <div class="cr-ident-f">
+      <div class="cr-start-grid">
+        <form class="cr-form" onSubmit={submit}>
+          <section class="cr-card2 cr-me" aria-label="Tu jugador">
+            <div class="cr-me-shirt" aria-live="polite"><Shirt nat={nat} surname={who.surname} num={shirtNum} size={118} /></div>
+            <div class="cr-me-f">
               <label class="field"><span>Nombre</span><input value={name} maxLength={24} placeholder="Tu nombre" autoComplete="off" onInput={e => setName((e.target as HTMLInputElement).value)} /></label>
-              <label class="field"><span>Apellido (va en la camiseta)</span><input class="cr-upper" value={surname} maxLength={14} placeholder="Apellido" autoComplete="off" onInput={e => setSurname((e.target as HTMLInputElement).value.toUpperCase().slice(0, 14))} /></label>
-              <label class="field"><span>Número (1 a 99)</span><input type="number" inputMode="numeric" min={1} max={99} value={num} aria-invalid={!numOk} onInput={e => setNum((e.target as HTMLInputElement).value)} /></label>
+              <div class="cr-me-row">
+                <label class="field"><span>Apellido</span><input class="cr-upper" value={surname} maxLength={14} placeholder="Apellido" autoComplete="off" onInput={e => setSurname((e.target as HTMLInputElement).value.toUpperCase().slice(0, 14))} /></label>
+                <label class="field cr-numf"><span>N.º</span><input type="number" inputMode="numeric" min={1} max={99} value={num} aria-invalid={!numOk} onInput={e => setNum((e.target as HTMLInputElement).value)} /></label>
+              </div>
             </div>
-            <div class="cr-ident-s" aria-live="polite"><Shirt nat={nat} surname={cleanSurname(surname) || 'CRACK'} num={numOk ? n : cleanNum(undefined, dpos)} size={132} /></div>
-          </div>
-        </section>
+          </section>
 
-        <section class="card cr-sec">
-          <h2 class="cr-h">Nacionalidad</h2>
-          <NatPicker value={nat} onChange={setNat} />
-        </section>
-
-        <section class="card cr-sec">
-          <h2 class="cr-h">Posición</h2>
-          <PosPicker value={dpos} onChange={setDpos} />
-        </section>
-
-        <section class="card cr-sec">
-          <Seg name="cr-foot" label="Pie hábil" value={foot} items={FOOT_LIST.map(f => ({ id: f.id, title: f.name, desc: f.desc }))} onChange={setFoot} />
-          <fieldset class="cr-fs">
-            <legend>Estilo de juego</legend>
-            <div class="cr-styles">
-              {STYLES.map(s => (
-                <label class="cr-opt cr-style">
-                  <input type="radio" name="cr-style" value={s.id} checked={style === s.id} onChange={() => setStyle(s.id)} />
-                  <span><i aria-hidden="true">{s.emoji}</i><b>{s.name}</b><em>{s.tag}</em><small>{s.desc}</small></span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
-        </section>
-
-        <section class="card cr-sec">
-          <Seg name="cr-diff" label="Dificultad" value={diff} items={DIFF_LIST.map(d => ({ id: d.id, title: d.name, desc: d.desc }))} onChange={setDiff} />
-          <p class="cr-diffbest" role="status">
-            {best ? <>🏅 Mejor carrera ({D.name}): <b>{best.label}</b> · {best.score} pts</> : <span class="muted">Todavía no terminaste una carrera en {D.name}.</span>}
+          <button class="btn primary block cr-go" type="submit">Empezar la carrera <Flag nat={nat} size={20} /></button>
+          <p class="cr-pick-sum" aria-label="Tu elección actual">
+            <span><Flag nat={nat} size={14} /> {nationOf(nat).name}</span><span>{dpos}</span><span>{FOOTS[foot].short}</span><span>{S.emoji} {S.name}</span><span>{diff === 'normal' ? 'Normal' : DIFF_LIST.find(d => d.id === diff)!.name}</span>
+            {useCard && card && <span>🃏 Con tu carta ({youth})</span>}
           </p>
-        </section>
 
-        {card && (
-          <label class="cr-cardopt">
-            <input type="checkbox" checked={useCard} onChange={e => setUseCard((e.target as HTMLInputElement).checked)} />
-            <span>
-              <b>Arrancar con tu carta</b>
-              <small>Usás tus stats reales, en versión pibe de 17 (arrancás con unos {youth} de OVR). Cuanto mejor tu carta, más potencial tenés.</small>
-            </span>
-          </label>
-        )}
+          <details class="cr-custom" open={open} onToggle={e => setOpen((e.target as HTMLDetailsElement).open)}>
+            <summary><span>⚙️ Personalizar</span><span class="muted">país, posición, estilo, dificultad</span></summary>
+            <div class="cr-custom-in">
+              <section class="cr-cs"><h2 class="cr-h">Nacionalidad</h2><NatPicker value={nat} onChange={setNat} /></section>
+              <section class="cr-cs"><h2 class="cr-h">Posición</h2><PosPicker value={dpos} onChange={setDpos} /></section>
+              <section class="cr-cs">
+                <Seg name="cr-foot" label="Pie hábil" value={foot} items={FOOT_LIST.map(f => ({ id: f.id, title: f.name, sub: f.short }))} onChange={setFoot} />
+                <Seg name="cr-style" label="Estilo de juego" value={style} items={STYLES.map(s => ({ id: s.id, title: s.name, sub: s.tag, emoji: s.emoji }))} onChange={setStyle} />
+                <Seg name="cr-diff" label="Dificultad" value={diff} items={DIFF_LIST.map(d => ({ id: d.id, title: d.name, sub: `${DIFF_SUB[d.id]}${d.mult !== 1 ? ` · ${fmtMult(d.mult)}` : ''}` }))} onChange={setDiff} />
+                <p class="cr-diffbest" role="status">{best ? <>🏅 Tu mejor ({DIFF_LIST.find(d => d.id === diff)!.name}): <b>{best.label}</b> · {best.score} pts</> : <span class="muted">Todavía sin carrera terminada en esta dificultad.</span>}</p>
+              </section>
+              {card && (
+                <label class="cr-cardopt">
+                  <input type="checkbox" checked={useCard} onChange={e => setUseCard((e.target as HTMLInputElement).checked)} />
+                  <span><b>Arrancar con tu carta</b><small>Tus stats reales, en versión pibe (~{youth} de OVR).</small></span>
+                </label>
+              )}
+            </div>
+          </details>
+        </form>
 
-        <button class="btn primary block cr-go">Empezar la carrera <Flag nat={nat} size={18} /></button>
-        <p class="cr-fine muted">Clubes y torneos reales, resultados inventados. Se guarda solo en este dispositivo y no cuenta para ningún ranking de la app.</p>
-      </form>
+        <aside class="cr-start-side">
+          <DailyCard setup={daily} best={dailyBest} streak={streak} today={today} onPlay={() => onDaily(who)} />
+          <p class="cr-fine muted">Clubes y torneos reales, resultados inventados. Se guarda solo en este dispositivo.</p>
+        </aside>
+      </div>
     </div>
   );
 }
-

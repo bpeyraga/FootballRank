@@ -1,7 +1,7 @@
 // "De potrero a leyenda": tablas del juego (estilos, puestos, premios y puntos de Legado). Los clubes, ligas y copas viven en careerWorld.
 // Todo con nombres reales de competencias y clubes; los únicos jugadores son los que crea el usuario.
 import type { Pos, Stats } from '../../shared/model';
-import type { LeagueId, StyleId } from './careerTypes';
+import type { LeagueId, RetireWhy, StyleId } from './careerTypes';
 import { NAT_CUP_LIST, natStar } from './careerNations';
 import { CONTS, CONT_IDS, INTL, LEAGUES, LEAGUE_IDS } from './careerWorld';
 
@@ -67,13 +67,21 @@ for (const t of NAT_CUP_LIST) { TROPHY_PTS[t.name] = t.pts; AWARD_PTS[natStar(t.
 /** Puntos por haber llegado a cada categoría (la más alta de la carrera). */
 export const PEAK_TIER_PTS = [0, 4, 12, 30, 50, 80] as const;
 
+/** Por qué se cierra la carrera. */
+export const RETIRE_TEXT: Record<RetireWhy, string> = {
+  elegido: 'Colgaste los botines cuando quisiste.',
+  edad: 'Llegaste a los 40: hora de colgar.',
+  fisico: 'El cuerpo dijo basta.',
+};
+
 /** Escalones del Legado: puntaje mínimo y nombre. */
 export const LEGACY_STEPS: readonly { min: number; label: string; blurb: string }[] = [
-  { min: 0, label: 'Promesa perdida', blurb: 'Se te quedó todo en el potrero. Siempre queda la revancha.' },
-  { min: 55, label: 'Jugador de club', blurb: 'Una carrera digna, con alegrías y pocas luces. El vestuario te quería.' },
-  { min: 135, label: 'Ídolo', blurb: 'La gente cantaba tu nombre. Dejaste huella en cada club.' },
-  { min: 280, label: 'Leyenda', blurb: 'Títulos, goles y noches inolvidables: tu carrera se cuenta a los nietos.' },
-  { min: 560, label: 'Mejor de la historia', blurb: 'Nadie jugó como vos. Se discute si hubo alguien mejor, y no.' },
+  { min: 0, label: 'Promesa perdida', blurb: 'Se quedó todo en el potrero. Queda la revancha.' },
+  { min: 55, label: 'Jugador de club', blurb: 'Una carrera digna. El vestuario te quería.' },
+  { min: 135, label: 'Ídolo de barrio', blurb: 'La gente cantaba tu nombre en cada cancha.' },
+  { min: 270, label: 'Ídolo nacional', blurb: 'Títulos, goles y noches que no se olvidan.' },
+  { min: 400, label: 'Leyenda mundial', blurb: 'Tu carrera se cuenta a los nietos.' },
+  { min: 560, label: 'Mejor de la historia', blurb: 'Nadie jugó como vos. Punto.' },
 ];
 
 export interface StyleDef {

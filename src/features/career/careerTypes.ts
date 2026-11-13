@@ -63,14 +63,23 @@ export interface Fx {
   gamble?: { p: number; okText: string; badText: string; ok?: Fx; bad?: Fx; okTag?: string; badTag?: string };
 }
 
-export interface Opt { id: string; label: string; hint: string; fx: Fx }
+/** Cada decisión tiene dos caminos: el seguro y el que se la juega. */
+export type Kind = 'safe' | 'risky';
+/**
+ * Una de las dos opciones. `label` son pocas palabras; `up` lo que ganás (2-3 palabras) y `down` lo que puede salir mal (solo en la arriesgada).
+ * `club` es el club al que te lleva (para mostrar su escudo).
+ */
+export interface Opt { id: string; kind: Kind; icon: string; label: string; up: string; down?: string; club?: string; fx: Fx }
+/** Etapa de la carrera: cambia las decisiones que te tocan. */
+export type Stage = 'inferiores' | 'debut' | 'consolidacion' | 'pico' | 'veteranía' | 'retiro';
 
 /** Una final que quedó por jugarse: la decisión de último momento la inclina. `p` es la chance de ganarla sin hacer nada especial. */
 export interface Tension {
   kind: 'cont' | 'cup'; name: string; cid: ContId | null; p: number; mine: number; opp: number;
   rank: number; cupWon: boolean; extraWon: boolean; lg: LeagueId; mvp: boolean;
 }
-export interface EventInst { id: string; title: string; text: string; options: Opt[] }
+/** Una decisión: una línea de situación y exactamente dos opciones (la segura y la arriesgada). */
+export interface EventInst { id: string; icon: string; title: string; text: string; options: [Opt, Opt] }
 
 /** Acumulado de las decisiones de la temporada en curso. */
 export interface Mods { growth: number; injury: number; minutes: number; form: number; team: number; cap: boolean; oly: boolean }
@@ -100,6 +109,17 @@ export interface SeasonLog {
   val: number;
   picks: string[];      // lo que elegiste
   lines: string[];      // lo que pasó, para contarlo
+  /** La decisión de la temporada: cuál era, qué camino tomaste y, si era arriesgado, si salió bien. */
+  ev: string;
+  kind: Kind | null;
+  risk: 'ok' | 'bad' | null;
+  /** Lo que pasó con la apuesta, en una línea ("Se cayó el pase: volvés a Banfield."). */
+  say: string;
+  /** El titular de la temporada (estilo diario) y lo que te quedó cerca. */
+  head: string;
+  near: string;
+  /** Hitos de esta temporada (ids de careerStory.MILES): el primer gol, el debut, la Selección… */
+  miles: string[];
 }
 
 export type Phase = 'decide' | 'result' | 'over';
@@ -107,8 +127,8 @@ export type RetireWhy = 'elegido' | 'edad' | 'fisico';
 
 /** Estado completo de una carrera. Serializable (JSON): mismo seed + mismas decisiones = misma carrera. */
 export interface Career {
-  /** Versión del formato: la 3 suma dificultad, país, pie, apellido, número, posición en la cancha y valor de mercado (las anteriores se descartan). */
-  v: 3;
+  /** Versión del formato: la 4 trae una sola decisión por temporada (segura o arriesgada), titulares e hitos. Las de la 3 se migran; las anteriores se descartan. */
+  v: 4;
   seed: number;
   rng: number;
   /** Año en que arrancó la carrera (a los 17): marca el calendario de Mundiales, copas continentales y Juegos Olímpicos. */
@@ -150,6 +170,10 @@ export interface Career {
   mods: Mods;
   notes: string[];
   picks: string[];
+  /** La decisión que se acaba de tomar (cuál, qué camino y cómo salió): se anota en el SeasonLog al jugar la temporada. */
+  pk?: { ev: string; kind: Kind; ok: boolean | null; say: string } | null;
+  /** Id de la decisión de la temporada anterior (para no repetirla seguido). */
+  last?: string;
   history: SeasonLog[];
   retire: RetireWhy | null;
   /** Si la temporada ya se jugó pero falta una final decisiva: el momento clave que se está decidiendo. */

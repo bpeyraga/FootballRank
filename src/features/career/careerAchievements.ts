@@ -1,8 +1,10 @@
 // "De potrero a leyenda": los Logros, los Récords personales y lo del Desafío del día (racha). Puro y sin entorno: recibe las cuentas guardadas y
 // devuelve las nuevas. Cada carrera se cuenta una sola vez al arrancar y una sola vez al terminar (por su semilla), así recargar o tocar dos veces no suma de más.
 import { careerOvr } from './careerBase';
+import { LEGACY_STEPS } from './careerData';
 import { legacy, totals, type Career } from './careerCore';
 import { NO_STREAK, isDay, nextStreak, type Streak } from './careerDaily';
+import { NAT_CUP_LIST } from './careerNations';
 import { INTL } from './careerWorld';
 
 export type AchTier = 'bronce' | 'plata' | 'oro' | 'leyenda';
@@ -38,7 +40,7 @@ export interface AchStats {
   /** Día del último arranque ("2026-11-12") y cuántas carreras van ese día. */
   day: string;
   dayCount: number;
-  /** Cosas que se hicieron alguna vez: 'exp' (terminar en Experto), 'ovr90' (retirarse con 90 o más), 'wc' (campeón del mundo), 'top' (Mejor de la historia). */
+  /** Cosas que se hicieron alguna vez: 'exp' (terminar en Experto), 'ovr90' (retirarse con 90 o más), 'wc' (campeón del mundo), 'top' (Mejor de la historia), 'nat' (título con la Selección), 'gamble' (6 apuestas ganadas en una carrera), 'home' (volver al club de las inferiores). */
   flags: string[];
   /** Semillas ya contadas (las últimas 200), para no contar dos veces. */
   started: number[];
@@ -106,7 +108,6 @@ export const ACHIEVEMENTS: readonly Ach[] = [
   A('start1', '🎽', 'Primer pique', 'Arrancá tu primera carrera.', 'bronce', s => s.careersStarted, 1),
   A('start5', '🥾', 'Le agarraste el gustito', 'Arrancá 5 carreras.', 'bronce', s => s.careersStarted, 5),
   A('start10', '⚽', 'No te sacan de la cancha', 'Arrancá 10 carreras.', 'plata', s => s.careersStarted, 10),
-  A('start25', '🔁', 'Vicio de potrero', 'Arrancá 25 carreras.', 'plata', s => s.careersStarted, 25),
   A('start50', '🏟️', 'Habitué del vestuario', 'Arrancá 50 carreras.', 'oro', s => s.careersStarted, 50),
   A('start100', '👑', 'Cien vidas de crack', 'Arrancá 100 carreras.', 'leyenda', s => s.careersStarted, 100),
   A('fin1', '🏁', 'Colgaste los botines', 'Terminá una carrera.', 'bronce', s => s.careersFinished, 1),
@@ -114,11 +115,12 @@ export const ACHIEVEMENTS: readonly Ach[] = [
   A('fin10', '📚', 'Biblioteca de leyendas', 'Terminá 10 carreras.', 'oro', s => s.careersFinished, 10),
   A('fin25', '🏛️', 'Museo propio', 'Terminá 25 carreras.', 'leyenda', s => s.careersFinished, 25),
   A('seas50', '📅', 'Medio siglo de temporadas', 'Jugá 50 temporadas en total.', 'bronce', s => s.seasonsPlayed, 50),
-  A('seas200', '🗓️', 'Dos siglos de pretemporadas', 'Jugá 200 temporadas en total.', 'plata', s => s.seasonsPlayed, 200),
+  A('nat', '🇦🇷', 'Campeón con la Selección', 'Ganá un título con tu Selección.', 'plata', flag('nat'), 1),
   A('seas500', '⏳', 'Eterno', 'Jugá 500 temporadas en total.', 'oro', s => s.seasonsPlayed, 500),
   A('tit10', '🏆', 'Vitrina con polvo', 'Ganá 10 títulos en total.', 'plata', s => s.titlesWon, 10),
   A('tit50', '🥇', 'Coleccionista', 'Ganá 50 títulos en total.', 'oro', s => s.titlesWon, 50),
-  A('day3', '⚡', 'Tres en un día', 'Arrancá 3 carreras el mismo día.', 'plata', s => s.maxPerDay, 3),
+  A('gamble', '🎲', 'Todo o nada', 'Salí bien de 6 decisiones arriesgadas en una carrera.', 'plata', flag('gamble'), 1),
+  A('home', '❤️', 'Vuelta al barrio', 'Volvé al club de tus inferiores y jugá ahí.', 'plata', flag('home'), 1),
   A('exp', '🧗', 'Experto de verdad', 'Terminá una carrera en dificultad Experto.', 'oro', flag('exp'), 1),
   A('ovr90', '💎', 'Retiro de diamante', 'Retirate con 90 de OVR o más.', 'oro', flag('ovr90'), 1),
   A('wc', '🌎', 'Campeón del mundo', 'Ganá un Mundial con tu Selección.', 'oro', flag('wc'), 1),
@@ -181,7 +183,10 @@ export function recordFinish(stats: AchStats, c: Career, when = new Date().toISO
   if (c.diff === 'experto') flags.add('exp');
   if (careerOvr(c.stats, c.pos, c.dpos) >= 90) flags.add('ovr90');
   if (c.history.some(h => h.trophies.includes(INTL.worldCup.name))) flags.add('wc');
-  if (legacy(c).index >= 4) flags.add('top');
+  if (legacy(c).index >= LEGACY_STEPS.length - 1) flags.add('top');
+  if (c.history.some(h => h.trophies.some(x => NAT_CUP_LIST.some(n => n.name === x) || x === INTL.worldCup.name || x === INTL.olympics.name || x === INTL.finalissima.name))) flags.add('nat');
+  if (c.history.filter(h => h.risk === 'ok').length >= 6) flags.add('gamble');
+  if (c.returned) flags.add('home');
   const broken = brokenRecords(stats.rec, now);
   const rec = { ...stats.rec };
   const old: Partial<Records> = {};
