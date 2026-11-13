@@ -20,7 +20,7 @@ export function ManualTeams({ players, initial, busy, onSave, onCancel }: {
   const set = (id: string, t: Team) => setTeam({ ...team, [id]: team[id] === t ? null : t });
 
   return (
-    <div class="card">
+    <div class="card m-teamtools">
       <h3>Armar equipos a mano</h3>
       <div class="mt-head">
         {([['A', A], ['B', B]] as const).map(([t, ps]) => (

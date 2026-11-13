@@ -1,6 +1,6 @@
 // Partidos: tipos y reglas puras (sin Supabase ni Preact). Lo usan api.ts, los hooks y las pantallas.
 import type { Venue } from '../venues/maps';
-import type { PaySignup } from './fees';
+import type { FeePayment, PaySignup } from './fees';
 import type { LiveState } from './live';
 
 export interface Match {
@@ -14,10 +14,12 @@ export interface Match {
   live_state?: LiveState | null; live_half?: number | null; live_since?: string | null; live_elapsed?: number | null;
   // Formación elegida para cada equipo ("2-1-1", sin el arquero). null/undefined = la de siempre para esa cantidad.
   formation_a?: string | null; formation_b?: string | null;
+  // Color de camiseta de cada equipo (clave de SHIRTS o 'any' = indistinto). null/undefined = sin elegir.
+  shirt_a?: string | null; shirt_b?: string | null;
 }
 
 /** Un partido de la lista, con lo necesario para los cupos, "Anotado/En espera" y las deudas. */
-export type MatchListItem = Match & { taken: number; mine: Signup['status'] | null; match_signups: PaySignup[] };
+export type MatchListItem = Match & { taken: number; mine: Signup['status'] | null; match_signups: PaySignup[]; payments: FeePayment[] };
 
 export type Team = 'A' | 'B';
 export interface Signup {

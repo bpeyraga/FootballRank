@@ -7,6 +7,7 @@ import type { EventKind, MatchEvent } from '../stats/statsCore';
 import type { LiveAction, LiveState } from './live';
 import type { Match, MatchListItem, Mvp, Score, Signup, Suspension, Team } from './model';
 import type { WeekEvent, WeekVote } from './weeklyCore';
+import type { FeePayment } from './fees';
 
 const rpc = async (fn: string, args: Record<string, unknown>) => { must(await sb.rpc(fn, args)); };
 
@@ -16,8 +17,11 @@ const rpc = async (fn: string, args: Record<string, unknown>) => { must(await sb
 export async function loadMatchList(communityId: string, meId: string): Promise<MatchListItem[]> {
   const data = must(await sb.from('matches').select('*, match_signups(profile_id,status,absent,paid_at)')
     .eq('community_id', communityId).order('starts_at', { ascending: false }).limit(100));
+  // Aportes a la cancha (para descontarlos de las deudas): solo de los partidos con cuota
+  const pays = await loadPayments((data ?? []).filter((x: any) => x.fee_total != null).map((x: any) => x.id));
   return (data ?? []).map((x: any) => ({
     ...x,
+    payments: pays.filter(p => p.match_id === x.id),
     taken: x.match_signups.filter((s: any) => s.status === 'in').length,
     mine: x.match_signups.find((s: any) => s.profile_id === meId && s.status !== 'out')?.status ?? null,
   }));
@@ -62,18 +66,22 @@ export async function loadPlayedMatch(v: PlayedMatch): Promise<string> {
 
 // ---------- Un partido ----------
 
-export interface MatchBundle { match: Match | null; signups: Signup[]; suspensions: Suspension[]; scores: Map<string, Score>; myRatings: Record<string, number> }
+export interface MatchBundle {
+  match: Match | null; signups: Signup[]; suspensions: Suspension[]; scores: Map<string, Score>; myRatings: Record<string, number>;
+  payments: FeePayment[];
+}
 
 export async function loadMatch(id: string, meId: string): Promise<MatchBundle> {
-  const [a, b, c, d, f] = await Promise.all([
+  const [a, b, c, d, f, payments] = await Promise.all([
     sb.from('matches').select(`*, venue:venues(${VENUE_COLS})`).eq('id', id).maybeSingle(),
     sb.from('match_signups').select('*').eq('match_id', id).order('created_at'),
     sb.from('match_scores').select('*').eq('match_id', id),
     sb.from('match_ratings').select('target_id,score').eq('match_id', id).eq('rater_id', meId),
     sb.from('suspensions').select('id,profile_id').eq('match_id', id),
+    loadPayments([id]),
   ]);
   return {
-    match: must(a), signups: must(b) ?? [], suspensions: must(f) ?? [],
+    match: must(a), signups: must(b) ?? [], suspensions: must(f) ?? [], payments,
     scores: new Map((must(c) ?? []).map((x: any) => [x.profile_id, { avg: +x.avg_score, n: x.n }])),
     myRatings: Object.fromEntries((must(d) ?? []).map((x: any) => [x.target_id, x.score])),
   };
@@ -137,6 +145,31 @@ export async function loadPaidAt(id: string, pid: string): Promise<string | null
   return data ? data.paid_at : undefined;
 }
 export const setFee = (id: string, total: number | null) => rpc('set_fee', { p_match: id, p_total: total });
+/**
+ * Carga, cambia o (con `amount` null) saca lo que `pid` puso para la cancha, con su alias. Sin alias, el servidor usa
+ * el último que dejó esa persona en el grupo.
+ */
+export const setFeePayment = (id: string, pid: string, amount: number | null, alias: string | null) =>
+  rpc('set_fee_payment', { p_match: id, p_profile: pid, p_amount: amount, p_alias: alias });
+
+/** Aportes a la cancha de esos partidos. Si la tabla todavía no existe (migración sin aplicar), ninguno. */
+async function loadPayments(matchIds: string[]): Promise<(FeePayment & { match_id: string })[]> {
+  if (!matchIds.length) return [];
+  const { data, error } = await sb.from('match_fee_payments').select('match_id,profile_id,amount,alias').in('match_id', matchIds);
+  return error ? [] : (data ?? []);
+}
+
+// ---------- Equipos ----------
+
+/** Color de camiseta de un equipo (null = sin elegir). Solo admins (policy mt_upd). */
+export async function setShirt(id: string, team: Team, shirt: string | null) {
+  must(await sb.from('matches').update(team === 'A' ? { shirt_a: shirt } : { shirt_b: shirt }).eq('id', id));
+}
+
+/** Pone a un jugador en un equipo (el que se anotó después de armarlos). Solo admins. */
+export async function setTeam(id: string, pid: string, team: Team) {
+  must(await sb.from('match_signups').update({ team }).eq('match_id', id).eq('profile_id', pid).eq('status', 'in'));
+}
 
 // ---------- Goles, faltas y tarjetas ----------
 

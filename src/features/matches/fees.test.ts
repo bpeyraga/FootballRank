@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { debtsOf, feeError, feeNum, feeSummary, isPayer, money, owedText, perPerson, type FeeMatch, type PaySignup } from './fees';
+import { debtsOf, feeError, feeNum, feeSummary, isPayer, money, owedText, perPerson, settle, type FeeMatch, type PaySignup } from './fees';
 
 const su = (id: string, o: Partial<PaySignup> = {}): PaySignup => ({ profile_id: id, status: 'in', absent: false, paid_at: null, ...o });
 const PAID = '2026-11-07T01:00:00Z';
@@ -108,5 +108,53 @@ describe('owedText / feeError', () => {
     expect(feeError('not_player')).toContain('anotados');
     expect(feeError('forbidden')).toContain('permiso');
     expect(feeError('algo raro')).toBe('algo raro');
+  });
+});
+
+describe('settle (repartija con aportes)', () => {
+  const ps = ['ana', 'beto', 'caro', 'dani', 'eze', 'facu', 'gabi', 'hugo', 'juan', 'pedro']; // 10 jugadores, $6.000 c/u
+  it('Juan señó y Pedro pagó el resto: cada uno recibe lo que puso menos su parte, y todos tienen a quién transferir', () => {
+    const s = settle(60000, ps, [{ profile_id: 'juan', amount: 20000 }, { profile_id: 'pedro', amount: '40000' }]);
+    expect(s.each).toBe(6000);
+    expect(s.courtDue).toBe(0);
+    expect(s.receive.get('juan')).toBe(14000);
+    expect(s.receive.get('pedro')).toBe(34000);
+    expect(s.owes.has('juan')).toBe(false);
+    expect(s.unassigned.size).toBe(0);
+    // Lo que se le transfiere a cada uno suma justo lo que tiene que recibir
+    const got = new Map<string, number>();
+    for (const tr of s.plan.values()) for (const t of tr) got.set(t.to, (got.get(t.to) ?? 0) + t.amount);
+    expect(Object.fromEntries(got)).toEqual({ juan: 14000, pedro: 34000 });
+    // Primero se llena al que más tiene para recibir; a uno le toca repartir entre los dos
+    expect(s.plan.get('ana')).toEqual([{ to: 'pedro', amount: 6000 }]);
+    expect([...s.plan.values()].some(tr => tr.length === 2)).toBe(true);
+  });
+  it('solo la seña: lo que no cubre queda sin destino (falta pagarle a la cancha)', () => {
+    const s = settle(60000, ps, [{ profile_id: 'juan', amount: 20000 }]);
+    expect(s.courtDue).toBe(40000);
+    expect(s.receive.get('juan')).toBe(14000);
+    const assigned = [...s.plan.values()].flat().reduce((t, x) => t + x.amount, 0);
+    const left = [...s.unassigned.values()].reduce((t, x) => t + x, 0);
+    expect(assigned).toBe(14000);
+    expect(left).toBe(54000 - 14000);
+  });
+  it('si lo que puso no le cubre su parte, debe la diferencia', () => {
+    const s = settle(60000, ps, [{ profile_id: 'juan', amount: 2000 }]);
+    expect(s.owes.get('juan')).toBe(4000);
+    expect(s.receive.has('juan')).toBe(false);
+  });
+  it('el reparto no depende de quién ya pagó (es el mismo con todos)', () => {
+    const a = settle(60000, ps, [{ profile_id: 'pedro', amount: 60000 }]);
+    expect(a.plan.get('ana')).toEqual([{ to: 'pedro', amount: 6000 }]);
+    expect(a.receive.get('pedro')).toBe(54000);
+  });
+});
+
+describe('debtsOf con aportes', () => {
+  it('a cada uno se le descuenta lo que puso para la cancha', () => {
+    const m: FeeMatch = { id: 'm1', title: 'Jueves', starts_at: '2026-11-05T22:00:00Z', status: 'played', fee_total: 30000,
+      signups: [su('a'), su('b'), su('c')], payments: [{ profile_id: 'a', amount: 30000 }, { profile_id: 'b', amount: 4000 }] };
+    const d = debtsOf([m]);
+    expect(d.map(x => [x.profile_id, x.total])).toEqual([['c', 10000], ['b', 6000]]);
   });
 });

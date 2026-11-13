@@ -164,7 +164,9 @@ export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: str
       <div class={`card team ${t}`}>
         <TeamLineup key={t} title={label} players={pitch} saved={new Map(ps.map(s => [s.profile_id, s.slot ?? null]))}
           formation={t === 'A' ? m.formation_a : m.formation_b} captainId={ps.find(s => s.captain)?.profile_id}
-          canEdit={isAdmin && m.status !== 'cancelled'} busy={busy} onSave={(f, slots) => x.setLineup(t, f, slots)} />
+          canEdit={isAdmin && m.status !== 'cancelled'} busy={busy} onSave={(f, slots) => x.setLineup(t, f, slots)}
+          shirt={t === 'A' ? m.shirt_a : m.shirt_b} otherShirt={t === 'A' ? m.shirt_b : m.shirt_a}
+          onShirt={isAdmin && m.status !== 'cancelled' ? key => x.setShirt(t, key) : undefined} />
         {ps.map(s => PlayerRow({ pid: s.profile_id, right: <>{captainBtn(s.profile_id)}{actions(s.profile_id)}</> }))}
       </div>
     );
@@ -172,7 +174,7 @@ export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: str
 
   return (
     <>
-      <div class="card">
+      <div class="card m-info">
         <h2>{m.title}</h2>
         <p>{fmtDate(m.starts_at)}{!m.venue && m.location && <> · {m.location}</>}</p>
         {editable && <WeatherChip lat={m.venue?.lat} lng={m.venue?.lng} startsAt={m.starts_at} />}
@@ -194,7 +196,7 @@ export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: str
           <div class="row" style="margin-top:12px">
             <span style="flex:1">{mine.status === 'in' ? '✓ Estás anotado' : `En espera (#${wait.findIndex(w => w.profile_id === meId) + 1})`}</span>
             {!started
-              ? <button class="btn" disabled={busy} onClick={x.leave}>Bajarme</button>
+              ? <button class="btn danger soft" disabled={busy} onClick={x.leave}>Bajarme</button>
               : <span class="muted">Ya empezó</span>}
           </div>}
         {editable && !started && (
@@ -249,24 +251,49 @@ export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: str
       {hasTeams ? <>
         {Team({ t: 'A', label: 'Equipo A' })}
         {Team({ t: 'B', label: 'Equipo B' })}
-        {inList.some(s => !s.team) && <div class="card"><h3>Sin equipo</h3>
-          {inList.filter(s => !s.team).map(s => PlayerRow({ pid: s.profile_id, right: actions(s.profile_id) }))}</div>}
+        {inList.some(s => !s.team) && (() => {
+          // Se anotaron después de armar los equipos: un admin los manda a uno (el que tiene menos aparece primero en la ayuda).
+          const free = inList.filter(s => !s.team);
+          const nA = inList.filter(s => s.team === 'A').length, nB = inList.filter(s => s.team === 'B').length;
+          const canAssign = isAdmin && m.status !== 'cancelled';
+          const assign = (pid: string, t: 'A' | 'B') => x.setTeam(pid, t, `${displayName(prof(pid))} pasó al equipo ${t}`);
+          return (
+            <div class="card m-unassigned">
+              <h3>Sin equipo ({free.length})</h3>
+              <p class="muted" style="margin:2px 0 6px;font-size:.88rem">
+                {canAssign ? 'Se anotaron después de armar los equipos. Mandalos a uno: ' : 'Se anotaron después de armar los equipos. '}
+                Equipo A: {nA} · Equipo B: {nB}
+              </p>
+              {free.map(s => PlayerRow({ pid: s.profile_id, right: <>
+                {actions(s.profile_id)}
+                {canAssign && (
+                  <span class="mt-seg" role="group" aria-label={`Equipo para ${displayName(prof(s.profile_id))}`}>
+                    {(['A', 'B'] as const).map(t => (
+                      <button type="button" class={t} disabled={busy} onClick={() => assign(s.profile_id, t)}
+                        aria-label={`Mandar a ${displayName(prof(s.profile_id))} al equipo ${t}`}>{t}</button>
+                    ))}
+                  </span>
+                )}
+              </> }))}
+            </div>
+          );
+        })()}
       </> : (
-        <div class="card">
+        <div class="card m-list">
           <h3 style="margin-bottom:4px">Anotados ({inList.length})</h3>
           {!inList.length && <p class="muted">Nadie todavía.</p>}
           {inList.map((s, i) => PlayerRow({ pid: s.profile_id, right: <>{actions(s.profile_id)}<span class="muted">{i + 1}</span></> }))}
         </div>
       )}
       {susp.length > 0 && (
-        <div class="card">
+        <div class="card m-near">
           <h3 style="margin-bottom:4px">Suspendidos ({susp.length})</h3>
           {susp.map(sp => PlayerRow({ pid: sp.profile_id, right: isAdmin && editable &&
             <button class="btn sm" disabled={busy} onClick={() => x.liftSuspension(sp.id)}>Levantar</button> }))}
         </div>
       )}
       {wait.length > 0 && editable && (
-        <div class="card">
+        <div class="card m-near">
           <h3 style="margin-bottom:4px">Lista de espera ({wait.length})</h3>
           {wait.map((s, i) => PlayerRow({ pid: s.profile_id, right: <>{kick(s.profile_id)}<span class="muted">#{i + 1}</span></> }))}
         </div>
@@ -276,7 +303,8 @@ export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: str
       {m.status !== 'cancelled' && (
         <FeeCard total={feeNum(m.fee_total)} meId={meId} isAdmin={isAdmin} busy={x.paying} error={x.feeErr}
           players={inList.filter(s => !s.absent).map(s => ({ profile: prof(s.profile_id), paid: !!s.paid_at }))}
-          onPaid={x.setPaid} onSetFee={x.setFee} />
+          onPaid={x.setPaid} onSetFee={x.setFee}
+          payments={x.payments} profileOf={prof} onSetPayment={x.setFeePayment} />
       )}
 
       {/* Goles, faltas y tarjetas: partido jugado; los cargan solo los admins con − / +, el resto lo ve de solo lectura */}
@@ -295,7 +323,7 @@ export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: str
 
       {/* Admin */}
       {isAdmin && editable && (
-        <div class="card">
+        <div class="card m-admin">
           <h3 style="margin-bottom:12px">Administrar</h3>
           {notIn.length > 0 && m.status === 'open' && (
             <MemberChecklist busy={busy} picked={pickedIds} onChange={setPicked} onSubmit={addPicked}
@@ -323,7 +351,7 @@ export function Match({ id, slug, rows, meId, isAdmin }: { id: string; slug: str
       {splits && splits.length > 0 && (() => {
         const s = splits[opt];
         return (
-          <div class="card">
+          <div class="card m-teamtools">
             <div class="row" style="justify-content:space-between;margin-bottom:8px">
               <button class="btn sm" disabled={opt === 0} onClick={() => setOpt(opt - 1)}>‹</button>
               <b>Opción {opt + 1} de {splits.length}</b>

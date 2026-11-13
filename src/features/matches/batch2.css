@@ -165,3 +165,26 @@
 .lv-result-in label{display:grid;gap:4px;justify-items:center;font-size:.8rem;color:var(--muted)}
 .lv-result-in input{width:64px;height:52px;text-align:center;font:700 1.6rem var(--f-display);border-radius:12px}
 .lv-result-in em{font-style:normal;font-size:1.4rem;padding-bottom:12px;color:var(--muted)}
+
+/* Quién pagó la cancha y su alias */
+.fee-payer{margin-top:12px;padding:12px;border-radius:12px;border:1px solid var(--line);background:var(--bg)}
+.fee-payer.empty{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px}
+.fee-payer .fee-hint{margin:8px 0 0}
+.fee-payer .field{margin-bottom:10px}
+.fee-payer-who{display:flex;align-items:center;gap:10px}
+.fee-payer-lbl{display:block;font-size:.78rem}
+.fee-alias{display:flex;align-items:center;gap:8px;margin-top:10px}
+.fee-alias code{flex:1;min-width:0;padding:8px 10px;border-radius:8px;background:var(--surface);border:1px dashed var(--line);
+  font:600 .95rem/1.2 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;user-select:all}
+.fee-alias .btn{flex:none}
+.fee-contribs{margin-top:14px}
+.fee-sub{margin:0 0 4px;font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.fee-contribs .fee-payer{margin-top:8px}
+.fee-contribs>.btn{margin-top:10px}
+.fee-court{margin:10px 0 0;font-size:.92rem}
+.fee-mine{margin-top:14px;padding:12px;border-radius:12px;background:var(--accent-soft)}
+.fee-mine p{margin:0}
+.fee-mine .fee-hint{margin:8px 0 0}
+.fee-mine-row+.fee-mine-row{margin-top:10px}
+.fee-mine .fee-alias code{background:var(--surface)}
+.fee-to{font-size:.8rem}

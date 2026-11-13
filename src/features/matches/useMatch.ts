@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { loadMatchEvents } from '../stats/api';
 import type { EventKind, MatchEvent } from '../stats/statsCore';
 import { lastEvent } from './quickMatch';
-import { feeError } from './fees';
+import { feeError, type FeePayment } from './fees';
 import * as api from './api';
 import { EARLY_MS, applyDelete, applyInsert, lastMineOf, settleInsert } from './live';
 import { useLive } from './useLive';
@@ -18,6 +18,7 @@ export function useMatch(id: string, meId: string) {
   const [mvp, setMvp] = useState<Mvp>({ mine: null, tally: new Map() });
   const [busy, setBusy] = useState(false);
   const [paying, setPaying] = useState<string[]>([]); // quiénes tienen un "pagué" en camino
+  const [payments, setPayments] = useState<FeePayment[]>([]); // lo que cada uno puso para la cancha
   const [feeErr, setFeeErr] = useState('');
   const [err, setErr] = useState('');
   const [msg, setMsg] = useState('');
@@ -73,7 +74,7 @@ export function useMatch(id: string, meId: string) {
   const load = async () => {
     let b: api.MatchBundle;
     try { b = await api.loadMatch(id, meId); } catch (e: any) { setErr(e?.message ?? 'Error de red'); return; }
-    setM(b.match); setSu(b.signups); setSusp(b.suspensions); setScores(b.scores); setMyRatings(b.myRatings);
+    setM(b.match); setSu(b.signups); setSusp(b.suspensions); setScores(b.scores); setMyRatings(b.myRatings); setPayments(b.payments);
     if (b.match?.status === 'played') { loadEvents(); loadMvp(); }
     else if (b.match?.live_state) loadEvents(); // partido en vivo: los eventos de hasta ahora
   };
@@ -115,6 +116,14 @@ export function useMatch(id: string, meId: string) {
     try { await api.setFee(id, total); } catch (e: any) { return feeError(e?.message ?? ''); }
     setFeeErr('');
     setM(cur => cur ? { ...cur, fee_total: total } : cur);
+    return '';
+  };
+
+  /** Lo que `pid` puso para la cancha (null = sacarlo) y su alias. Devuelve el error (en español) o '' si salió bien. */
+  const setFeePayment = async (pid: string, amount: number | null, alias: string | null): Promise<string> => {
+    try { await api.setFeePayment(id, pid, amount, alias); } catch (e: any) { return feeError(e?.message ?? ''); }
+    setFeeErr('');
+    await load(); // cambian los aportes y puede cambiar el "pagó" de quien puso la plata
     return '';
   };
 
@@ -216,7 +225,7 @@ export function useMatch(id: string, meId: string) {
   return {
     m, su, susp, scores, myRatings, mvp, events, busy, paying, err, msg, feeErr, evErr,
     setErr, setMsg, reload: load, run,
-    setPaid, setFee, stepEvent, removeEv, undoLast, loadEvents, saveEdit, remove,
+    payments, setPaid, setFee, setFeePayment, stepEvent, removeEv, undoLast, loadEvents, saveEdit, remove,
     // Partido en vivo: cronómetro, acciones del reloj y el resultado final
     skew: live.skew, liveBusy: live.liveBusy, liveErr: live.liveErr, liveClock: live.liveClock, saveLiveResult: live.saveLiveResult,
     // Acciones que recargan el partido al terminar; `ok` es el aviso a mostrar si salen bien.
@@ -234,6 +243,8 @@ export function useMatch(id: string, meId: string) {
     rate: (sc: Record<string, number>) => run(() => api.rateTeammates(id, sc), '¡Gracias por calificar!'),
     voteMvp: (pid: string) => run(async () => { await api.voteMvp(id, pid); await loadMvp(); }, '¡Voto de MVP guardado!'),
     saveTeams: (a: string[], b: string[]) => run(() => api.saveTeams(id, a, b), 'Equipos guardados'),
+    setTeam: (pid: string, team: 'A' | 'B', ok: string) => run(() => api.setTeam(id, pid, team), ok),
+    setShirt: (team: 'A' | 'B', shirt: string | null) => run(() => api.setShirt(id, team, shirt), `Camiseta del equipo ${team} guardada`),
     setLineup: (team: 'A' | 'B', formation: string | null, slots: Record<string, number>) =>
       run(() => api.setLineup(id, team, formation, slots), `Formación del equipo ${team} guardada`),
   };

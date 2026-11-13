@@ -99,6 +99,10 @@ a{color:var(--accent)}
 .stats td:first-child,.stats th:first-child{text-align:left}
 .btn.sm{min-height:34px;padding:0 10px;font-size:.9rem}
 .btn.danger{color:var(--danger)}
+/* Botón rojo para acciones de salida (p. ej. "Bajarme"): misma forma que el resto, fondo rojo suave */
+.btn.danger.soft{background:color-mix(in srgb,var(--danger) 12%,var(--surface));border-color:color-mix(in srgb,var(--danger) 45%,transparent);color:var(--danger)}
+.btn.danger.soft:not(:disabled):hover{background:color-mix(in srgb,var(--danger) 20%,var(--surface))}
+.btn.danger.soft:focus-visible{outline:2px solid var(--danger);outline-offset:2px}
 .pill{display:inline-block;margin-left:6px;padding:1px 8px;border-radius:99px;background:var(--accent-soft);font-size:.8rem;font-weight:600}
 .pill.warn{background:var(--note-bg);color:var(--note-fg)}
 .slots{font:700 1.2rem var(--f-display);padding:4px 10px;border-radius:8px;background:var(--accent-soft)}

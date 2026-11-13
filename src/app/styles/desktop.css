@@ -89,9 +89,29 @@
   .tab-partidos>.card:not(.row){grid-column:1/-1;width:100%;max-width:680px}
   .tab-partidos>a.card.row{margin-bottom:20px;transition:border-color .15s,transform .15s,box-shadow .15s}
 
-  /* ---------- Partido: dos columnas que se reparten las tarjetas ---------- */
-  .tab-m{column-count:2;column-gap:24px}
-  .tab-m>*{break-inside:avoid}
+  /* ---------- Partido: grilla de dos columnas con filas fijas ----------
+     Fila 1: info del partido | mapa de la cancha. Fila 2: equipo A | equipo B.
+     Fila 3: cuota de la cancha | administrar y eliminar (apilados). Lo demás va a lo ancho, abajo.
+     El orden lo da `order` (en el celular queda el orden de siempre). */
+  .tab-m{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 24px;align-items:start}
+  .tab-m>*{grid-column:1/-1;order:20;min-width:0}
+  .tab-m>.m-info{grid-column:1;order:1;align-self:stretch}
+  .tab-m>.venue-card{grid-column:2;order:2;align-self:stretch}
+  .tab-m>.live-start,.tab-m>.live-card{order:3}
+  .tab-m>.team.A{grid-column:1;order:4;align-self:stretch}
+  .tab-m>.team.B{grid-column:2;order:4;align-self:stretch}
+  .tab-m>.m-list{order:4}
+  .tab-m>.m-unassigned,.tab-m>.m-near{order:5}
+  .tab-m>.fee-card{grid-column:1;grid-row:span 2;order:6}
+  .tab-m>.m-admin{grid-column:2;order:6}
+  .tab-m>.danger-zone{grid-column:2;order:7}
+  .tab-m>.adm-card,.tab-m>.m-teamtools,.tab-m>p.muted{order:8}
+  /* Sin mapa, la info va a lo ancho; sin admin, la cuota también; sin cuota, administrar y eliminar */
+  .tab-m:not(:has(>.venue-card))>.m-info{grid-column:1/-1}
+  .tab-m:not(:has(>.m-admin,>.danger-zone))>.fee-card{grid-column:1/-1;grid-row:auto}
+  .tab-m:not(:has(>.fee-card))>.m-admin,.tab-m:not(:has(>.fee-card))>.danger-zone{grid-column:1/-1}
+  .tab-m .venue-card{display:flex;flex-direction:column}
+  .tab-m .venue-card .venue-map{flex:1;aspect-ratio:auto;min-height:220px} /* el mapa llena el alto de la fila (lo da la info) */
 
   /* ---------- Ranking ---------- */
   .tab-ranking>.st-seg{max-width:640px;margin-bottom:20px}

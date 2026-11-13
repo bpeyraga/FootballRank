@@ -37,7 +37,7 @@ export function Matches({ communityId, slug, meId, isAdmin, rows }:
 
   // Deudas de la cancha: partidos jugados con cuota donde alguien anotado (y presente) no marcó "pagué".
   const debts = useMemo(() => debtsOf((list ?? []).map(m => ({
-    id: m.id, title: m.title, starts_at: m.starts_at, status: m.status, fee_total: m.fee_total ?? null, signups: m.match_signups,
+    id: m.id, title: m.title, starts_at: m.starts_at, status: m.status, fee_total: m.fee_total ?? null, signups: m.match_signups, payments: m.payments,
   }))), [list]);
   const debtKey = isAdmin ? debts.map(d => d.profile_id).join() : '';
   useEffect(() => {

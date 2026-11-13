@@ -1,14 +1,18 @@
 import { useMemo, useState } from 'preact/hooks';
 import { formationLabel, formationsFor, lineup, pickFormation, slotsFor, swapSlots, type Placed } from './formation';
 import { Pitch, pitchOvr, type PitchPlayer } from './Pitch';
+import { ShirtPicker } from './Shirt';
 
 /**
  * La cancha de un equipo con todos sus jugadores. Un admin puede tocar "Cambiar formación": elige otra formación
  * y toca dos jugadores para cambiarlos de lugar. Al guardar queda para todos.
  */
-export function TeamLineup({ title, players, saved, formation, captainId, canEdit, busy, onSave }: {
-  /** "Equipo A": va en el encabezado, con el OVR en cancha (el de cada uno en su puesto). */
+export function TeamLineup({ title, players, saved, formation, captainId, canEdit, busy, onSave, shirt, otherShirt, onShirt }: {
+  /** "Equipo A": va en el encabezado, con la camiseta y el OVR en cancha (el de cada uno en su puesto). */
   title: string;
+  /** Color de camiseta de este equipo y del otro (para avisar si chocan). Con `onShirt` (admins) se puede cambiar. */
+  shirt?: string | null; otherShirt?: string | null;
+  onShirt?: (key: string | null) => Promise<boolean>;
   players: PitchPlayer[];
   /** Puesto guardado de cada jugador (id → puesto). */
   saved: ReadonlyMap<string, number | null>;
@@ -29,9 +33,10 @@ export function TeamLineup({ title, players, saved, formation, captainId, canEdi
   const editing = edit && edit.ids === ids ? edit : null;
 
   const head = (o: number | null) => (
-    <div class="row" style="justify-content:space-between">
+    <div class="team-head">
       <h3>{title}</h3>
-      <span class="muted" title="Promedio del OVR de cada uno en el puesto donde juega">OVR en cancha {o ?? '—'}</span>
+      <ShirtPicker team={title} shirt={shirt} other={otherShirt} busy={busy} onSave={onShirt} />
+      <span class="muted team-ovr" title="Promedio del OVR de cada uno en el puesto donde juega">OVR en cancha {o ?? '—'}</span>
     </div>
   );
   if (!n) return head(null);
